@@ -1,0 +1,19 @@
+---
+const now = new Date();
+---
+
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="icon" href="/favicon.ico" />
+		<meta name="viewport" content="width=device-width" />
+		<meta name="generator" content={Astro.generator} />
+		<title>News</title>
+	</head>
+	<body>
+		<h1>Hello, news!</h1>
+		<p>Your personal news aggregator. Nothing aggregated yet.</p>
+		<p>Server-rendered at <time datetime={now.toISOString()}>{now.toISOString()}</time></p>
+	</body>
+</html>

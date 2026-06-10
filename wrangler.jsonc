@@ -1,0 +1,26 @@
+{
+	"name": "news",
+	// Cloudflare account "connor@couetil.com" — not a secret, so it lives here
+	// and no CLOUDFLARE_ACCOUNT_ID env var is needed.
+	"account_id": "dbaa50e60c18b19d483578c42d9bb3ee",
+	"compatibility_date": "2026-06-10",
+	"compatibility_flags": ["global_fetch_strictly_public", "nodejs_compat"],
+	// Resolved and bundled by the Cloudflare Vite plugin during `astro build`;
+	// the deployable config it emits lands in dist/server/wrangler.json.
+	"main": "@astrojs/cloudflare/entrypoints/server",
+	"assets": {
+		"directory": "./dist",
+		"binding": "ASSETS"
+	},
+	"observability": {
+		"enabled": true
+	},
+	"routes": [
+		{
+			// Cloudflare auto-creates the DNS record + certificate for this on deploy.
+			// Zone: cuteteal.com (id 1413a4570fa6e193d5f224ebb5220bb5).
+			"pattern": "news.cuteteal.com",
+			"custom_domain": true
+		}
+	]
+}
