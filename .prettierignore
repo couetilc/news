@@ -1,0 +1,5 @@
+# Generated files
+dist/
+.astro/
+package-lock.json
+worker-configuration.d.ts

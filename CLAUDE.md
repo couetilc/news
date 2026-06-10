@@ -25,6 +25,13 @@ skeleton; every change should move it toward being a useful news aggregator.
   domain route `news.cuteteal.com` (DNS record + certificate are auto-managed by
   Cloudflare), `nodejs_compat`. Declare future D1/R2/KV resources here — and
   update the token-scope comments in `.env.example` in the same commit.
+- **Tailwind CSS v4 via `@tailwindcss/vite`** (CSS-first config in
+  `src/styles/global.css`, no `tailwind.config.js`; mobile-first,
+  utility-first). Conventions and per-environment behavior:
+  `.claude/skills/tailwind-css/SKILL.md`.
+- **prettier** (with `prettier-plugin-astro` + `prettier-plugin-tailwindcss`
+  for class ordering) is the repo formatter — run `npm run format` before
+  committing.
 - **node 24 via mise** (`mise.toml`); mise also injects `.env` into every shell
   run inside the project (`[env] _.file = ".env"`).
 - **npm** for dependencies; `package-lock.json` is committed.
@@ -35,10 +42,11 @@ skeleton; every change should move it toward being a useful news aggregator.
 ## Commands
 
 - `npm run dev` — dev server on workerd at http://localhost:4321
-- `npm test` — vitest; **enforces 100% line and branch coverage over `src/**`**
+- `npm test` — vitest; **enforces 100% line and branch coverage over `src/**`\*\*
   (the suite fails below that — this is the standing test policy)
 - `npm run build` — build worker + assets into `dist/`
 - `npm run preview` — serve the built worker locally in workerd
+- `npm run format` / `npm run format:check` — prettier over the whole repo
 - `npm run deploy` — `astro build && wrangler deploy`
 - `npm run cf-typegen` — regenerate `worker-configuration.d.ts` after any
   `wrangler.jsonc` change (commit the result)
@@ -50,7 +58,7 @@ skeleton; every change should move it toward being a useful news aggregator.
 
 ## Credentials and secrets contract
 
-- **`.env`** (gitignored) holds *tooling* credentials — currently just
+- **`.env`** (gitignored) holds _tooling_ credentials — currently just
   `CLOUDFLARE_API_TOKEN` (wrangler reads `.env` natively; mise injects it for
   everything else). **`.env.example` is the living documentation** for each
   token — purpose, regeneration steps, and exact scopes. Convention: any change

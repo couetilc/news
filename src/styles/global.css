@@ -1,0 +1,15 @@
+/*
+ * Single Tailwind entry point for the whole site. Imported once by
+ * src/layouts/Layout.astro — every page must render inside that layout.
+ * Tailwind v4 is configured here in CSS (no tailwind.config.js):
+ * design tokens go in an @theme block, plugins via @plugin.
+ */
+@import 'tailwindcss';
+
+@plugin '@tailwindcss/typography';
+
+/* Site-specific design tokens go here as they emerge, e.g.:
+@theme {
+	--color-accent: oklch(0.7 0.15 200);
+}
+*/

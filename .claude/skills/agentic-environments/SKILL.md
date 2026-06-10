@@ -13,16 +13,16 @@ differences.
 
 ## Execution contexts
 
-| Surface | Where code runs | Triggered from | Repo access | Can deploy? |
-|---|---|---|---|---|
-| Local CLI / desktop app | Connor's Mac, `~/repos/news` | Terminal / Code tab | Working tree, SSH push | Yes (manual fallback) |
-| **Dispatch** | **Connor's Mac** (desktop app must be running & awake) | Phone / Cowork tab | Same local working tree, SSH push | Yes (same as local) |
-| Cloud sessions (claude.ai/code, `claude --remote`) | Anthropic-managed Ubuntu 24.04 VM (4 vCPU / 16 GB / 30 GB) | Web, mobile, CLI | Fresh clone via GitHub App proxy; **push restricted to the session's own branch**; changes land via PR | **No** (by design) |
-| GitHub Actions | GitHub-hosted runner | Push / PR events | `actions/checkout` | **Yes — the canonical deploy path** |
+| Surface                                            | Where code runs                                            | Triggered from      | Repo access                                                                                            | Can deploy?                         |
+| -------------------------------------------------- | ---------------------------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------- |
+| Local CLI / desktop app                            | Connor's Mac, `~/repos/news`                               | Terminal / Code tab | Working tree, SSH push                                                                                 | Yes (manual fallback)               |
+| **Dispatch**                                       | **Connor's Mac** (desktop app must be running & awake)     | Phone / Cowork tab  | Same local working tree, SSH push                                                                      | Yes (same as local)                 |
+| Cloud sessions (claude.ai/code, `claude --remote`) | Anthropic-managed Ubuntu 24.04 VM (4 vCPU / 16 GB / 30 GB) | Web, mobile, CLI    | Fresh clone via GitHub App proxy; **push restricted to the session's own branch**; changes land via PR | **No** (by design)                  |
+| GitHub Actions                                     | GitHub-hosted runner                                       | Push / PR events    | `actions/checkout`                                                                                     | **Yes — the canonical deploy path** |
 
 Key facts:
 
-- **Dispatch is NOT cloud execution.** It is remote *triggering* of a local
+- **Dispatch is NOT cloud execution.** It is remote _triggering_ of a local
   session. If the Mac is asleep or the desktop app closed, Dispatch tasks
   cannot run. Dispatch sessions inherit everything local: mise (node 24),
   `.env` (auto-injected by mise), wrangler OAuth/token, SSH keys, gh keyring.
@@ -36,11 +36,11 @@ Key facts:
 
 `.env.example` is the living documentation for token scopes. Current state:
 
-| Surface | Cloudflare | GitHub |
-|---|---|---|
-| Local + Dispatch | `CLOUDFLARE_API_TOKEN` in `.env` (or `npx wrangler login` OAuth) | SSH key + gh keyring |
-| Cloud sessions | **None — deliberately credential-free** | Scoped credential via GitHub App proxy (automatic) |
-| GitHub Actions | Repo Actions secret `CLOUDFLARE_API_TOKEN` (same token value as `.env`) | Built-in `GITHUB_TOKEN` |
+| Surface          | Cloudflare                                                              | GitHub                                             |
+| ---------------- | ----------------------------------------------------------------------- | -------------------------------------------------- |
+| Local + Dispatch | `CLOUDFLARE_API_TOKEN` in `.env` (or `npx wrangler login` OAuth)        | SSH key + gh keyring                               |
+| Cloud sessions   | **None — deliberately credential-free**                                 | Scoped credential via GitHub App proxy (automatic) |
+| GitHub Actions   | Repo Actions secret `CLOUDFLARE_API_TOKEN` (same token value as `.env`) | Built-in `GITHUB_TOKEN`                            |
 
 Decisions behind this (June 2026): deploys happen in CI after merge, so cloud
 sessions need no Cloudflare token and no network exception; the claude.ai
@@ -104,8 +104,8 @@ Facts that drove our choices:
   fails from a Trusted cloud session. That's fine: deploys belong to CI.
 - **Testing policy: vitest must never hit the network.** Mock all external
   HTTP. This keeps `npm test` working under Trusted, in CI, and offline.
-- Future: when feature work needs to fetch live feeds/APIs *during cloud
-  development*, switch the environment to **Custom**, list the feed domains
+- Future: when feature work needs to fetch live feeds/APIs _during cloud
+  development_, switch the environment to **Custom**, list the feed domains
   (one per line, `*.` wildcards supported), and check "Also include default
   list of common package managers". Until then, develop live-fetch features
   locally or via Dispatch. Changing network settings invalidates the

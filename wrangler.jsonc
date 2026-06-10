@@ -10,17 +10,17 @@
 	"main": "@astrojs/cloudflare/entrypoints/server",
 	"assets": {
 		"directory": "./dist",
-		"binding": "ASSETS"
+		"binding": "ASSETS",
 	},
 	"observability": {
-		"enabled": true
+		"enabled": true,
 	},
 	"routes": [
 		{
 			// Cloudflare auto-creates the DNS record + certificate for this on deploy.
 			// Zone: cuteteal.com (id 1413a4570fa6e193d5f224ebb5220bb5).
 			"pattern": "news.cuteteal.com",
-			"custom_domain": true
-		}
-	]
+			"custom_domain": true,
+		},
+	],
 }
