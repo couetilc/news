@@ -1,43 +1,31 @@
-# Astro Starter Kit: Minimal
+# news
 
-```sh
-npm create astro@latest -- --template minimal
+Personal news aggregator, served at [news.cuteteal.com](https://news.cuteteal.com)
+on Cloudflare Workers. Built with Astro (SSR) on the `@astrojs/cloudflare`
+adapter; local dev runs inside workerd for production parity.
+
+## Quickstart
+
+```bash
+mise install        # node 24 (also auto-loads .env into project shells)
+npm install
+npm run dev         # http://localhost:4321, running in workerd
 ```
 
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
+## Test
 
-## 🚀 Project Structure
-
-Inside of your Astro project, you'll see the following folders and files:
-
-```text
-/
-├── public/
-├── src/
-│   └── pages/
-│       └── index.astro
-└── package.json
+```bash
+npm test            # vitest; fails below 100% line/branch coverage
 ```
 
-Astro looks for `.astro` or `.md` files in the `src/pages/` directory. Each page is exposed as a route based on its file name.
+## Deploy
 
-There's nothing special about `src/components/`, but that's where we like to put any Astro/React/Vue/Svelte/Preact components.
+```bash
+npm run deploy      # astro build && wrangler deploy
+```
 
-Any static assets, like images, can be placed in the `public/` directory.
+Auth: `npx wrangler login`, or copy `.env.example` to `.env` and fill in
+`CLOUDFLARE_API_TOKEN` (see `.env.example` for exact token scopes — it is the
+living documentation for all credentials).
 
-## 🧞 Commands
-
-All commands are run from the root of the project, from a terminal:
-
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `npm install`             | Installs dependencies                            |
-| `npm run dev`             | Starts local dev server at `localhost:4321`      |
-| `npm run build`           | Build your production site to `./dist/`          |
-| `npm run preview`         | Preview your build locally, before deploying     |
-| `npm run astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `npm run astro -- --help` | Get help using the Astro CLI                     |
-
-## 👀 Want to learn more?
-
-Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+See `CLAUDE.md` for architecture decisions and the full command reference.
