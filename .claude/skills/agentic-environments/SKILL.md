@@ -129,11 +129,29 @@ Two behaviors verified empirically (2026-06-10):
   the PR is then created either from the session UI on claude.ai (Create PR
   button) or by any credentialed session (`gh pr create --head <branch>`).
   This is platform design, not a prompt/config gap.
-- **Local and Dispatch sessions CAN push `main` directly** — they use
-  Connor's SSH key and nothing enforces the PR flow (a Dispatch test pushed
-  main and CI deployed it). The branch → PR flow is convention, enforced only
-  by instruction (CLAUDE.md). Enable GitHub branch protection on `main` if it
-  should be enforced mechanically.
+- **Direct pushes to `main` are mechanically blocked** since 2026-06-10 by
+  the repo ruleset `protect-main` (requires a PR and a green `test` check; no
+  bypass actors; branch deletion blocked). Before that, a Dispatch test
+  demonstrated local sessions could push main directly. All surfaces must use
+  branch → PR.
+
+## Merge automation (phone-friendly loop)
+
+- **Auto-merge** is enabled on the repo (`allow_auto_merge: true`). Because
+  the ruleset makes the `test` check required, a PR can be queued to merge
+  the moment CI goes green:
+  `gh pr merge <num> --auto --squash` (or the Enable auto-merge button).
+  Merging to main then triggers the CI deploy as usual.
+- **Auto-fix** (Claude watches a PR and pushes fixes for CI failures /
+  review comments) needs no repo setup beyond the already-installed Claude
+  GitHub App. It is a **per-PR opt-in**: in a web session's CI status bar
+  select "Auto-fix"; from a terminal run `/autofix-pr` on the PR's branch;
+  from the mobile app tell Claude to watch the PR. Caveats: it can't react
+  to merge conflicts (no webhook — ask the session to rebase), and its review
+  replies post from Connor's account (labeled as Claude Code).
+- Net flow from a phone: cloud session pushes branch → tap "Create PR" →
+  enable auto-merge (and optionally Auto-fix) → CI green → auto-merges →
+  CI deploys → news.cuteteal.com updated.
 
 Caveat: pushes that modify `.github/workflows/*` may be rejected for cloud
 sessions (the GitHub proxy's scoped credential may lack the `workflow`
