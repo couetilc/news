@@ -50,16 +50,21 @@ skeleton; every change should move it toward being a useful news aggregator.
 
 ## Credentials and secrets contract
 
-- **`.env`** (gitignored) holds *tooling* credentials: `CLOUDFLARE_API_TOKEN`
-  (wrangler reads `.env` natively) and `GH_TOKEN` (injected via mise for gh).
-  **`.env.example` is the living documentation** for each token — purpose,
-  regeneration steps, and exact scopes. Convention: any change to a token's
-  required scope updates those comments in the same commit.
+- **`.env`** (gitignored) holds *tooling* credentials — currently just
+  `CLOUDFLARE_API_TOKEN` (wrangler reads `.env` natively; mise injects it for
+  everything else). **`.env.example` is the living documentation** for each
+  token — purpose, regeneration steps, and exact scopes. Convention: any change
+  to a token's required scope updates those comments in the same commit.
 - **Worker runtime secrets** never go in `.env`: use `.dev.vars` locally and
   `npx wrangler secret put` for production.
-- On Connor's machine, `npx wrangler login` (OAuth) and gh keyring auth also
-  work. Cloud-agent sessions (Claude Code web / Dispatch) must have
-  `CLOUDFLARE_API_TOKEN` and `GH_TOKEN` set as session environment secrets.
+- **GitHub auth needs no token**: local sessions push over SSH / gh keyring;
+  Claude Code web/Dispatch sessions get repo-scoped credentials from the
+  Claude GitHub App; CI would use the built-in `GITHUB_TOKEN`. (See
+  `.env.example` for the fallback if a constrained local-agent flow is ever
+  needed.)
+- On Connor's machine, `npx wrangler login` (OAuth) also works instead of the
+  API token. Cloud-agent sessions (Claude Code web / Dispatch) must have
+  `CLOUDFLARE_API_TOKEN` set as a session environment secret.
 
 ## Testing policy
 
