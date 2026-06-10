@@ -94,6 +94,12 @@ using the `CLOUDFLARE_API_TOKEN` repo secret). This works identically for
 changes authored locally, via Dispatch, or in cloud sessions. Verify with
 `gh run watch` and `curl -s https://news.cuteteal.com`.
 
+**Never commit or push directly to `main`** — always work on a branch and open
+a PR, even though nothing technically prevents a direct push. Cloud sessions
+cannot open PRs themselves (no gh, no API credential): end those by pushing
+the branch and stating that the PR should be created from the session UI or by
+a credentialed session.
+
 Manual fallback: `npm run deploy` from a machine with `.env` or wrangler OAuth
 (never from cloud sessions — `api.cloudflare.com` isn't reachable there under
 Trusted network mode). Workflow-file edits should be made locally/Dispatch:

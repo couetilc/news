@@ -121,6 +121,20 @@ Facts that drove our choices:
    wrangler OAuth (local/Dispatch only).
 3. Cloud sessions never deploy directly.
 
+Two behaviors verified empirically (2026-06-10):
+
+- **Cloud sessions cannot open PRs.** The sandbox has no `gh` CLI and no
+  GitHub API credential — its scoped git credential only clones, fetches, and
+  pushes the session branch. A cloud session's job ends at "branch pushed";
+  the PR is then created either from the session UI on claude.ai (Create PR
+  button) or by any credentialed session (`gh pr create --head <branch>`).
+  This is platform design, not a prompt/config gap.
+- **Local and Dispatch sessions CAN push `main` directly** — they use
+  Connor's SSH key and nothing enforces the PR flow (a Dispatch test pushed
+  main and CI deployed it). The branch → PR flow is convention, enforced only
+  by instruction (CLAUDE.md). Enable GitHub branch protection on `main` if it
+  should be enforced mechanically.
+
 Caveat: pushes that modify `.github/workflows/*` may be rejected for cloud
 sessions (the GitHub proxy's scoped credential may lack the `workflow`
 permission). Make workflow edits locally/Dispatch.
@@ -144,12 +158,13 @@ exercise SSH + CI deploy.
 
 ## One-time setup status
 
-- [ ] Claude GitHub App installed with access to `couetilc/news` (claude.ai/code onboarding)
-- [ ] claude.ai environment created: Trusted network, no env vars, no setup script
+- [x] Claude GitHub App installed with access to `couetilc/news` (claude.ai/code onboarding)
+- [x] claude.ai environment created: Trusted network, no env vars, no setup script
 - [x] GitHub Actions secret `CLOUDFLARE_API_TOKEN` set on the repo
 - [x] Local `.env` populated (see `.env.example`)
-
-Update the checkboxes as setup completes.
+- [x] Verified 2026-06-10: CI deploy (PRs #1–#3), Dispatch (`npm test` + edit
+      pushed to main from Connor's Mac), cloud session (`npm test` + branch
+      `claude/keen-pascal-wo54he` pushed via GitHub proxy, landed as PR #3)
 
 ## Official documentation
 
