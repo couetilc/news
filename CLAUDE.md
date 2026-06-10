@@ -57,14 +57,21 @@ skeleton; every change should move it toward being a useful news aggregator.
   to a token's required scope updates those comments in the same commit.
 - **Worker runtime secrets** never go in `.env`: use `.dev.vars` locally and
   `npx wrangler secret put` for production.
-- **GitHub auth needs no token**: local sessions push over SSH / gh keyring;
-  Claude Code web/Dispatch sessions get repo-scoped credentials from the
-  Claude GitHub App; CI would use the built-in `GITHUB_TOKEN`. (See
+- **GitHub auth needs no token**: local and Dispatch sessions push over SSH /
+  gh keyring; claude.ai cloud sessions get a scoped credential through the
+  Claude GitHub App proxy; CI uses the built-in `GITHUB_TOKEN`. (See
   `.env.example` for the fallback if a constrained local-agent flow is ever
   needed.)
-- On Connor's machine, `npx wrangler login` (OAuth) also works instead of the
-  API token. Cloud-agent sessions (Claude Code web / Dispatch) must have
-  `CLOUDFLARE_API_TOKEN` set as a session environment secret.
+- The Cloudflare token lives in exactly two places: local `.env` and the
+  GitHub Actions repo secret `CLOUDFLARE_API_TOKEN`. The claude.ai cloud
+  environment is **deliberately credential-free** — cloud sessions test and
+  push branches; CI deploys. On Connor's machine, `npx wrangler login`
+  (OAuth) also works instead of the token.
+- Execution surfaces differ in important ways (Dispatch runs locally on
+  Connor's Mac; cloud sessions run in a sandboxed VM and can only push their
+  own branch): see the skill at
+  `.claude/skills/agentic-environments/SKILL.md` before configuring or
+  debugging any of them.
 
 ## Testing policy
 
@@ -75,13 +82,27 @@ in tests via the Container API (`astro/container`). If worker-runtime-specific
 logic appears (bindings, Durable Objects), adopt `@cloudflare/vitest-pool-workers`
 for those tests.
 
+**Tests must never hit the network** — mock all external HTTP. This keeps
+`npm test` hermetic so it passes in CI, in claude.ai cloud sessions under the
+default Trusted network mode, and offline.
+
 ## Deploy flow
 
-`npm run deploy`. The first deploy attaches the custom domain
-`news.cuteteal.com` automatically (DNS + cert created by Cloudflare; cert
-issuance can take a minute or two) and auto-provisions the `SESSION` KV
-namespace. The worker is also reachable at its `*.workers.dev` URL (left
-enabled). Verify with `curl -s https://news.cuteteal.com`.
+**Canonical: merge to main deploys.** Branch → PR → CI `test` job → merge →
+CI `deploy` job (`.github/workflows/ci.yml`: build + `cloudflare/wrangler-action`
+using the `CLOUDFLARE_API_TOKEN` repo secret). This works identically for
+changes authored locally, via Dispatch, or in cloud sessions. Verify with
+`gh run watch` and `curl -s https://news.cuteteal.com`.
+
+Manual fallback: `npm run deploy` from a machine with `.env` or wrangler OAuth
+(never from cloud sessions — `api.cloudflare.com` isn't reachable there under
+Trusted network mode). Workflow-file edits should be made locally/Dispatch:
+cloud sessions' scoped git credential may not be allowed to push
+`.github/workflows/*` changes.
+
+The custom domain `news.cuteteal.com` and the auto-provisioned `SESSION` KV
+namespace are managed declaratively by `wrangler.jsonc` on each deploy; the
+worker is also reachable at its `*.workers.dev` URL (left enabled).
 
 ## Account facts
 
