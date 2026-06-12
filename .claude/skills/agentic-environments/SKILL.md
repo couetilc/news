@@ -18,7 +18,7 @@ differences.
 | Local CLI / desktop app | Connor's Mac, `~/repos/news` | Terminal / Code tab | Working tree, SSH push | Yes (manual fallback) |
 | **Dispatch** | **Connor's Mac** (desktop app must be running & awake) | Phone / Cowork tab | Same local working tree, SSH push | Yes (same as local) |
 | Cloud sessions (claude.ai/code, `claude --remote`) | Anthropic-managed Ubuntu 24.04 VM (4 vCPU / 16 GB / 30 GB) | Web, mobile, CLI | Fresh clone via GitHub App proxy; **push restricted to the session's own branch**; changes land via PR | **No** (by design) |
-| Agent container (`./bin/claude`) | Docker on Connor's Mac, full-auto (`--dangerously-skip-permissions`) | Terminal | This repo bind-mounted read-write at `/workspace`; HTTPS push via `GH_TOKEN` | Possible but discouraged — use PRs |
+| Agent container (`./bin/claude`) | Docker on Connor's Mac, full-auto (`--dangerously-skip-permissions`) | Terminal | Fresh clone from GitHub into container-private `/workspace`; HTTPS push via `GH_TOKEN` | Possible but discouraged — use PRs |
 | GitHub Actions | GitHub-hosted runner | Push / PR events | `actions/checkout` | **Yes — the canonical deploy path** |
 
 Key facts:
@@ -122,7 +122,7 @@ refuses to run as root).
   accepted) so sessions drop straight in authenticated by
   `CLAUDE_CODE_OAUTH_TOKEN`, and writes a container-scoped
   `~/.claude/CLAUDE.md` telling each session it's in this container (no
-  mise, auto-push, PR-only path to prod, backlog = gh issues).
+  mise, PR-only path to prod, backlog = gh issues).
 - **Model quirk under setup-token auth**: the session bills the Max
   subscription ("inference-only" limits capability scope, not billing), but
   entitlement metadata under-reports — the /model picker omits Fable and
