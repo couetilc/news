@@ -1,0 +1,39 @@
+#!/bin/bash
+# Run Claude Code in the isolated agent container, full-auto.
+#
+#   ./bin/claude                  interactive session, permissions skipped
+#   ./bin/claude -p "fix tests"   headless one-shot, permissions skipped
+#   ./bin/claude --shell          bash inside the container instead of claude
+#
+# Isolation contract: the container sees this repo (read-write bind mount),
+# the tokens in .env, and nothing else from the host — no Keychain, no SSH
+# keys, no other repos. Auth comes from .env (auto-injected here):
+#   CLAUDE_CODE_OAUTH_TOKEN  from `claude setup-token`  (claude auth)
+#   GH_TOKEN                 fine-grained PAT            (git push / gh)
+#   CLOUDFLARE_API_TOKEN     wrangler, if a deploy is ever run manually
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+if [ ! -f .env ]; then
+	echo "error: .env not found — copy .env.example and fill in tokens" >&2
+	exit 1
+fi
+
+IMAGE=news-agent
+docker build -q -t "$IMAGE" docker/ >/dev/null
+
+CMD=(claude --dangerously-skip-permissions)
+if [ "${1:-}" = "--shell" ]; then
+	shift
+	CMD=(bash)
+fi
+
+exec docker run --rm -it \
+	-v "$PWD":/workspace \
+	-v news-agent-node-modules:/workspace/node_modules \
+	-v news-agent-claude-home:/home/node/.claude \
+	--env-file .env \
+	-e GIT_USER_NAME="$(git config user.name 2>/dev/null || true)" \
+	-e GIT_USER_EMAIL="$(git config user.email 2>/dev/null || true)" \
+	-p 4321:4321 -p 8787:8787 \
+	"$IMAGE" "${CMD[@]}" "$@"

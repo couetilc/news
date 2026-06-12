@@ -47,6 +47,9 @@ skeleton; every change should move it toward being a useful news aggregator.
 - `npx cf` — Cloudflare's unified CLI (technical preview) for inspecting
   production resources; inside `npx wrangler dev`, press `e` for the Local
   Explorer to browse local KV/D1/R2 state
+- `./bin/claude` — run Claude Code full-auto inside the isolated agent
+  container (Docker, repo bind-mounted, tokens injected from `.env`); see
+  `.claude/skills/agentic-environments/SKILL.md`
 
 ## Credentials and secrets contract
 

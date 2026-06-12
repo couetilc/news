@@ -18,6 +18,7 @@ differences.
 | Local CLI / desktop app | Connor's Mac, `~/repos/news` | Terminal / Code tab | Working tree, SSH push | Yes (manual fallback) |
 | **Dispatch** | **Connor's Mac** (desktop app must be running & awake) | Phone / Cowork tab | Same local working tree, SSH push | Yes (same as local) |
 | Cloud sessions (claude.ai/code, `claude --remote`) | Anthropic-managed Ubuntu 24.04 VM (4 vCPU / 16 GB / 30 GB) | Web, mobile, CLI | Fresh clone via GitHub App proxy; **push restricted to the session's own branch**; changes land via PR | **No** (by design) |
+| Agent container (`./bin/claude`) | Docker on Connor's Mac, full-auto (`--dangerously-skip-permissions`) | Terminal | This repo bind-mounted read-write at `/workspace`; HTTPS push via `GH_TOKEN` | Possible but discouraged — use PRs |
 | GitHub Actions | GitHub-hosted runner | Push / PR events | `actions/checkout` | **Yes — the canonical deploy path** |
 
 Key facts:
@@ -90,6 +91,37 @@ cloud sessions), where it runs `npm ci` so the fresh clone has dependencies.
 Division of labor per official docs: tools/runtimes the VM lacks → setup
 script (cached snapshot); project dependency install → SessionStart hook
 (runs every session, repo-versioned).
+
+## Agent container (`./bin/claude`)
+
+Local full-auto surface: runs `claude --dangerously-skip-permissions` inside
+Docker so a misbehaving session can touch only the bind-mounted repo, never
+the host. `docker/Dockerfile` codifies the toolchain (node:24-slim matching
+mise.toml's pin, git, gh, claude CLI, non-root `node` user — required because
+`--dangerously-skip-permissions` refuses to run as root).
+
+- `./bin/claude [args]` → builds the image if needed and execs claude
+  full-auto; `./bin/claude --shell` drops into bash for debugging.
+- **Env injection**: the wrapper passes `--env-file .env` — the container
+  authenticates with `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`;
+  Keychain isn't mountable), pushes with `GH_TOKEN` (SSH remote is rewritten
+  to HTTPS in the container; no SSH keys inside), and holds
+  `CLOUDFLARE_API_TOKEN` for ad-hoc wrangler use. See `.env.example`.
+- **`node_modules` is a container-private named volume**
+  (`news-agent-node-modules`): the host's darwin-arm64 binaries (workerd)
+  can't run on Linux. The entrypoint runs `npm ci` when the lockfile is newer.
+  `~/.claude` state persists in the `news-agent-claude-home` volume.
+- Ports 4321 (astro dev) and 8787 (wrangler dev) are published to the host.
+- **Isolation contract, honestly stated**: protects the host filesystem,
+  Keychain, SSH keys, and other repos. It does NOT protect the tokens in
+  `.env` (mounted with the repo) and has unrestricted network egress. For
+  egress restriction, adapt Anthropic's reference firewall:
+  https://github.com/anthropics/claude-code/tree/main/.devcontainer
+  (init-firewall.sh; needs NET_ADMIN/NET_RAW). Only use with trusted repo
+  content. A lighter alternative for fewer prompts without skipping checks is
+  permission "auto mode" (classifier-reviewed).
+- Host gitleaks hooks (`core.hooksPath=~/.git-hooks`, host-global) do NOT run
+  on container pushes; the `protect-main` ruleset and CI still gate main.
 
 ## Network access (cloud sessions)
 
