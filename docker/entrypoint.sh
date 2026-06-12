@@ -7,19 +7,31 @@ set -e
 git config --global user.name "${GIT_USER_NAME:-Connor Couetil}"
 git config --global user.email "${GIT_USER_EMAIL:-connor@couetil.com}"
 
-# The mounted repo's origin uses SSH, but no SSH keys exist in here (that's
-# the point). Rewrite to HTTPS and let gh supply GH_TOKEN as the credential.
+# The repo's origin uses SSH, but no SSH keys exist in here (that's the
+# point). Rewrite to HTTPS and let gh supply GH_TOKEN as the credential.
 git config --global url."https://github.com/".insteadOf "git@github.com:"
-# Bind-mounted /workspace may be owned by a different uid than `node`.
 git config --global --add safe.directory /workspace
-# Repo-versioned git lifecycle hooks (auto-push on commit; see .git-hooks/).
+# Repo-versioned git lifecycle hooks (gitleaks pre-commit, auto-push on
+# commit; see .git-hooks/).
 git config --global core.hooksPath /workspace/.git-hooks
 if [ -n "${GH_TOKEN:-}" ]; then
 	gh auth setup-git 2>/dev/null || true
 fi
 
-# node_modules is a container-private named volume (host node_modules holds
-# darwin-arm64 binaries like workerd that can't run here). Install when stale.
+# Each container gets its own copy of the host working tree (snapshot of
+# /src, mounted read-only by bin/claude) so parallel containers don't share
+# files. Skipped on resumed containers, which already have their copy.
+if [ -d /src ] && [ ! -e /workspace/.git ]; then
+	echo "Copying working tree from host snapshot..."
+	tar -C /src \
+		--exclude=./node_modules --exclude=./dist \
+		--exclude=./.wrangler --exclude=./.astro \
+		-cf - . | tar -C /workspace -xf -
+fi
+
+# node_modules lives in this container's own filesystem (the host's
+# darwin-arm64 binaries like workerd can't run here); the shared npm cache
+# volume keeps installs fast. Install when missing or stale.
 if [ -f /workspace/package-lock.json ]; then
 	if [ ! -f /workspace/node_modules/.package-lock.json ] \
 		|| [ /workspace/package-lock.json -nt /workspace/node_modules/.package-lock.json ]; then

@@ -1,5 +1,22 @@
 #!/bin/sh
-# Pure delegator: run the global hook of the same name when present.
+# Delegate to the global hook when present (Connor's machine runs gitleaks
+# there); otherwise run the scan ourselves so the agent container and cloud
+# sessions get the same secret gate.
 g="$HOME/.git-hooks/$(basename "$0")"
 [ -x "$g" ] && exec "$g" "$@"
+
+if command -v gitleaks >/dev/null 2>&1; then
+	echo "Running gitleaks on staged changes..."
+	if gitleaks git --pre-commit --staged --redact --verbose; then
+		echo "gitleaks: no secrets detected."
+	else
+		cat >&2 <<'EOF'
+gitleaks found potential secrets in staged files; commit blocked.
+Resolve the findings and restage. Bypass (NOT recommended): git commit --no-verify
+EOF
+		exit 1
+	fi
+else
+	echo "warning: gitleaks not installed; skipping secret scan for this commit" >&2
+fi
 exit 0

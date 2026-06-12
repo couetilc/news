@@ -22,6 +22,12 @@ that file exists and is executable:
 - `post-commit` delegates *instead of* pushing itself (the global hook
   already pushes); without a global hook it pushes the current branch to
   origin (`-u`), skipping `main` (blocked by ruleset) and detached HEAD.
+- `pre-commit` delegates when a global hook exists; otherwise it runs
+  gitleaks itself (`gitleaks git --pre-commit --staged`), blocking the commit
+  on findings. The agent container bakes in gitleaks (version pinned in
+  `docker/Dockerfile` to match the host); environments without the binary
+  (cloud VM) warn and continue — the protect-main ruleset and CI still gate
+  what reaches main.
 - All other hooks here are pure delegators (exit 0 when no global hook).
 
 When adding a new hook to this folder, keep that pattern: delegate first,

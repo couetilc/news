@@ -95,38 +95,45 @@ script (cached snapshot); project dependency install → SessionStart hook
 ## Agent container (`./bin/claude`)
 
 Local full-auto surface: runs `claude --dangerously-skip-permissions` inside
-Docker so a misbehaving session can touch only the bind-mounted repo, never
-the host. `docker/Dockerfile` codifies the toolchain (node:24-slim matching
-mise.toml's pin, git, gh, claude CLI, non-root `node` user — required because
-`--dangerously-skip-permissions` refuses to run as root).
+Docker. `docker/Dockerfile` codifies the toolchain (node:24-slim matching
+mise.toml's pin, git, gh, gitleaks version-matched to the host, claude CLI,
+non-root `node` user — required because `--dangerously-skip-permissions`
+refuses to run as root).
 
-- `./bin/claude [args]` → builds the image if needed and execs claude
-  full-auto; `./bin/claude --shell` drops into bash for debugging.
+- **Own copy per container**: the host repo mounts READ-ONLY at `/src`; the
+  entrypoint snapshots it (minus node_modules/dist/.wrangler/.astro) into the
+  container-private `/workspace`. Parallel containers never share files and
+  nothing ever writes back to the host filesystem — **work leaves only via
+  git**: each commit is gitleaks-gated (`.git-hooks/pre-commit`) then
+  auto-pushed (`.git-hooks/post-commit`) over HTTPS, landing as a branch for
+  the normal PR → CI → merge flow.
+- `./bin/claude [args]` → builds the image if needed and runs claude
+  full-auto; `--shell` drops into bash; `--clean` removes exited agent
+  containers. Containers are **kept after exit** so unpushed work is
+  recoverable (`docker start -ai <name>` to resume, `docker cp` to salvage).
 - **Env injection**: the wrapper passes `--env-file .env` — the container
   authenticates with `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`;
   Keychain isn't mountable), pushes with `GH_TOKEN` (SSH remote is rewritten
   to HTTPS in the container; no SSH keys inside), and holds
   `CLOUDFLARE_API_TOKEN` for ad-hoc wrangler use. See `.env.example`.
-- **`node_modules` is a container-private named volume**
-  (`news-agent-node-modules`): the host's darwin-arm64 binaries (workerd)
-  can't run on Linux. The entrypoint runs `npm ci` when the lockfile is newer.
-  `~/.claude` state persists in the `news-agent-claude-home` volume.
-- Ports 4321 (astro dev) and 8787 (wrangler dev) are published to the host.
+- `npm ci` runs into the container's own filesystem (host darwin-arm64
+  binaries like workerd can't run on Linux); the shared `news-agent-npm-cache`
+  volume keeps repeat installs fast. Dev ports (4321, 8787) are published to
+  random localhost ports — find them with `docker port <name>`.
 - **Isolation contract, honestly stated**: protects the host filesystem,
   Keychain, SSH keys, and other repos. It does NOT protect the tokens in
-  `.env` (mounted with the repo) and has unrestricted network egress. For
+  `.env` (copied with the repo) and has unrestricted network egress. For
   egress restriction, adapt Anthropic's reference firewall:
   https://github.com/anthropics/claude-code/tree/main/.devcontainer
   (init-firewall.sh; needs NET_ADMIN/NET_RAW). Only use with trusted repo
   content. A lighter alternative for fewer prompts without skipping checks is
   permission "auto mode" (classifier-reviewed).
-- Host gitleaks hooks (`core.hooksPath=~/.git-hooks`, host-global) do NOT run
-  on container pushes; the `protect-main` ruleset and CI still gate main.
 - **Auto-push on commit** works on every surface: the repo-versioned hooks in
   `.git-hooks/` (see its README) are wired automatically by the container
   entrypoint and the cloud SessionStart hook; on Connor's machine the global
   `~/.git-hooks/post-commit` already does it. Branch commits push themselves —
-  `main` is skipped (ruleset blocks it).
+  `main` is skipped (ruleset blocks it). In the copy-per-container model this
+  is the data path: an unpushed commit exists only inside that container.
 
 ## Network access (cloud sessions)
 
