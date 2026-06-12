@@ -34,23 +34,35 @@ if [ ! -e /workspace/.git ]; then
 	git clone "https://github.com/${NEWS_REPO}.git" /workspace
 fi
 
-# First-run state for claude: mark onboarding and the bypass-permissions
-# warning as completed so a fresh container drops straight into the session
-# (auth comes from CLAUDE_CODE_OAUTH_TOKEN; without this, the interactive
-# onboarding wizard shows theme/login screens first). Never overwrite —
-# resumed containers own their state.
-if [ ! -f "$HOME/.claude.json" ]; then
-	printf '{"hasCompletedOnboarding": true, "bypassPermissionsModeAccepted": true, "theme": "dark", "projects": {"/workspace": {"hasTrustDialogAccepted": true}}}\n' \
-		> "$HOME/.claude.json"
+# First-run state for claude: mark onboarding, the bypass-permissions
+# warning, and /workspace trust as completed so a fresh container drops
+# straight into an authenticated session (CLAUDE_CODE_OAUTH_TOKEN). The
+# native installer and `claude update` create ~/.claude.json themselves, so
+# MERGE the flags — a write-if-absent guard never fires. The merge is
+# idempotent on resumed containers; theme is defaulted only when unset.
+flags='{"hasCompletedOnboarding": true, "bypassPermissionsModeAccepted": true, "projects": {"/workspace": {"hasTrustDialogAccepted": true}}}'
+if [ -f "$HOME/.claude.json" ]; then
+	jq --argjson flags "$flags" '. * $flags | .theme //= "dark"' "$HOME/.claude.json" \
+		> "$HOME/.claude.json.tmp" && mv "$HOME/.claude.json.tmp" "$HOME/.claude.json"
+else
+	printf '%s\n' "$flags" | jq '.theme = "dark"' > "$HOME/.claude.json"
 fi
 
 # Default model: under setup-token auth the entitlement metadata
 # under-reports, so the /model picker omits Fable and the `best` alias falls
 # back to Opus — but explicit ids work and bill the Max subscription.
 # Update the id here when a newer top model ships.
+# skipDangerousModePermissionPrompt is the current key gating the
+# --dangerously-skip-permissions acceptance dialog (claude migrated it here
+# from ~/.claude.json's bypassPermissionsModeAccepted).
 mkdir -p "$HOME/.claude"
-if [ ! -f "$HOME/.claude/settings.json" ]; then
-	printf '{"model": "claude-fable-5", "effort": "xhigh"}\n' > "$HOME/.claude/settings.json"
+if [ -f "$HOME/.claude/settings.json" ]; then
+	jq '.model //= "claude-fable-5" | .effort //= "xhigh" | .skipDangerousModePermissionPrompt //= true' \
+		"$HOME/.claude/settings.json" \
+		> "$HOME/.claude/settings.json.tmp" && mv "$HOME/.claude/settings.json.tmp" "$HOME/.claude/settings.json"
+else
+	printf '{"model": "claude-fable-5", "effort": "xhigh", "skipDangerousModePermissionPrompt": true}\n' \
+		> "$HOME/.claude/settings.json"
 fi
 
 # Surface identity: container-scoped user memory, auto-loaded into context by
