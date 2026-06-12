@@ -66,5 +66,7 @@ docker run -it \
 	--env-file .env \
 	-e GIT_USER_NAME="$(git config user.name 2>/dev/null || true)" \
 	-e GIT_USER_EMAIL="$(git config user.email 2>/dev/null || true)" \
+	-e TERM=xterm-256color \
+	-e COLORTERM="${COLORTERM:-}" \
 	-p 127.0.0.1::4321 -p 127.0.0.1::8787 \
 	"$IMAGE" "${CMD[@]}" "$@"
