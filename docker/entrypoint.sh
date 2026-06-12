@@ -40,9 +40,17 @@ if [ ! -f "$HOME/.claude.json" ]; then
 		> "$HOME/.claude.json"
 fi
 
+# Default model: under setup-token auth the entitlement metadata
+# under-reports, so the /model picker omits Fable and the `best` alias falls
+# back to Opus — but explicit ids work and bill the Max subscription.
+# Update the id here when a newer top model ships.
+mkdir -p "$HOME/.claude"
+if [ ! -f "$HOME/.claude/settings.json" ]; then
+	printf '{"model": "claude-fable-5"}\n' > "$HOME/.claude/settings.json"
+fi
+
 # Surface identity: container-scoped user memory, auto-loaded into context by
 # every claude session in here. Overwritten each start so updates propagate.
-mkdir -p "$HOME/.claude"
 cat > "$HOME/.claude/CLAUDE.md" <<'EOF'
 # Surface: news agent container
 

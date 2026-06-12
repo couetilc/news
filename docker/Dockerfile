@@ -37,5 +37,9 @@ RUN mkdir -p /workspace /home/node/.claude /home/node/.npm \
 USER node
 WORKDIR /workspace
 
+# Auto-update can't write the root-owned npm global dir (and shouldn't):
+# image refresh happens via `./bin/claude --clean` rebuilds.
+ENV DISABLE_AUTOUPDATER=1
+
 ENTRYPOINT ["agent-entrypoint"]
 CMD ["claude", "--dangerously-skip-permissions"]
