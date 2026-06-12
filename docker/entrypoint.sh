@@ -77,8 +77,7 @@ You are running inside the isolated agent container for the news repo
   `main`; create a branch before committing.
 - Pre-installed: node (already matches the repo's pin), npm, git, gh,
   gitleaks. mise is NOT available here — skip any mise commands.
-- Every commit is gitleaks-scanned and then auto-pushes its branch. Never
-  commit on main. Changes reach production only via PR → CI → merge.
+- Never commit on main. Changes reach production only via PR → CI → merge.
 - The host machine is unreachable. Nothing outlives this container except
   what you push — commit and push early and often.
 - The backlog lives in GitHub issues: `gh issue list`.

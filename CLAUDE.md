@@ -53,8 +53,7 @@ skeleton; every change should move it toward being a useful news aggregator.
 - `./bin/claude` — run Claude Code full-auto inside an isolated agent
   container (Docker; clones the repo fresh from GitHub, so nothing from the
   host is mounted and parallel containers don't conflict; tokens injected
-  from `.env`; commits gitleaks-scanned and auto-pushed); see
-  `.claude/skills/agentic-environments/SKILL.md`
+  from `.env`); see `.claude/skills/agentic-environments/SKILL.md`
 
 ## Credentials and secrets contract
 
@@ -101,16 +100,23 @@ not in README TODOs or this file. When work is requested or discovered but
 not done now, file an issue (`gh issue create`); close issues from PRs with
 "Fixes #N" in the PR body.
 
+## Memory policy
+
+Don't use the harness's file-based memory feature (`~/.claude/projects/.../memory/`)
+— it doesn't survive the agent container and is invisible to other surfaces.
+Roll durable learnings into this CLAUDE.md or the appropriate skill under
+`.claude/skills/`, shipped in your PR like any other change.
+
 ## Standard dev loop
 
 The convention on every surface (local, Dispatch, agent container, cloud):
 
 1. `git checkout -b <topic>` — never work on `main`.
 2. Implement; keep `npm test` green (100% line/branch coverage gate).
-3. Commit — pre-commit runs gitleaks; post-commit auto-pushes the branch
-   (committing IS publishing).
-4. `gh pr create --fill` (cloud sessions can't do this step — push the branch
-   and say so; the PR is created from the session UI or another surface).
+3. Commit and push frequently, on your own initiative — small commits, never
+   wait to be asked (this overrides the harness default of committing only on
+   request).
+4. `gh pr create --fill`
 5. `gh pr merge --auto --squash <num>` — merges itself once the required
    `test` check passes.
 6. Watch CI: `gh run list --branch <topic>` then `gh run watch <run-id>`
@@ -127,17 +133,10 @@ using the `CLOUDFLARE_API_TOKEN` repo secret). This works identically for
 changes authored locally, via Dispatch, or in cloud sessions. Verify with
 `gh run watch` and `curl -s https://news.cuteteal.com`.
 
-**Commits auto-push**: repo hooks in `.git-hooks/` (wired automatically in the
-agent container and cloud sessions; Connor's global hooks cover his machine)
-push the current branch to origin after every commit, so committing IS
-publishing the branch.
-
 **Direct pushes to `main` are blocked** by the `protect-main` repo ruleset —
 always work on a branch and open a PR; the `test` check must be green to
 merge. Queue merges with `gh pr merge --auto --squash` (auto-merge is enabled
-repo-wide). Cloud sessions cannot open PRs themselves (no gh, no API
-credential): end those by pushing the branch and stating that the PR should be
-created from the session UI or by a credentialed session.
+repo-wide).
 
 Manual fallback: `npm run deploy` from a machine with `.env` or wrangler OAuth
 (never from cloud sessions — `api.cloudflare.com` isn't reachable there under
