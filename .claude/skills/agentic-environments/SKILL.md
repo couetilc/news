@@ -100,13 +100,16 @@ mise.toml's pin, git, gh, gitleaks version-matched to the host, claude CLI,
 non-root `node` user — required because `--dangerously-skip-permissions`
 refuses to run as root).
 
-- **Own copy per container**: the host repo mounts READ-ONLY at `/src`; the
-  entrypoint snapshots it (minus node_modules/dist/.wrangler/.astro) into the
-  container-private `/workspace`. Parallel containers never share files and
-  nothing ever writes back to the host filesystem — **work leaves only via
-  git**: each commit is gitleaks-gated (`.git-hooks/pre-commit`) then
-  auto-pushed (`.git-hooks/post-commit`) over HTTPS, landing as a branch for
-  the normal PR → CI → merge flow.
+- **Nothing from the host is mounted**: the entrypoint clones the repo fresh
+  from GitHub at launch (`GH_TOKEN`, HTTPS) into the container-private
+  `/workspace`. Parallel containers share nothing (but an npm cache volume),
+  and the host filesystem is unreachable — **work enters via the remote and
+  leaves only via git**: each commit is gitleaks-gated
+  (`.git-hooks/pre-commit`) then auto-pushed (`.git-hooks/post-commit`),
+  landing as a branch for the normal PR → CI → merge flow. Consequence: a
+  container starts from origin's state, so hand it in-progress work by
+  committing first (auto-push publishes the branch), then have the session
+  check out that branch.
 - `./bin/claude [args]` → builds the image if needed and runs claude
   full-auto; `--shell` drops into bash; `--clean` removes exited agent
   containers. Containers are **kept after exit** so unpushed work is
@@ -121,18 +124,19 @@ refuses to run as root).
   volume keeps repeat installs fast. Dev ports (4321, 8787) are published to
   random localhost ports — find them with `docker port <name>`.
 - **Isolation contract, honestly stated**: protects the host filesystem,
-  Keychain, SSH keys, and other repos. It does NOT protect the tokens in
-  `.env` (copied with the repo) and has unrestricted network egress. For
+  Keychain, SSH keys, and other repos. It does NOT protect the tokens
+  injected from `.env` (readable as env vars by anything in the container)
+  and has unrestricted network egress. For
   egress restriction, adapt Anthropic's reference firewall:
   https://github.com/anthropics/claude-code/tree/main/.devcontainer
   (init-firewall.sh; needs NET_ADMIN/NET_RAW). Only use with trusted repo
   content. A lighter alternative for fewer prompts without skipping checks is
   permission "auto mode" (classifier-reviewed).
-- **Auto-push on commit** works on every surface: the repo-versioned hooks in
+- **Auto-push on commit**: the repo-versioned, self-contained hooks in
   `.git-hooks/` (see its README) are wired automatically by the container
-  entrypoint and the cloud SessionStart hook; on Connor's machine the global
-  `~/.git-hooks/post-commit` already does it. Branch commits push themselves —
-  `main` is skipped (ruleset blocks it). In the copy-per-container model this
+  entrypoint and the cloud SessionStart hook; Connor's machine has equivalent
+  global hooks (repo hooks are opt-in there). Branch commits push themselves —
+  `main` is skipped (ruleset blocks it). In the clone-per-container model this
   is the data path: an unpushed commit exists only inside that container.
 
 ## Network access (cloud sessions)

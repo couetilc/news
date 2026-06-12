@@ -1,10 +1,8 @@
 #!/bin/sh
-# Delegate to the global hook when present (Connor's machine runs gitleaks
-# there); otherwise run the scan ourselves so the agent container and cloud
-# sessions get the same secret gate.
-g="$HOME/.git-hooks/$(basename "$0")"
-[ -x "$g" ] && exec "$g" "$@"
-
+# Secret gate: scan staged changes with gitleaks before every commit.
+# Self-contained — the agent container bakes the binary in (version pinned in
+# docker/Dockerfile); environments without it warn and continue, with the
+# protect-main ruleset and CI as the backstop.
 if command -v gitleaks >/dev/null 2>&1; then
 	echo "Running gitleaks on staged changes..."
 	if gitleaks git --pre-commit --staged --redact --verbose; then
