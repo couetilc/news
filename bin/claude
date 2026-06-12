@@ -50,7 +50,7 @@ fi
 IMAGE=news-agent
 docker build -q -t "$IMAGE" docker/ >/dev/null
 
-CMD=(claude --dangerously-skip-permissions)
+CMD=(claude --dangerously-skip-permissions --effort xhigh)
 if [ "${1:-}" = "--shell" ]; then
 	shift
 	CMD=(bash)
