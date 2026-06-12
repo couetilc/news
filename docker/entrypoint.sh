@@ -82,6 +82,22 @@ You are running inside the isolated agent container for the news repo
 - The host machine is unreachable. Nothing outlives this container except
   what you push — commit and push early and often.
 - The backlog lives in GitHub issues: `gh issue list`.
+
+## Missing a tool?
+
+You run as non-root: `apt install` is impossible mid-session. The policy:
+
+1. **Ephemeral first**: for a one-off need, use user-space installs — `npx`,
+   an npm devDependency, or a binary downloaded to `~/.local/bin`. These die
+   with the container; never edit the container definition for a tool you
+   have needed once.
+2. **Rule of two**: only when a tool is needed *again* (or is plainly
+   load-bearing for the repo's direction) promote it into
+   `docker/Dockerfile` via the normal branch → PR flow. The change benefits
+   future containers after review — it cannot affect your current session.
+3. **Justify in place**: every package added to the Dockerfile gets a
+   one-line comment naming the workflow that needs it, so a future session
+   can safely remove it when that workflow disappears.
 EOF
 
 # node_modules lives in this container's own filesystem (no darwin binaries

@@ -150,6 +150,11 @@ refuses to run as root).
   binaries like workerd can't run on Linux); the shared `news-agent-npm-cache`
   volume keeps repeat installs fast. Dev ports (4321, 8787) are published to
   random localhost ports — find them with `docker port <name>`.
+- **Tooling policy** (also in the container's surface memory): agents run as
+  non-root, so system packages can't be installed mid-session — one-off needs
+  use user-space installs (`npx`, devDependency, binary in `~/.local/bin`);
+  a tool earns a `docker/Dockerfile` entry only on second need (via PR, with
+  a one-line justification comment naming its workflow).
 - **Isolation contract, honestly stated**: protects the host filesystem,
   Keychain, SSH keys, and other repos. It does NOT protect the tokens
   injected from `.env` (readable as env vars by anything in the container)
