@@ -40,6 +40,11 @@ WORKDIR /workspace
 ENV PATH="/home/node/.local/bin:${PATH}"
 RUN curl -fsSL https://claude.ai/install.sh | bash
 ENV DISABLE_AUTOUPDATER=1
+# Marks this as a sandboxed environment for claude (kept as verified
+# working config). The --dangerously-skip-permissions acceptance dialog is
+# pre-accepted via skipDangerousModePermissionPrompt in the seeded user
+# settings — see entrypoint.sh.
+ENV IS_SANDBOX=1
 
 ENTRYPOINT ["agent-entrypoint"]
 CMD ["claude", "--dangerously-skip-permissions", "--effort", "xhigh"]
