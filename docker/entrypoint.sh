@@ -12,6 +12,8 @@ git config --global user.email "${GIT_USER_EMAIL:-connor@couetil.com}"
 git config --global url."https://github.com/".insteadOf "git@github.com:"
 # Bind-mounted /workspace may be owned by a different uid than `node`.
 git config --global --add safe.directory /workspace
+# Repo-versioned git lifecycle hooks (auto-push on commit; see .git-hooks/).
+git config --global core.hooksPath /workspace/.git-hooks
 if [ -n "${GH_TOKEN:-}" ]; then
 	gh auth setup-git 2>/dev/null || true
 fi

@@ -97,6 +97,11 @@ using the `CLOUDFLARE_API_TOKEN` repo secret). This works identically for
 changes authored locally, via Dispatch, or in cloud sessions. Verify with
 `gh run watch` and `curl -s https://news.cuteteal.com`.
 
+**Commits auto-push**: repo hooks in `.git-hooks/` (wired automatically in the
+agent container and cloud sessions; Connor's global hooks cover his machine)
+push the current branch to origin after every commit, so committing IS
+publishing the branch.
+
 **Direct pushes to `main` are blocked** by the `protect-main` repo ruleset —
 always work on a branch and open a PR; the `test` check must be green to
 merge. Queue merges with `gh pr merge --auto --squash` (auto-merge is enabled
