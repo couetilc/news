@@ -17,6 +17,10 @@ if [ -n "${GH_TOKEN:-}" ]; then
 	gh auth setup-git 2>/dev/null || true
 fi
 
+# Refresh the claude CLI before the session starts (native install under
+# ~/.local is node-owned, so this works without root). Never block startup.
+claude update 2>&1 | tail -1 || true
+
 # Each container clones its own working tree from the remote — no host
 # mounts, so parallel containers share nothing and the host filesystem is
 # unreachable. Skipped on resumed containers, which already have their clone.
@@ -46,7 +50,7 @@ fi
 # Update the id here when a newer top model ships.
 mkdir -p "$HOME/.claude"
 if [ ! -f "$HOME/.claude/settings.json" ]; then
-	printf '{"model": "claude-fable-5"}\n' > "$HOME/.claude/settings.json"
+	printf '{"model": "claude-fable-5", "effort": "xhigh"}\n' > "$HOME/.claude/settings.json"
 fi
 
 # Surface identity: container-scoped user memory, auto-loaded into context by

@@ -23,9 +23,6 @@ RUN arch=$(dpkg --print-architecture) && case "$arch" in \
 		| tar -xz -C /usr/local/bin gitleaks \
 	&& gitleaks version
 
-ARG CLAUDE_CODE_VERSION=latest
-RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
-
 COPY entrypoint.sh /usr/local/bin/agent-entrypoint
 RUN chmod +x /usr/local/bin/agent-entrypoint
 
@@ -37,9 +34,12 @@ RUN mkdir -p /workspace /home/node/.claude /home/node/.npm \
 USER node
 WORKDIR /workspace
 
-# Auto-update can't write the root-owned npm global dir (and shouldn't):
-# image refresh happens via `./bin/claude --clean` rebuilds.
+# claude CLI via the native installer, owned by `node` (~/.local) so the
+# entrypoint can run `claude update` before each session. Mid-session
+# auto-update stays off for predictability — refresh happens at start.
+ENV PATH="/home/node/.local/bin:${PATH}"
+RUN curl -fsSL https://claude.ai/install.sh | bash
 ENV DISABLE_AUTOUPDATER=1
 
 ENTRYPOINT ["agent-entrypoint"]
-CMD ["claude", "--dangerously-skip-permissions"]
+CMD ["claude", "--dangerously-skip-permissions", "--effort", "xhigh"]

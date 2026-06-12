@@ -129,7 +129,13 @@ refuses to run as root).
   `best` falls back to Opus. Explicit ids work fine, so the entrypoint seeds
   `~/.claude/settings.json` with the current top model id (verified
   empirically 2026-06; update the id in `docker/entrypoint.sh` when a newer
-  model ships).
+  model ships). Default effort is **xhigh** (`--effort` on the invocation +
+  settings seed).
+- **CLI freshness**: claude is installed via the native installer under
+  `~/.local` (node-owned), and the entrypoint runs `claude update` before
+  every session start; mid-session auto-update stays disabled for
+  predictability. `--clean` rebuilds still refresh the base image (node,
+  gh, gitleaks).
 - **Future gap, noted**: `.dev.vars` (Worker runtime secrets for local dev)
   is gitignored, so container clones won't have it. When the app gains feed
   API keys, decide a distribution path (e.g. inject via `.env` →
