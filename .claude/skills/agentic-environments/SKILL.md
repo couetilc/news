@@ -118,10 +118,18 @@ refuses to run as root).
   <name>` — note this starts a NEW claude session in the old workspace; use
   `/resume` inside to pick up the prior one; `docker cp` to salvage files).
 - **First-run UX + surface identity**: the entrypoint pre-seeds
-  `~/.claude.json` (onboarding + bypass-permissions accepted) so sessions
-  drop straight in authenticated by `CLAUDE_CODE_OAUTH_TOKEN`, and writes a
-  container-scoped `~/.claude/CLAUDE.md` telling each session it's in this
-  container (no mise, auto-push, PR-only path to prod, backlog = gh issues).
+  `~/.claude.json` (onboarding + bypass-permissions + /workspace trust
+  accepted) so sessions drop straight in authenticated by
+  `CLAUDE_CODE_OAUTH_TOKEN`, and writes a container-scoped
+  `~/.claude/CLAUDE.md` telling each session it's in this container (no
+  mise, auto-push, PR-only path to prod, backlog = gh issues).
+- **Model quirk under setup-token auth**: the session bills the Max
+  subscription ("inference-only" limits capability scope, not billing), but
+  entitlement metadata under-reports — the /model picker omits Fable and
+  `best` falls back to Opus. Explicit ids work fine, so the entrypoint seeds
+  `~/.claude/settings.json` with the current top model id (verified
+  empirically 2026-06; update the id in `docker/entrypoint.sh` when a newer
+  model ships).
 - **Future gap, noted**: `.dev.vars` (Worker runtime secrets for local dev)
   is gitignored, so container clones won't have it. When the app gains feed
   API keys, decide a distribution path (e.g. inject via `.env` →
