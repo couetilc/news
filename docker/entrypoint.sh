@@ -30,6 +30,36 @@ if [ ! -e /workspace/.git ]; then
 	git clone "https://github.com/${NEWS_REPO}.git" /workspace
 fi
 
+# First-run state for claude: mark onboarding and the bypass-permissions
+# warning as completed so a fresh container drops straight into the session
+# (auth comes from CLAUDE_CODE_OAUTH_TOKEN; without this, the interactive
+# onboarding wizard shows theme/login screens first). Never overwrite —
+# resumed containers own their state.
+if [ ! -f "$HOME/.claude.json" ]; then
+	printf '{"hasCompletedOnboarding": true, "bypassPermissionsModeAccepted": true, "theme": "dark", "projects": {"/workspace": {"hasTrustDialogAccepted": true}}}\n' \
+		> "$HOME/.claude.json"
+fi
+
+# Surface identity: container-scoped user memory, auto-loaded into context by
+# every claude session in here. Overwritten each start so updates propagate.
+mkdir -p "$HOME/.claude"
+cat > "$HOME/.claude/CLAUDE.md" <<'EOF'
+# Surface: news agent container
+
+You are running inside the isolated agent container for the news repo
+(`./bin/claude`, --dangerously-skip-permissions).
+
+- /workspace was cloned fresh from GitHub at container start — you begin on
+  `main`; create a branch before committing.
+- Pre-installed: node (already matches the repo's pin), npm, git, gh,
+  gitleaks. mise is NOT available here — skip any mise commands.
+- Every commit is gitleaks-scanned and then auto-pushes its branch. Never
+  commit on main. Changes reach production only via PR → CI → merge.
+- The host machine is unreachable. Nothing outlives this container except
+  what you push — commit and push early and often.
+- The backlog lives in GitHub issues: `gh issue list`.
+EOF
+
 # node_modules lives in this container's own filesystem (no darwin binaries
 # to clash with); the shared npm cache volume keeps installs fast.
 if [ -f /workspace/package-lock.json ]; then

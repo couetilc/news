@@ -25,8 +25,11 @@ skeleton; every change should move it toward being a useful news aggregator.
   domain route `news.cuteteal.com` (DNS record + certificate are auto-managed by
   Cloudflare), `nodejs_compat`. Declare future D1/R2/KV resources here — and
   update the token-scope comments in `.env.example` in the same commit.
-- **node 24 via mise** (`mise.toml`); mise also injects `.env` into every shell
-  run inside the project (`[env] _.file = ".env"`).
+- **node 24 via mise** (`mise.toml`) on host machines; mise also injects
+  `.env` into every shell run inside the project (`[env] _.file = ".env"`).
+  Surface qualifier: the agent container bakes node into its image and gets
+  env vars via `docker --env-file`; the cloud VM uses its stock node and has
+  no `.env` at all — neither has mise, so skip mise commands there.
 - **npm** for dependencies; `package-lock.json` is committed.
 - Scaffold note: create-cloudflare (C3) crashed scaffolding Astro 6
   non-interactively (June 2026), so this was scaffolded with `create-astro` +
@@ -90,6 +93,29 @@ for those tests.
 **Tests must never hit the network** — mock all external HTTP. This keeps
 `npm test` hermetic so it passes in CI, in claude.ai cloud sessions under the
 default Trusted network mode, and offline.
+
+## Backlog
+
+The backlog lives in **GitHub issues** (`gh issue list`, `gh issue view`),
+not in README TODOs or this file. When work is requested or discovered but
+not done now, file an issue (`gh issue create`); close issues from PRs with
+"Fixes #N" in the PR body.
+
+## Standard dev loop
+
+The convention on every surface (local, Dispatch, agent container, cloud):
+
+1. `git checkout -b <topic>` — never work on `main`.
+2. Implement; keep `npm test` green (100% line/branch coverage gate).
+3. Commit — pre-commit runs gitleaks; post-commit auto-pushes the branch
+   (committing IS publishing).
+4. `gh pr create --fill` (cloud sessions can't do this step — push the branch
+   and say so; the PR is created from the session UI or another surface).
+5. `gh pr merge --auto --squash <num>` — merges itself once the required
+   `test` check passes.
+6. Watch `gh pr checks <num> --watch`; on a red check, fix and commit again
+   (the push updates the same PR).
+7. After merge: `curl -s https://news.cuteteal.com` to verify the deploy.
 
 ## Deploy flow
 
