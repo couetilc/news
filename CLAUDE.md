@@ -113,8 +113,10 @@ The convention on every surface (local, Dispatch, agent container, cloud):
    and say so; the PR is created from the session UI or another surface).
 5. `gh pr merge --auto --squash <num>` — merges itself once the required
    `test` check passes.
-6. Watch `gh pr checks <num> --watch`; on a red check, fix and commit again
-   (the push updates the same PR).
+6. Watch CI: `gh run list --branch <topic>` then `gh run watch <run-id>`
+   (`gh run view <run-id> --log` for failure logs). On a red check, fix and
+   commit again — the push updates the same PR. (`gh pr checks` needs an
+   extra PAT scope in containers; the gh run commands always work.)
 7. After merge: `curl -s https://news.cuteteal.com` to verify the deploy.
 
 ## Deploy flow
