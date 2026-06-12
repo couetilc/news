@@ -18,8 +18,11 @@
 #   CLOUDFLARE_API_TOKEN     wrangler, if ever needed
 #
 # Containers are kept after exit (not --rm) so unpushed work is recoverable:
-# resume with `docker start -ai <name>`, salvage files with `docker cp`,
-# clean up with `./bin/claude --clean`.
+# resume with `docker start -ai <name>` (this begins a NEW claude session in
+# the same workspace — use /resume inside to pick up the previous one),
+# salvage files with `docker cp`. `./bin/claude --clean` removes exited
+# containers and rebuilds the image from scratch so the claude CLI doesn't
+# freeze at image-build-time latest.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -30,6 +33,8 @@ if [ "${1:-}" = "--clean" ]; then
 	else
 		echo "no exited agent containers"
 	fi
+	echo "Rebuilding image from scratch (fresh claude/gh/node)..."
+	docker build --pull --no-cache -t news-agent docker/
 	exit 0
 fi
 

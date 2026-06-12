@@ -112,8 +112,21 @@ refuses to run as root).
   check out that branch.
 - `./bin/claude [args]` → builds the image if needed and runs claude
   full-auto; `--shell` drops into bash; `--clean` removes exited agent
-  containers. Containers are **kept after exit** so unpushed work is
-  recoverable (`docker start -ai <name>` to resume, `docker cp` to salvage).
+  containers AND rebuilds the image from scratch (`--pull --no-cache`) so the
+  baked-in claude CLI doesn't freeze at image-build-time latest. Containers
+  are **kept after exit** so unpushed work is recoverable (`docker start -ai
+  <name>` — note this starts a NEW claude session in the old workspace; use
+  `/resume` inside to pick up the prior one; `docker cp` to salvage files).
+- **First-run UX + surface identity**: the entrypoint pre-seeds
+  `~/.claude.json` (onboarding + bypass-permissions accepted) so sessions
+  drop straight in authenticated by `CLAUDE_CODE_OAUTH_TOKEN`, and writes a
+  container-scoped `~/.claude/CLAUDE.md` telling each session it's in this
+  container (no mise, auto-push, PR-only path to prod, backlog = gh issues).
+- **Future gap, noted**: `.dev.vars` (Worker runtime secrets for local dev)
+  is gitignored, so container clones won't have it. When the app gains feed
+  API keys, decide a distribution path (e.g. inject via `.env` →
+  entrypoint-written `.dev.vars`, or accept that runtime-secret dev happens
+  on the host).
 - **Env injection**: the wrapper passes `--env-file .env` — the container
   authenticates with `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`;
   Keychain isn't mountable), pushes with `GH_TOKEN` (SSH remote is rewritten
