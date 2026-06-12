@@ -1,18 +1,36 @@
 #!/bin/bash
-# Run Claude Code in the isolated agent container, full-auto.
+# Run Claude Code in an isolated agent container, full-auto.
 #
 #   ./bin/claude                  interactive session, permissions skipped
 #   ./bin/claude -p "fix tests"   headless one-shot, permissions skipped
 #   ./bin/claude --shell          bash inside the container instead of claude
+#   ./bin/claude --clean          remove exited agent containers
 #
-# Isolation contract: the container sees this repo (read-write bind mount),
-# the tokens in .env, and nothing else from the host — no Keychain, no SSH
-# keys, no other repos. Auth comes from .env (auto-injected here):
+# Isolation contract: the host repo is mounted READ-ONLY at /src; the
+# container copies it to a private /workspace at start, so parallel
+# containers never share files and nothing writes back to the host. Work
+# leaves the container only via git: every commit auto-pushes its branch
+# (.git-hooks/post-commit), gated by a gitleaks scan (.git-hooks/pre-commit,
+# binary baked into the image). Tokens are injected from .env:
 #   CLAUDE_CODE_OAUTH_TOKEN  from `claude setup-token`  (claude auth)
 #   GH_TOKEN                 fine-grained PAT            (git push / gh)
-#   CLOUDFLARE_API_TOKEN     wrangler, if a deploy is ever run manually
+#   CLOUDFLARE_API_TOKEN     wrangler, if ever needed
+#
+# Containers are kept after exit (not --rm) so unpushed work is recoverable:
+# resume with `docker start -ai <name>`, salvage files with `docker cp`,
+# clean up with `./bin/claude --clean`.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+if [ "${1:-}" = "--clean" ]; then
+	exited=$(docker ps -aq --filter label=news-agent --filter status=exited)
+	if [ -n "$exited" ]; then
+		docker rm $exited
+	else
+		echo "no exited agent containers"
+	fi
+	exit 0
+fi
 
 if [ ! -f .env ]; then
 	echo "error: .env not found — copy .env.example and fill in tokens" >&2
@@ -28,12 +46,16 @@ if [ "${1:-}" = "--shell" ]; then
 	CMD=(bash)
 fi
 
-exec docker run --rm -it \
-	-v "$PWD":/workspace \
-	-v news-agent-node-modules:/workspace/node_modules \
-	-v news-agent-claude-home:/home/node/.claude \
+NAME="news-agent-$(date +%m%d-%H%M%S)"
+echo "Starting $NAME (kept after exit; ./bin/claude --clean to prune)" >&2
+
+docker run -it \
+	--name "$NAME" \
+	--label news-agent \
+	-v "$PWD":/src:ro \
+	-v news-agent-npm-cache:/home/node/.npm \
 	--env-file .env \
 	-e GIT_USER_NAME="$(git config user.name 2>/dev/null || true)" \
 	-e GIT_USER_EMAIL="$(git config user.email 2>/dev/null || true)" \
-	-p 4321:4321 -p 8787:8787 \
+	-p 127.0.0.1::4321 -p 127.0.0.1::8787 \
 	"$IMAGE" "${CMD[@]}" "$@"

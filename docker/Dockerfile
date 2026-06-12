@@ -1,7 +1,9 @@
 # Isolated agent environment for this repo: everything a Claude Code session
-# needs (node 24 matching mise.toml, git, gh, claude CLI), run as non-root —
-# --dangerously-skip-permissions refuses to run as root. The repo is bind-
-# mounted at /workspace by bin/claude; nothing is COPYed in at build time.
+# needs (node 24 matching mise.toml, git, gh, gitleaks, claude CLI), run as
+# non-root — --dangerously-skip-permissions refuses to run as root. Each
+# container works on its OWN COPY of the repo (entrypoint copies the host
+# working tree from the read-only /src mount into /workspace), so parallel
+# containers never share files; work leaves only via git push.
 FROM node:24-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -13,17 +15,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	&& apt-get update && apt-get install -y --no-install-recommends gh \
 	&& rm -rf /var/lib/apt/lists/*
 
+# gitleaks: version-matched to Connor's host (see .git-hooks/pre-commit).
+ARG GITLEAKS_VERSION=8.29.0
+RUN arch=$(dpkg --print-architecture) && case "$arch" in \
+		amd64) gl_arch=x64 ;; arm64) gl_arch=arm64 ;; *) echo "unsupported arch $arch" && exit 1 ;; esac \
+	&& curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_${gl_arch}.tar.gz" \
+		| tar -xz -C /usr/local/bin gitleaks \
+	&& gitleaks version
+
 ARG CLAUDE_CODE_VERSION=latest
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
 
 COPY entrypoint.sh /usr/local/bin/agent-entrypoint
 RUN chmod +x /usr/local/bin/agent-entrypoint
 
-# Pre-create the named-volume mountpoints owned by `node`: fresh volumes
-# inherit ownership from the image path, and root-owned volumes would break
-# npm ci / claude state writes for the non-root user.
-RUN mkdir -p /workspace/node_modules /home/node/.claude \
-	&& chown -R node:node /workspace /home/node/.claude
+# Pre-create dirs owned by `node`: /workspace receives the repo copy, and the
+# npm cache mountpoint must not end up root-owned when the volume is fresh.
+RUN mkdir -p /workspace /home/node/.claude /home/node/.npm \
+	&& chown -R node:node /workspace /home/node/.claude /home/node/.npm
 
 USER node
 WORKDIR /workspace
