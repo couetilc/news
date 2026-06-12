@@ -122,6 +122,11 @@ mise.toml's pin, git, gh, claude CLI, non-root `node` user — required because
   permission "auto mode" (classifier-reviewed).
 - Host gitleaks hooks (`core.hooksPath=~/.git-hooks`, host-global) do NOT run
   on container pushes; the `protect-main` ruleset and CI still gate main.
+- **Auto-push on commit** works on every surface: the repo-versioned hooks in
+  `.git-hooks/` (see its README) are wired automatically by the container
+  entrypoint and the cloud SessionStart hook; on Connor's machine the global
+  `~/.git-hooks/post-commit` already does it. Branch commits push themselves —
+  `main` is skipped (ruleset blocks it).
 
 ## Network access (cloud sessions)
 

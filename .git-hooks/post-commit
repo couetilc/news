@@ -1,0 +1,26 @@
+#!/bin/bash
+# Auto-push every commit.
+#
+# On Connor's machine a global ~/.git-hooks/post-commit already pushes to all
+# remotes — delegate to it and do nothing else (avoids a double push). In the
+# agent container and cloud sessions no global hooks exist, so push from here.
+g="$HOME/.git-hooks/post-commit"
+if [ -x "$g" ]; then
+	exec "$g" "$@"
+fi
+
+branch=$(git symbolic-ref --short HEAD 2>/dev/null)
+if [ -z "$branch" ]; then
+	exit 0 # detached HEAD (rebase, bisect) — nothing to push
+fi
+if [ "$branch" = "main" ]; then
+	echo "post-commit: skipping auto-push (direct pushes to main are blocked by the protect-main ruleset)"
+	exit 0
+fi
+
+if git push -u origin "$branch"; then
+	echo "post-commit: auto-pushed $branch to origin"
+else
+	echo "post-commit: auto-push failed (non-fatal). In the agent container this usually means GH_TOKEN is missing from .env."
+fi
+exit 0

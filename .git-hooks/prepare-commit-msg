@@ -1,0 +1,5 @@
+#!/bin/sh
+# Pure delegator: run the global hook of the same name when present.
+g="$HOME/.git-hooks/$(basename "$0")"
+[ -x "$g" ] && exec "$g" "$@"
+exit 0
