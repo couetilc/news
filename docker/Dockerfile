@@ -1,9 +1,9 @@
 # Isolated agent environment for this repo: everything a Claude Code session
 # needs (node 24 matching mise.toml, git, gh, gitleaks, claude CLI), run as
-# non-root — --dangerously-skip-permissions refuses to run as root. Each
-# container works on its OWN COPY of the repo (entrypoint copies the host
-# working tree from the read-only /src mount into /workspace), so parallel
-# containers never share files; work leaves only via git push.
+# non-root — --dangerously-skip-permissions refuses to run as root. Nothing
+# from the host is mounted: each container clones the repo from GitHub at
+# launch (entrypoint, GH_TOKEN), so parallel containers never share files;
+# work leaves only via git push.
 FROM node:24-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -29,7 +29,7 @@ RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
 COPY entrypoint.sh /usr/local/bin/agent-entrypoint
 RUN chmod +x /usr/local/bin/agent-entrypoint
 
-# Pre-create dirs owned by `node`: /workspace receives the repo copy, and the
+# Pre-create dirs owned by `node`: /workspace receives the clone, and the
 # npm cache mountpoint must not end up root-owned when the volume is fresh.
 RUN mkdir -p /workspace /home/node/.claude /home/node/.npm \
 	&& chown -R node:node /workspace /home/node/.claude /home/node/.npm

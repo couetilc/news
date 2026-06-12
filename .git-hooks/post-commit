@@ -1,14 +1,7 @@
 #!/bin/bash
-# Auto-push every commit.
-#
-# On Connor's machine a global ~/.git-hooks/post-commit already pushes to all
-# remotes — delegate to it and do nothing else (avoids a double push). In the
-# agent container and cloud sessions no global hooks exist, so push from here.
-g="$HOME/.git-hooks/post-commit"
-if [ -x "$g" ]; then
-	exec "$g" "$@"
-fi
-
+# Auto-push every commit: committing IS publishing the branch. This is the
+# only way work leaves the agent container, and it keeps cloud-session
+# branches continuously backed up.
 branch=$(git symbolic-ref --short HEAD 2>/dev/null)
 if [ -z "$branch" ]; then
 	exit 0 # detached HEAD (rebase, bisect) — nothing to push
