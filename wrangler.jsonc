@@ -22,5 +22,15 @@
 			"pattern": "news.cuteteal.com",
 			"custom_domain": true
 		}
+	],
+	"d1_databases": [
+		{
+			// Feed items + per-feed fetch state. Apply schema changes with
+			// `npm run db:migrate:local` / CI applies them remotely before deploy.
+			"binding": "NEWS_DB",
+			"database_name": "news",
+			"database_id": "0a00559e-b8d6-41d7-80a2-bc278edd3d58",
+			"migrations_dir": "migrations"
+		}
 	]
 }
