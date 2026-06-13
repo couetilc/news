@@ -5,9 +5,16 @@
 	"account_id": "dbaa50e60c18b19d483578c42d9bb3ee",
 	"compatibility_date": "2026-06-10",
 	"compatibility_flags": ["global_fetch_strictly_public", "nodejs_compat"],
-	// Resolved and bundled by the Cloudflare Vite plugin during `astro build`;
-	// the deployable config it emits lands in dist/server/wrangler.json.
-	"main": "@astrojs/cloudflare/entrypoints/server",
+	// Custom entry (src/worker.ts) wraps Astro's fetch handler and adds the
+	// scheduled handler for the cron trigger below. Resolved and bundled by the
+	// Cloudflare Vite plugin during `astro build`; the deployable config it emits
+	// lands in dist/server/wrangler.json.
+	"main": "./src/worker.ts",
+	// Single tick; per-feed cadence comes from feeds.next_poll_at, so adding
+	// sources never needs another cron expression.
+	"triggers": {
+		"crons": ["*/15 * * * *"]
+	},
 	"assets": {
 		"directory": "./dist",
 		"binding": "ASSETS"
