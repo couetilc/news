@@ -1,42 +1,40 @@
 ---
 import { env } from 'cloudflare:workers';
 import { listItems } from '../ingest/db';
+import { isoTime, shortDate } from '../lib/format';
+import Layout from '../layouts/Layout.astro';
 
 const items = await listItems(env.NEWS_DB, 100);
-
-function isoTime(seconds: number): string {
-	return new Date(seconds * 1000).toISOString();
-}
 ---
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>News</title>
-	</head>
-	<body>
-		<h1>News</h1>
-		{
-			items.length === 0 ? (
-				<p>Nothing aggregated yet — check back soon.</p>
-			) : (
-				<ol>
-					{items.map((item) => {
-						const stamp = isoTime(item.published_at ?? item.fetched_at);
-						return (
-							<li>
-								<a href={item.url}>{item.title}</a>
-								<span class="source">{item.source}</span>
-								<time datetime={stamp}>{stamp}</time>
-							</li>
-						);
-					})}
-				</ol>
-			)
-		}
-	</body>
-</html>
+<Layout title="News">
+	{
+		items.length === 0 ? (
+			<p class="py-16 text-center text-lg italic text-muted">
+				Nothing aggregated yet — check back soon.
+			</p>
+		) : (
+			<ol class="columns-1 gap-8 sm:columns-2 lg:columns-3">
+				{items.map((item) => {
+					const seconds = item.published_at ?? item.fetched_at;
+					return (
+						<li class="mb-5 break-inside-avoid border-b border-rule pb-5">
+							<a href={item.url} class="group block">
+								<h2 class="text-xl leading-snug decoration-from-font underline-offset-2 group-hover:text-accent group-hover:underline sm:text-2xl">
+									{item.title}
+								</h2>
+							</a>
+							<p class="mt-2 font-sans text-[0.65rem] uppercase tracking-wider text-muted">
+								<span class="font-semibold text-ink-soft">{item.source}</span>
+								<span class="mx-1.5" aria-hidden="true">
+									·
+								</span>
+								<time datetime={isoTime(seconds)}>{shortDate(seconds)}</time>
+							</p>
+						</li>
+					);
+				})}
+			</ol>
+		)
+	}
+</Layout>

@@ -2,6 +2,7 @@
 import { defineConfig } from 'astro/config';
 
 import cloudflare from '@astrojs/cloudflare';
+import tailwindcss from '@tailwindcss/vite';
 
 // https://astro.build/config
 export default defineConfig({
@@ -14,4 +15,11 @@ export default defineConfig({
     // external article images at runtime.
     imageService: 'compile',
   }),
+  vite: {
+    // Tailwind CSS v4 integrates as a Vite plugin (no @astrojs/tailwind shim).
+    // The node vitest project loads with configFile:false, so it can't see this
+    // plugin — it registers @tailwindcss/vite itself so the page's CSS import
+    // still resolves during the Container API render. Keep both in sync.
+    plugins: [tailwindcss()],
+  },
 });

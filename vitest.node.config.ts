@@ -1,6 +1,7 @@
 /// <reference types="vitest" />
 import { fileURLToPath } from 'node:url';
 import { getViteConfig } from 'astro/config';
+import tailwindcss from '@tailwindcss/vite';
 
 // Node-environment project for the one thing the worker pool can't host: the
 // Astro Container API rendering src/pages/index.astro. The page imports
@@ -9,6 +10,11 @@ import { getViteConfig } from 'astro/config';
 // its real D1 behavior is covered by the workers project.
 export default getViteConfig(
 	{
+		// The page pulls in src/styles/global.css (`@import "tailwindcss"`).
+		// astro.config registers this plugin too, but this project loads with
+		// configFile:false and can't see it — register it here so the CSS
+		// transforms exactly as in the real build. Keep both in sync.
+		plugins: [tailwindcss()],
 		resolve: {
 			alias: {
 				'cloudflare:workers': fileURLToPath(
