@@ -5,6 +5,7 @@ import {
 	getFeedStates,
 	insertItems,
 	listItems,
+	setItemRead,
 	updateFeedState,
 } from '../src/ingest/db';
 import type { FeedConfig, ParsedItem } from '../src/ingest/types';
@@ -127,5 +128,34 @@ describe('listItems', () => {
 		await insertItems(db, 's', [item({ guid: 'second', publishedAt: 1000 })], 100);
 		const rows = await listItems(db, 10);
 		expect(rows.map((r) => r.guid)).toEqual(['second', 'first']);
+	});
+
+	it('sorts read items after unread, each group still newest-first', async () => {
+		// newest, middle, oldest by published_at; mark the newest read so it
+		// drops below the still-unread middle and oldest.
+		await insertItems(db, 's', [item({ guid: 'newest', publishedAt: 3000 })], 100);
+		await insertItems(db, 's', [item({ guid: 'middle', publishedAt: 2000 })], 100);
+		await insertItems(db, 's', [item({ guid: 'oldest', publishedAt: 1000 })], 100);
+		const [{ id: newestId }] = await listItems(db, 1);
+		await setItemRead(db, newestId, 5000);
+
+		const rows = await listItems(db, 10);
+		// Unread (middle, oldest) lead newest-first; the read item trails.
+		expect(rows.map((r) => r.guid)).toEqual(['middle', 'oldest', 'newest']);
+		expect(rows.map((r) => r.read_at)).toEqual([null, null, 5000]);
+	});
+});
+
+describe('setItemRead', () => {
+	it('marks an item read and clears it back to unread', async () => {
+		await insertItems(db, 's', [item({ guid: 'g1' })], 100);
+		const [before] = await listItems(db, 1);
+		expect(before.read_at).toBeNull();
+
+		await setItemRead(db, before.id, 1234);
+		expect((await listItems(db, 1))[0].read_at).toBe(1234);
+
+		await setItemRead(db, before.id, null);
+		expect((await listItems(db, 1))[0].read_at).toBeNull();
 	});
 });

@@ -1,11 +1,15 @@
 ---
 import { env } from 'cloudflare:workers';
 import { listItems } from '../ingest/db';
-import { isoTime, shortDate } from '../lib/format';
-import { sourceMeta } from '../lib/sources';
+import Article from '../components/Article.astro';
 import Layout from '../layouts/Layout.astro';
 
+// listItems returns unread first, then read — both newest-first. Split on
+// read_at so the feed reads as one chronological column with the already-read
+// items collected into a quieter section at the bottom.
 const items = await listItems(env.NEWS_DB, 100);
+const unread = items.filter((item) => item.read_at === null);
+const read = items.filter((item) => item.read_at !== null);
 ---
 
 <Layout title="News">
@@ -15,29 +19,29 @@ const items = await listItems(env.NEWS_DB, 100);
 				Nothing aggregated yet — check back soon.
 			</p>
 		) : (
-			<ol class="columns-1 gap-8 sm:columns-2 lg:columns-3">
-				{items.map((item) => {
-					const seconds = item.published_at ?? item.fetched_at;
-					const source = sourceMeta(item.source);
-					return (
-						<li class="mb-5 break-inside-avoid border-b border-rule pb-5">
-							<a href={item.url} class="group block">
-								<h2 class="text-xl leading-snug decoration-from-font underline-offset-2 group-hover:text-accent group-hover:underline sm:text-2xl">
-									{item.title}
-								</h2>
-							</a>
-							<p class="mt-2 flex items-center font-sans text-[0.65rem] uppercase tracking-wider text-muted">
-								<span class={`mr-1.5 inline-block size-2 ${source.swatch}`} aria-hidden="true" />
-								<span class="font-semibold text-ink-soft">{source.name}</span>
-								<span class="mx-1.5" aria-hidden="true">
-									·
-								</span>
-								<time datetime={isoTime(seconds)}>{shortDate(seconds)}</time>
-							</p>
-						</li>
-					);
-				})}
-			</ol>
+			<div class="mx-auto max-w-2xl">
+				{unread.length > 0 && (
+					<ol>
+						{unread.map((item) => (
+							<Article item={item} />
+						))}
+					</ol>
+				)}
+				{read.length > 0 && (
+					<section class="mt-10">
+						<h2 class="mb-1 flex items-center gap-3 font-sans text-[0.65rem] uppercase tracking-[0.3em] text-muted">
+							<span class="h-px flex-1 bg-rule" aria-hidden="true" />
+							Read
+							<span class="h-px flex-1 bg-rule" aria-hidden="true" />
+						</h2>
+						<ol>
+							{read.map((item) => (
+								<Article item={item} />
+							))}
+						</ol>
+					</section>
+				)}
+			</div>
 		)
 	}
 </Layout>

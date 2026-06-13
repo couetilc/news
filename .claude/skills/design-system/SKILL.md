@@ -9,6 +9,23 @@ when_to_use: Building or restyling any page/component; adding UI; choosing color
 The look and feel of https://news.cuteteal.com. Read this before writing any
 markup or CSS so new UI stays consistent with the established theme.
 
+## Inspiration: the briefing column
+
+The north star is the newspaper **news-in-brief digest** — the *Wall Street
+Journal* "What's News" rail, the *NYT* morning-briefing agate column. Its whole
+job is ours: compress a long chronological list of stories into a **dense,
+scannable, single serif column**, broken into a few labeled sections by hairline
+rules. Two consequences fall out of that and should guide every layout call:
+
+- **One column, top-to-bottom = chronological.** Reading order *is* time order.
+  We deliberately dropped the old CSS multi-column flow because it snaked items
+  across columns, so "newest" wasn't "top-left." Don't reintroduce horizontal
+  chronology.
+- **Density is the point.** Small headlines, tight leading, an inline agate
+  dateline, hairline separators — pack many items per screen without losing the
+  newsprint feel. Favor a ruled line over an airy block; favor a compact
+  nameplate so stories start above the fold.
+
 ## Three rules, in priority order
 
 1. **Mobile-first.** Connor reads this on a phone. Design every screen for a
@@ -20,11 +37,12 @@ markup or CSS so new UI stays consistent with the established theme.
    near-black ink. No dark mode yet. Don't add `dark:` variants or a theme
    toggle until that's explicitly scoped (file an issue if it comes up).
 3. **Newspaper, not web app.** The page should read like a printed paper:
-   serif type, a ruled masthead with a dateline, hairline column rules, small
-   uppercase datelines, multi-column flow on wide screens. Avoid the SaaS-app
+   serif type, a ruled masthead with a dateline, hairline rules between items, a
+   single dense digest column, small uppercase datelines. Avoid the SaaS-app
    look — no cards with drop shadows, no rounded pill buttons, no gradients-as-
-   decoration, no bright accent UI. When in doubt, ask "would this look at home
-   in print?"
+   decoration, no bright accent UI. Even functional controls stay in voice: the
+   read/unread toggle is a small ruled square, not a colored button. When in
+   doubt, ask "would this look at home in print?"
 
 ## How Tailwind is wired in
 
@@ -71,23 +89,37 @@ keep it rare so it stays loud.
 ## Patterns
 
 - **Layout shell:** `src/layouts/Layout.astro` owns `<html>`, the masthead
-  (double-ruled nameplate + dateline + tagline), `<main>`, and the footer.
-  Pages render their content as its `<slot>`. New top-level pages should use this
-  layout, not re-create the chrome.
-- **Container width:** `mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8` is the
-  standard page gutter. Content stays centered with comfortable margins.
+  (double-ruled nameplate + dateline + tagline, kept compact so stories start
+  high), `<main>`, and the footer. Pages render their content as its `<slot>`.
+  New top-level pages should use this layout, not re-create the chrome.
+- **Container width:** the layout chrome (masthead/footer) spans
+  `mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8`. A reading column — the feed —
+  narrows further to `mx-auto max-w-2xl` for a comfortable line length; wrap list
+  content in that, don't let headlines run the full 5xl width.
 - **Rules over boxes:** separate items with `border-b border-rule`, not cards.
-  Section/masthead emphasis uses `border-double border-ink`.
-- **Multi-column flow:** long lists use CSS columns for the newspaper feel —
-  `columns-1 sm:columns-2 lg:columns-3` with `break-inside-avoid` on each item.
-  Mobile-first: one column by default, more only as the viewport grows.
+  Section/masthead emphasis uses `border-double border-ink`. A section divider
+  with a centered label is a small-caps heading flanked by `h-px flex-1 bg-rule`
+  spans (see the homepage "Read" divider).
+- **Single digest column:** the feed is one `<ol>` of hairline-ruled rows, newest
+  first — no CSS columns. Each row is a component (`src/components/Article.astro`):
+  headline + agate dateline on the left, its control on the right, `py-2.5`
+  vertical rhythm. Mobile-first: it's already one column; wider screens only bump
+  the type (`sm:text-lg`), not the column count.
+- **Read/unread:** `listItems` returns unread-first; the homepage splits on
+  `read_at` into the live feed and a quieter **Read** section below (read rows at
+  `opacity-55`, no other restyle). The toggle is a `size-4` ruled square — empty
+  `border-rule` when unread, filled `border-ink bg-ink` with a `✓` when read —
+  inside a `<form method="POST" action="/api/read">` so it works without JS
+  (POST → 303 → reload). Reuse this square idiom for future binary state; don't
+  reach for a colored pill.
 - **Datelines/metadata:** `font-sans`, small (`text-[0.65rem]`–`text-xs`),
   `uppercase`, letter-spaced (`tracking-wider`/`tracking-[0.3em]`),
   `text-muted`. This is the "set in small caps under the headline" newspaper
   voice.
-- **Headlines:** serif (inherited), `leading-snug`/`leading-none`, tight
-  tracking. Links are plain ink that underline on hover (`group-hover:underline`
-  + `group-hover:text-accent`), not blue web links.
+- **Headlines:** serif (inherited), `text-base sm:text-lg`, `leading-snug`, tight
+  tracking — sized for a digest, not a feature splash. Links are plain ink that
+  underline on hover (`group-hover:underline` + `group-hover:text-accent`), not
+  blue web links.
 
 ## Coverage gotcha
 

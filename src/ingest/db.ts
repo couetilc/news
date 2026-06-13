@@ -23,6 +23,8 @@ export interface ItemRow {
 	content_html: string | null;
 	published_at: number | null;
 	fetched_at: number;
+	// Unix seconds when the reader marked this read; null while it's unread.
+	read_at: number | null;
 }
 
 // What a poll learned about a feed, written back after each attempt.
@@ -91,17 +93,31 @@ export async function updateFeedState(
 		.run();
 }
 
-// Newest items across all sources. COALESCE so an item with no published_at
-// still sorts by when we fetched it; id breaks ties deterministically.
+// Newest items across all sources, unread first. `read_at IS NOT NULL` sorts
+// unread (0) ahead of read (1) so the homepage can split them into a live feed
+// and a "Read" section below without a second query; within each group,
+// COALESCE keeps an item with no published_at sorted by when we fetched it, and
+// id breaks ties deterministically.
 export async function listItems(db: D1Database, limit: number): Promise<ItemRow[]> {
 	const { results } = await db
 		.prepare(
-			`SELECT id, source, guid, url, title, summary, content_html, published_at, fetched_at
+			`SELECT id, source, guid, url, title, summary, content_html, published_at, fetched_at, read_at
 			 FROM items
-			 ORDER BY COALESCE(published_at, fetched_at) DESC, id DESC
+			 ORDER BY (read_at IS NOT NULL), COALESCE(published_at, fetched_at) DESC, id DESC
 			 LIMIT ?`,
 		)
 		.bind(limit)
 		.all<ItemRow>();
 	return results;
+}
+
+// Flip one item's read state: readAt = unix seconds marks it read, null marks
+// it unread. The homepage's read/unread toggle posts to /api/read, which calls
+// this and redirects back so the feature works without JavaScript.
+export async function setItemRead(
+	db: D1Database,
+	id: number,
+	readAt: number | null,
+): Promise<void> {
+	await db.prepare('UPDATE items SET read_at = ? WHERE id = ?').bind(readAt, id).run();
 }

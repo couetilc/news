@@ -1,0 +1,52 @@
+---
+import type { ItemRow } from '../ingest/db';
+import { isoTime, shortDate } from '../lib/format';
+import { sourceMeta } from '../lib/sources';
+
+interface Props {
+	item: ItemRow;
+}
+
+const { item } = Astro.props;
+const seconds = item.published_at ?? item.fetched_at;
+const source = sourceMeta(item.source);
+const isRead = item.read_at !== null;
+
+// One briefing line: headline + agate dateline on the left, a read-state square
+// on the right. Read items dim back like continued/back-section matter; the
+// square fills with ink (echoing the source swatch) and its form posts the
+// opposite state so one tap flips it.
+const row = isRead
+	? 'flex items-baseline gap-3 border-b border-rule py-2.5 opacity-55'
+	: 'flex items-baseline gap-3 border-b border-rule py-2.5';
+const square = isRead
+	? 'mt-0.5 grid size-4 shrink-0 place-items-center border border-ink bg-ink text-[0.6rem] leading-none text-paper'
+	: 'mt-0.5 grid size-4 shrink-0 place-items-center border border-rule text-[0.6rem] leading-none text-transparent hover:border-ink';
+const label = isRead ? 'Mark as unread' : 'Mark as read';
+const nextState = isRead ? '0' : '1';
+---
+
+<li class={row}>
+	<div class="min-w-0 flex-1">
+		<a href={item.url} class="group block">
+			<h2
+				class="text-base font-semibold leading-snug tracking-tight decoration-from-font underline-offset-2 group-hover:text-accent group-hover:underline sm:text-lg"
+			>
+				{item.title}
+			</h2>
+		</a>
+		<p
+			class="mt-0.5 flex items-center font-sans text-[0.65rem] uppercase tracking-wider text-muted"
+		>
+			<span class={`mr-1.5 inline-block size-2 ${source.swatch}`} aria-hidden="true" />
+			<span class="font-semibold text-ink-soft">{source.name}</span>
+			<span class="mx-1.5" aria-hidden="true">·</span>
+			<time datetime={isoTime(seconds)}>{shortDate(seconds)}</time>
+		</p>
+	</div>
+	<form method="POST" action="/api/read">
+		<input type="hidden" name="id" value={item.id} />
+		<input type="hidden" name="read" value={nextState} />
+		<button type="submit" class={square} aria-label={label}>✓</button>
+	</form>
+</li>
