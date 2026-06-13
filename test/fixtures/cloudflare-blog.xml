@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>The Cloudflare Blog</title>
+    <link>https://blog.cloudflare.com/</link>
+    <description>Get the latest news on how products at Cloudflare are built.</description>
+    <item>
+      <title>Making Workers even faster</title>
+      <link>https://blog.cloudflare.com/making-workers-faster/</link>
+      <guid isPermaLink="true">https://blog.cloudflare.com/making-workers-faster/</guid>
+      <pubDate>Thu, 12 Jun 2026 14:00:00 GMT</pubDate>
+      <description>A short summary of the post.</description>
+      <content:encoded><![CDATA[<p>The full HTML body of the post, with <strong>markup</strong>.</p>]]></content:encoded>
+    </item>
+    <item>
+      <title>Introducing D1 vector search</title>
+      <link>https://blog.cloudflare.com/d1-vector-search/</link>
+      <guid isPermaLink="true">https://blog.cloudflare.com/d1-vector-search/</guid>
+      <pubDate>Thu, 12 Jun 2026 09:30:00 GMT</pubDate>
+      <description>Another summary.</description>
+      <content:encoded><![CDATA[<p>Body two.</p>]]></content:encoded>
+    </item>
+  </channel>
+</rss>
