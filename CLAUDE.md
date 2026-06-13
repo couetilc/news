@@ -37,7 +37,9 @@ skeleton; every change should move it toward being a useful news aggregator.
 
 ## Commands
 
-- `npm run dev` — dev server on workerd at http://localhost:4321
+- `npm run dev` — dev server on workerd at http://localhost:4321 (inside the
+  agent container run `npm run dev -- --host` and visit `$DEV_HOST_4321`, since
+  the host port is randomized per container — see the agentic-environments skill)
 - `npm test` — vitest; **enforces 100% line and branch coverage over `src/**`**
   (the suite fails below that — this is the standing test policy)
 - `npm run build` — build worker + assets into `dist/`

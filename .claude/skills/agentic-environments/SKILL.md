@@ -148,8 +148,17 @@ refuses to run as root).
   `CLOUDFLARE_API_TOKEN` for ad-hoc wrangler use. See `.env.example`.
 - `npm ci` runs into the container's own filesystem (host darwin-arm64
   binaries like workerd can't run on Linux); the shared `news-agent-npm-cache`
-  volume keeps repeat installs fast. Dev ports (4321, 8787) are published to
-  random localhost ports — find them with `docker port <name>`.
+  volume keeps repeat installs fast.
+- **Reaching the dev server from the host**: `bin/claude` picks a random free
+  host port per launch and binds the container's 4321/8787 to it, then injects
+  the host-side address into the container as `$DEV_HOST_4321` / `$DEV_HOST_8787`
+  (printed at startup too). Two gotchas the agent must handle so it can hand the
+  user a working URL: (1) start the dev server bound to all interfaces —
+  `npm run dev -- --host` — because Docker forwards published ports to the
+  container's external interface, and a default localhost-only listener never
+  sees that traffic; (2) report `http://$DEV_HOST_4321/`, **not** `localhost:4321`
+  (that's the in-container port, random on the host). `docker port <name> 4321`
+  on the host still works as a fallback.
 - **Tooling policy** (also in the container's surface memory): agents run as
   non-root, so system packages can't be installed mid-session — one-off needs
   use user-space installs (`npx`, devDependency, binary in `~/.local/bin`);
