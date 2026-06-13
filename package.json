@@ -12,18 +12,22 @@
     "deploy": "astro build && wrangler deploy",
     "test": "vitest run --coverage",
     "astro": "astro",
-    "cf-typegen": "wrangler types"
+    "cf-typegen": "wrangler types",
+    "db:migrate:local": "wrangler d1 migrations apply NEWS_DB --local",
+    "db:migrate:remote": "wrangler d1 migrations apply NEWS_DB --remote"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^13.7.0",
     "astro": "^6.4.6",
+    "fast-xml-parser": "^5.8.0",
     "wrangler": "^4.99.0"
   },
   "overrides": {
     "vite": "^7"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.1.8",
+    "@cloudflare/vitest-pool-workers": "^0.16.15",
+    "@vitest/coverage-istanbul": "^4.1.8",
     "vitest": "^4.1.8"
   }
 }

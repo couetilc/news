@@ -1,5 +1,12 @@
 ---
-const now = new Date();
+import { env } from 'cloudflare:workers';
+import { listItems } from '../ingest/db';
+
+const items = await listItems(env.NEWS_DB, 100);
+
+function isoTime(seconds: number): string {
+	return new Date(seconds * 1000).toISOString();
+}
 ---
 
 <html lang="en">
@@ -12,9 +19,24 @@ const now = new Date();
 		<title>News</title>
 	</head>
 	<body>
-		<h1>Hello, news!</h1>
-		<p>Your personal news aggregator. Nothing aggregated yet — check back soon.</p>
-		<p>edited by dispatch</p>
-		<p>Server-rendered at <time datetime={now.toISOString()}>{now.toISOString()}</time></p>
+		<h1>News</h1>
+		{
+			items.length === 0 ? (
+				<p>Nothing aggregated yet — check back soon.</p>
+			) : (
+				<ol>
+					{items.map((item) => {
+						const stamp = isoTime(item.published_at ?? item.fetched_at);
+						return (
+							<li>
+								<a href={item.url}>{item.title}</a>
+								<span class="source">{item.source}</span>
+								<time datetime={stamp}>{stamp}</time>
+							</li>
+						);
+					})}
+				</ol>
+			)
+		}
 	</body>
 </html>

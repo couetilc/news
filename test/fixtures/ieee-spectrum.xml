@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>IEEE Spectrum</title>
+    <link>https://spectrum.ieee.org/</link>
+    <description>IEEE Spectrum</description>
+    <item>
+      <title>A new chip architecture</title>
+      <link>https://spectrum.ieee.org/new-chip</link>
+      <guid>https://spectrum.ieee.org/new-chip</guid>
+      <pubDate>Wed, 10 Jun 2026 12:00:00 -0400</pubDate>
+      <description><![CDATA[<p>Full article HTML for the chip story, kilobytes in reality.</p>]]></description>
+    </item>
+    <item>
+      <title>Robots learn to fold laundry</title>
+      <link>https://spectrum.ieee.org/robots-laundry</link>
+      <guid>https://spectrum.ieee.org/robots-laundry</guid>
+      <pubDate>Fri, 12 Jun 2026 08:15:00 -0400</pubDate>
+      <description><![CDATA[<p>Full article HTML for the robots story.</p>]]></description>
+    </item>
+    <item>
+      <title>Stale 2022 item lingering in the feed tail</title>
+      <link>https://spectrum.ieee.org/old-2022</link>
+      <guid>https://spectrum.ieee.org/old-2022</guid>
+      <pubDate>Mon, 03 Jan 2022 10:00:00 -0500</pubDate>
+      <description><![CDATA[<p>Old body.</p>]]></description>
+    </item>
+  </channel>
+</rss>
