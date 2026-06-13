@@ -32,6 +32,14 @@
 	--color-muted: #6b665b; /* datelines, metadata */
 	--color-rule: #c9c3b3; /* hairline column rules */
 	--color-accent: #8b1a1a; /* masthead/section red */
+
+	/* Source-identity swatch colors: one muted, desaturated hue per feed so a
+	   reader can tell sources apart at a glance without breaking the newsprint
+	   palette (kept dark/low-chroma to sit on warm paper, not shout like a
+	   web-app accent). Each becomes `bg-source-*`; the slug→class mapping and a
+	   neutral fallback live in src/lib/sources.ts. Add a token here per source. */
+	--color-source-cloudflare: #a8662a; /* muted burnt-ochre */
+	--color-source-ieee: #3e587a; /* muted slate-blue */
 }
 
 @layer base {

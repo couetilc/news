@@ -1,0 +1,23 @@
+// Presentation metadata for a feed source: the human display name and the
+// swatch color used to distinguish it on the homepage. Source rows store only a
+// slug (e.g. "cloudflare-blog"); this turns that slug into a proper name and a
+// Tailwind `bg-source-*` utility class (the colors are --color-source-* theme
+// tokens in src/styles/global.css). The class names are written as full literal
+// strings so Tailwind's scanner sees them.
+//
+// An unregistered source (in the DB but not yet listed here) falls back to its
+// raw slug and the neutral muted rule — visible, never a crash.
+
+export interface SourceMeta {
+	name: string;
+	swatch: string; // a `bg-*` utility class for the color flag
+}
+
+const REGISTRY: Record<string, SourceMeta> = {
+	'cloudflare-blog': { name: 'Cloudflare Blog', swatch: 'bg-source-cloudflare' },
+	'ieee-spectrum': { name: 'IEEE Spectrum', swatch: 'bg-source-ieee' },
+};
+
+export function sourceMeta(slug: string): SourceMeta {
+	return REGISTRY[slug] ?? { name: slug, swatch: 'bg-muted' };
+}
