@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+/*
+ * Newspaper theme — light, mobile-first.
+ *
+ * Design intent (see .claude/skills/design-system/SKILL.md for the full
+ * guidelines):
+ *   • Mobile-first: base styles target a single narrow column; widen and add
+ *     columns only at `sm:`/`md:`/`lg:` breakpoints.
+ *   • Light theme only for now: warm newsprint paper, near-black ink.
+ *   • Newspaper feel: serif type, hairline column rules, small-caps datelines,
+ *     a ruled masthead.
+ *
+ * Tokens below become Tailwind utilities automatically (e.g. `--color-paper`
+ * → `bg-paper`/`text-paper`, `--font-serif` → `font-serif`).
+ */
+@theme {
+	/* Type: system serif stacks — no webfont fetch, so the page paints
+	   instantly and works offline. Swap in a display face (e.g. Playfair) here
+	   if we ever decide the masthead warrants the byte cost. */
+	--font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia,
+		"Times New Roman", Times, serif;
+	--font-headline: "Iowan Old Style", Georgia, "Times New Roman", Times, serif;
+	--font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+		Helvetica, Arial, sans-serif;
+
+	/* Newsprint palette (light). */
+	--color-paper: #f7f5ef; /* warm off-white newsprint */
+	--color-paper-edge: #efece2; /* slightly darker panel/zebra tint */
+	--color-ink: #17150f; /* near-black ink for body text */
+	--color-ink-soft: #3a3730; /* secondary ink */
+	--color-muted: #6b665b; /* datelines, metadata */
+	--color-rule: #c9c3b3; /* hairline column rules */
+	--color-accent: #8b1a1a; /* masthead/section red */
+}
+
+@layer base {
+	html {
+		/* Comfortable reading rhythm; a touch tighter than default. */
+		line-height: 1.5;
+		-webkit-text-size-adjust: 100%;
+		text-rendering: optimizeLegibility;
+	}
+
+	body {
+		background-color: var(--color-paper);
+		color: var(--color-ink);
+		font-family: var(--font-serif);
+		/* Subtle paper grain via two faint diagonal washes — cheap, no image. */
+		background-image:
+			linear-gradient(180deg, rgba(0, 0, 0, 0.015), rgba(0, 0, 0, 0)),
+			radial-gradient(rgba(0, 0, 0, 0.012) 1px, transparent 1px);
+		background-size: auto, 3px 3px;
+	}
+
+	a {
+		color: inherit;
+	}
+
+	/* Headlines lean on the display serif and tight tracking. */
+	h1,
+	h2,
+	h3 {
+		font-family: var(--font-headline);
+		font-weight: 700;
+		letter-spacing: -0.01em;
+	}
+}
