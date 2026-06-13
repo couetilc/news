@@ -2,6 +2,7 @@
 import { env } from 'cloudflare:workers';
 import { listItems } from '../ingest/db';
 import { isoTime, shortDate } from '../lib/format';
+import { sourceMeta } from '../lib/sources';
 import Layout from '../layouts/Layout.astro';
 
 const items = await listItems(env.NEWS_DB, 100);
@@ -17,6 +18,7 @@ const items = await listItems(env.NEWS_DB, 100);
 			<ol class="columns-1 gap-8 sm:columns-2 lg:columns-3">
 				{items.map((item) => {
 					const seconds = item.published_at ?? item.fetched_at;
+					const source = sourceMeta(item.source);
 					return (
 						<li class="mb-5 break-inside-avoid border-b border-rule pb-5">
 							<a href={item.url} class="group block">
@@ -24,8 +26,9 @@ const items = await listItems(env.NEWS_DB, 100);
 									{item.title}
 								</h2>
 							</a>
-							<p class="mt-2 font-sans text-[0.65rem] uppercase tracking-wider text-muted">
-								<span class="font-semibold text-ink-soft">{item.source}</span>
+							<p class="mt-2 flex items-center font-sans text-[0.65rem] uppercase tracking-wider text-muted">
+								<span class={`mr-1.5 inline-block size-2 ${source.swatch}`} aria-hidden="true" />
+								<span class="font-semibold text-ink-soft">{source.name}</span>
 								<span class="mx-1.5" aria-hidden="true">
 									·
 								</span>
