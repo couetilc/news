@@ -59,6 +59,32 @@ fi
 NAME="news-agent-$(date +%m%d-%H%M%S)"
 echo "Starting $NAME (kept after exit; ./bin/claude --clean to prune)" >&2
 
+# Host port mapping. We pick the random host ports ourselves instead of using the
+# bare `-p 127.0.0.1::4321` form (which lets Docker choose) so we can inject the
+# resulting addresses into the container as $DEV_HOST_4321 / $DEV_HOST_8787. The
+# agent runs as non-root with no Docker socket — by the isolation contract it
+# cannot query the mapping itself — so it reads those vars and tells you which
+# URL to open. Still a fresh random port per launch, so parallel containers
+# never collide. (Bind only: the dev server must also bind 0.0.0.0 inside the
+# container — run `npm run dev -- --host` — or forwarded traffic never reaches a
+# container-loopback listener.)
+port_free() {
+	( exec 3<>"/dev/tcp/127.0.0.1/$1" ) 2>/dev/null && return 1 || return 0
+}
+pick_port() {
+	local p
+	while :; do
+		p=$(( (RANDOM % 16384) + 49152 )) # ephemeral range 49152-65535
+		if port_free "$p"; then echo "$p"; return; fi
+	done
+}
+PORT_ASTRO=$(pick_port)
+PORT_WRANGLER=$(pick_port)
+while [ "$PORT_WRANGLER" = "$PORT_ASTRO" ]; do PORT_WRANGLER=$(pick_port); done
+echo "Dev servers, once started inside with --host:" >&2
+echo "  astro     http://127.0.0.1:$PORT_ASTRO/    (\$DEV_HOST_4321)" >&2
+echo "  wrangler  http://127.0.0.1:$PORT_WRANGLER/    (\$DEV_HOST_8787)" >&2
+
 docker run -it \
 	--name "$NAME" \
 	--label news-agent \
@@ -68,5 +94,7 @@ docker run -it \
 	-e GIT_USER_EMAIL="$(git config user.email 2>/dev/null || true)" \
 	-e TERM=xterm-256color \
 	-e COLORTERM="${COLORTERM:-}" \
-	-p 127.0.0.1::4321 -p 127.0.0.1::8787 \
+	-e DEV_HOST_4321="127.0.0.1:$PORT_ASTRO" \
+	-e DEV_HOST_8787="127.0.0.1:$PORT_WRANGLER" \
+	-p "127.0.0.1:$PORT_ASTRO:4321" -p "127.0.0.1:$PORT_WRANGLER:8787" \
 	"$IMAGE" "${CMD[@]}" "$@"
