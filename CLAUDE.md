@@ -82,16 +82,34 @@ skeleton; every change should move it toward being a useful news aggregator.
 
 ## Testing policy
 
-`npm test` must pass before any commit. `vitest.config.ts` deliberately does
-NOT load `astro.config.mjs` (`configFile: false`) because the Cloudflare Vite
-plugin is incompatible with vitest's node environment; components are rendered
-in tests via the Container API (`astro/container`). If worker-runtime-specific
-logic appears (bindings, Durable Objects), adopt `@cloudflare/vitest-pool-workers`
-for those tests.
+`npm test` must pass before any commit. The suite runs as **two vitest projects**
+(`vitest.config.ts` wires them together and owns the merged coverage gate):
 
-**Tests must never hit the network** — mock all external HTTP. This keeps
-`npm test` hermetic so it passes in CI, in claude.ai cloud sessions under the
-default Trusted network mode, and offline.
+- **`workers`** (`vitest.workers.config.ts`) — runs inside workerd via
+  `@cloudflare/vitest-pool-workers`, so `cloudflare:workers` env, D1 bindings, and
+  `ON CONFLICT` semantics behave exactly as in production. A real local D1 is
+  declared inline (`miniflare.d1Databases`) and the committed `migrations/*.sql`
+  are applied per test file by `test/helpers/apply-migrations.ts` (the
+  `applyD1Migrations` helper from `cloudflare:test`). All `src/ingest/**` and the
+  worker entry are tested here. `src/worker.ts` imports `@astrojs/cloudflare/handler`
+  (a build-time virtual module), so its test must `vi.mock` that import.
+- **`node`** (`vitest.node.config.ts`) — node environment with Astro's Container
+  API for the one thing the worker pool can't host: rendering `.astro` pages
+  (Astro's Vite plugins pull in `xxhash-wasm`, which the worker pool can't load).
+  Both project configs keep `configFile: false` (the Cloudflare adapter's Vite
+  plugin is incompatible with the test pipeline). Pages import
+  `cloudflare:workers`, which doesn't exist outside workerd, so it's aliased to
+  `test/helpers/cloudflare-workers.ts`; a page's data access is mocked and its
+  real D1 behavior is covered by the `workers` project.
+
+Coverage is **Istanbul, not V8** (workerd has no `node:inspector`); the 100%
+line/branch gate over `src/**` holds across the merged projects, so every src
+file must be exercised by one project or the other.
+
+**Tests must never hit the network** — inject `fetch` (the ingest runner takes a
+`fetchFn`) and use feed fixtures under `test/fixtures/`. This keeps `npm test`
+hermetic so it passes in CI, in claude.ai cloud sessions under the default
+Trusted network mode, and offline.
 
 ## Backlog
 
