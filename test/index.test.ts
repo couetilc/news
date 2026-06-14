@@ -17,6 +17,7 @@ const row = (over: Partial<ItemRow>): ItemRow => ({
 	content_html: null,
 	published_at: 1000,
 	fetched_at: 2000,
+	read_at: null,
 	...over,
 });
 
@@ -53,6 +54,11 @@ describe('index page', () => {
 		expect(html).toContain(`datetime="${new Date(5000 * 1000).toISOString()}"`);
 		// ...and fetched_at is the fallback when it is null.
 		expect(html).toContain(`datetime="${new Date(3000 * 1000).toISOString()}"`);
+		// All unread: every item offers a "mark read" control and there is no
+		// Read section header.
+		expect(html).toContain('aria-label="Mark as read"');
+		expect(html).not.toContain('aria-label="Mark as unread"');
+		expect(html).not.toMatch(/>\s*Read\s*</);
 	});
 
 	it('falls back to the raw slug and the neutral flag for an unregistered source', async () => {
@@ -63,5 +69,35 @@ describe('index page', () => {
 		const html = await render();
 		expect(html).toContain('mystery-wire');
 		expect(html).toContain('bg-muted');
+	});
+
+	it('drops read items into a Read section with an un-read control', async () => {
+		vi.mocked(listItems).mockResolvedValue([
+			row({ id: 2, title: 'Still unread', read_at: null }),
+			row({ id: 1, title: 'Already read', read_at: 4000 }),
+		]);
+
+		const html = await render();
+		// The section header appears once both states are present.
+		expect(html).toMatch(/>\s*Read\s*</);
+		// The read row carries the timestamp and the inverse (un-read) control;
+		// the unread row carries the mark-read control.
+		expect(html).toContain('Already read');
+		expect(html).toContain('aria-label="Mark as unread"');
+		expect(html).toContain('aria-label="Mark as read"');
+		// Each control posts the item id to the toggle endpoint.
+		expect(html).toContain('action="/api/read"');
+		expect(html).toContain('name="id"');
+	});
+
+	it('renders only the Read section when every item has been read', async () => {
+		vi.mocked(listItems).mockResolvedValue([
+			row({ id: 1, title: 'Read one', read_at: 4000 }),
+		]);
+
+		const html = await render();
+		expect(html).toMatch(/>\s*Read\s*</);
+		expect(html).toContain('aria-label="Mark as unread"');
+		expect(html).not.toContain('aria-label="Mark as read"');
 	});
 });
