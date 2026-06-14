@@ -90,6 +90,26 @@ describe('index page', () => {
 		expect(html).toContain('name="id"');
 	});
 
+	it('wires up the read/unread move animation: client router + per-item morph targets', async () => {
+		vi.mocked(listItems).mockResolvedValue([
+			row({ id: 2, title: 'Still unread', read_at: null }),
+			row({ id: 1, title: 'Already read', read_at: 4000 }),
+		]);
+
+		const html = await render();
+		// The client router upgrades the form POST → 303 reload into a
+		// view-transition navigation (with JS off the form still posts normally).
+		expect(html).toContain('astro-view-transitions-enabled');
+		// Each Article row carries its own transition scope, so the browser tracks
+		// it as a distinct element and morphs the toggled item from its old slot to
+		// its new one across the swap. The view-transition-name keyed to the item id
+		// (transition:name={`item-${id}`}) is emitted in a scoped <style> pushed to
+		// extraHead, which the Container API doesn't inline — so we assert on the
+		// per-row scope attribute it does render: two rows, two distinct scopes.
+		const scopes = [...html.matchAll(/data-astro-transition-scope="([^"]+)"/g)].map((m) => m[1]);
+		expect(new Set(scopes).size).toBe(2);
+	});
+
 	it('renders only the Read section when every item has been read', async () => {
 		vi.mocked(listItems).mockResolvedValue([
 			row({ id: 1, title: 'Read one', read_at: 4000 }),
