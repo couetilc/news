@@ -26,7 +26,7 @@ const label = isRead ? 'Mark as unread' : 'Mark as read';
 const nextState = isRead ? '0' : '1';
 ---
 
-<li class={row}>
+<li class={row} transition:name={`item-${item.id}`}>
 	<div class="min-w-0 flex-1">
 		<a href={item.url} class="group block">
 			<h2
