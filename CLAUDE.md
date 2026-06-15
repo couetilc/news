@@ -149,6 +149,26 @@ work with — e.g. `gh issue list --label testing` (current set: `gh label list`
 Filing/structure conventions, the area-label taxonomy, and sub-issues-as-epics
 live in the `filing-issues` skill.
 
+## README policy
+
+`README.md` is the project's **public-image / portfolio surface**, not just a dev
+quickstart — it serves a human audience (recruiters, collaborators, curious devs)
+alongside the developer one. Two standing rules:
+
+- **Items of interest to a human reader belong in the README**, not only in this
+  agent-oriented `CLAUDE.md`. When a change or discovery would help someone
+  reading/using/contributing to the repo — or is worth showcasing — surface it in
+  `README.md`.
+- **⚠️ Every `README.md` change requires Connor's sign-off before it lands.** No
+  agent or PR modifies `README.md` without first showing Connor the proposed
+  change for approval: draft → show the human → only then apply/commit/merge.
+- **Agent-driven README updates go in their own issue, never bundled into a
+  feature PR.** When an agent implementing a feature notices a worthwhile README
+  improvement, it must *not* stall that feature on the README approval gate —
+  file a separate, self-contained GitHub issue for the README change and keep the
+  feature moving. The README work then runs its own draft → sign-off cycle,
+  asynchronously, so the human gate never blocks the delivery pipeline.
+
 ## Memory policy
 
 Don't use the harness's file-based memory feature (`~/.claude/projects/.../memory/`)
