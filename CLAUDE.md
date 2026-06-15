@@ -144,10 +144,10 @@ gate is a possible follow-up (see #46), complementary to — not a replacement f
 The backlog lives in **GitHub issues** (`gh issue list`), not in README TODOs or
 this file. File an issue when work is requested or discovered but not done now;
 close it from a PR with "Fixes #N". Issues carry a *type* label
-(bug/enhancement/documentation) and a loose *area* label
-(`codex`/`testing`/`ingest`/`ui`/`auth`/`agent-infra`) you can steer work with —
-e.g. `gh issue list --label testing`. Filing/structure conventions, the full
-area taxonomy, and sub-issues-as-epics live in the `filing-issues` skill.
+(bug/enhancement/documentation) and a loose, evolving *area* label you can steer
+work with — e.g. `gh issue list --label testing` (current set: `gh label list`).
+Filing/structure conventions, the area-label taxonomy, and sub-issues-as-epics
+live in the `filing-issues` skill.
 
 ## Memory policy
 

@@ -38,31 +38,34 @@ Flag **human-gated** changes explicitly in the body: anything that edits
 touches `.github/workflows/*` needs an explicit human go-ahead before the PR
 merges (see CLAUDE.md / the container tool policy).
 
-## Labels: two orthogonal axes
+## Labels: a type axis, plus steerable area-groups
 
-Every issue carries a **type** and (usually) one **area**.
+Two axes:
 
-**Type** — GitHub's stock labels: `bug`, `enhancement`, `documentation`
-(plus `duplicate` / `wontfix` / `question` as needed).
+- **Type** — GitHub's stock labels, stable: `bug`, `enhancement`,
+  `documentation` (plus `duplicate` / `wontfix` / `question` as needed).
+- **Area** — a **loose, living** set of grouping labels whose whole job is
+  steering. When several issues are related, give them a shared label so the
+  cluster is addressable in one query — `gh issue list --label <area>` — which is
+  how you point an agent at a group of related work. (Cross-links and sub-issues
+  also relate issues; a label is the form that's *queryable as a group*.)
 
-**Area** — this repo's loose grouping taxonomy. Its whole job is steering: *"work
-the testing group"* → `gh issue list --label testing`.
+The area labels are **not a fixed schema** — they track whatever groupings are
+useful at the moment:
+- **Add** one when a cluster of related work emerges that you'll want to tackle
+  together.
+- **Cull** one when its work is done or it stops being useful — `gh label delete
+  <name>` removes the tag without touching the issues.
+- The live set — and each label's scope, kept in its `--description` — is
+  `gh label list`. At the time of writing the areas were `codex`, `testing`,
+  `ingest`, `ui`, `auth`, `agent-infra`; treat that as a snapshot, not a canon.
 
-| Area | Scope |
-|---|---|
-| `codex` | The Codex-as-coding-agent epic (#82) and its sub-issues |
-| `testing` | Test suite, coverage, e2e, testing strategy/tools |
-| `ingest` | Feeds, parsers, the ingestion pipeline & item data model |
-| `ui` | Frontend pages/components, styling, routing & UX behavior |
-| `auth` | Accounts, login/signup, sessions, the auth guard, auth email |
-| `agent-infra` | Agent container, `bin/claude` launcher, Docker, CI/CD |
-
-Conventions:
-- One area is the norm; a genuinely cross-cutting issue can carry **two** (e.g.
-  the signup bug #95 is `auth` + `ui`). A pure-meta issue (e.g. the README #90)
-  may have **no** area — that's fine.
-- Add a **new** area label only when a genuinely new theme appears and recurs —
-  don't proliferate. A new area is a deliberate taxonomy change, not a reflex.
+Conventions, independent of which labels exist:
+- One area is the norm; a genuinely cross-cutting issue can carry two (e.g. the
+  signup bug #95 is `auth` + `ui`); a pure-meta issue (e.g. the README #90) may
+  carry none.
+- Don't proliferate — a new area is a deliberate choice to track a real,
+  recurring grouping, not a per-issue reflex.
 
 ## Epics: native sub-issues, not a board
 
