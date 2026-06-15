@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title><![CDATA[Apple Newsroom]]></title>
+  <updated>2026-06-09T13:00:15.876Z</updated>
+  <id>https://www.apple.com/newsroom/</id>
+  <link href="https://www.apple.com/newsroom/" rel="alternate"/>
+  <link href="https://www.apple.com/newsroom/rss-feed.rss" rel="self"/>
+  <entry>
+    <updated>2026-06-09T13:00:15.876Z</updated>
+    <category term="UPDATE"/>
+    <title><![CDATA[Apple unveils innovative features across services]]></title>
+    <link href="https://www.apple.com/newsroom/2026/06/apple-unveils-innovative-features-across-services/"/>
+    <id>https://www.apple.com/newsroom/2026/06/apple-unveils-innovative-features-across-services/</id>
+    <author><name><![CDATA[Apple Newsroom]]></name></author>
+    <content><![CDATA[With the 2027 software releases coming this fall, Apple is bringing powerful new features to services users.]]></content>
+    <link href="https://www.apple.com/newsroom/images/2026/06/apple-unveils-innovative-features-across-services/tile/hero.jpg.og.jpg" rel="enclosure" title="Apple services hero" type="image/jpeg"/>
+  </entry>
+  <entry>
+    <updated>2026-06-08T16:30:00.000Z</updated>
+    <category term="PRESS RELEASE"/>
+    <title><![CDATA[Apple reports second quarter results]]></title>
+    <link href="https://www.apple.com/newsroom/2026/06/apple-reports-second-quarter-results/"/>
+    <id>https://www.apple.com/newsroom/2026/06/apple-reports-second-quarter-results/</id>
+    <author><name><![CDATA[Apple Newsroom]]></name></author>
+    <content><![CDATA[Apple today announced financial results for its fiscal 2026 second quarter.]]></content>
+    <link href="https://www.apple.com/newsroom/images/2026/06/apple-reports-second-quarter-results/tile/hero.jpg.og.jpg" rel="enclosure" title="Apple Park" type="image/jpeg"/>
+  </entry>
+</feed>

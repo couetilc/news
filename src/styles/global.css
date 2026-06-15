@@ -40,6 +40,7 @@
 	   neutral fallback live in src/lib/sources.ts. Add a token here per source. */
 	--color-source-cloudflare: #a8662a; /* muted burnt-ochre */
 	--color-source-ieee: #3e587a; /* muted slate-blue */
+	--color-source-apple: #6b5640; /* muted sepia/coffee (#29, Apple) */
 }
 
 @layer base {

@@ -16,6 +16,7 @@ export interface SourceMeta {
 const REGISTRY: Record<string, SourceMeta> = {
 	'cloudflare-blog': { name: 'Cloudflare Blog', swatch: 'bg-source-cloudflare' },
 	'ieee-spectrum': { name: 'IEEE Spectrum', swatch: 'bg-source-ieee' },
+	apple: { name: 'Apple', swatch: 'bg-source-apple' },
 };
 
 export function sourceMeta(slug: string): SourceMeta {
