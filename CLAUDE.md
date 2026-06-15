@@ -162,6 +162,12 @@ alongside the developer one. Two standing rules:
 - **⚠️ Every `README.md` change requires Connor's sign-off before it lands.** No
   agent or PR modifies `README.md` without first showing Connor the proposed
   change for approval: draft → show the human → only then apply/commit/merge.
+- **Agent-driven README updates go in their own issue, never bundled into a
+  feature PR.** When an agent implementing a feature notices a worthwhile README
+  improvement, it must *not* stall that feature on the README approval gate —
+  file a separate, self-contained GitHub issue for the README change and keep the
+  feature moving. The README work then runs its own draft → sign-off cycle,
+  asynchronously, so the human gate never blocks the delivery pipeline.
 
 ## Memory policy
 
