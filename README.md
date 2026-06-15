@@ -41,12 +41,40 @@ ships through AI agents operating a real engineering workflow.
 - **An issue-driven backlog**: work is filed as GitHub issues, implemented on
   branches, and merged via CI — nothing reaches production except through a
   reviewed PR.
-- **Orchestration model**: Claude drives the backlog (the `issue-orchestration`
-  skill), with Codex-based review coming next — so one agent ships while another
-  reviews.
+- **Two agents in parallel**: one loop drives the backlog (the
+  `issue-orchestration` skill) while another reviews merged PRs (the
+  `review-merged-prs` skill) — one ships while the other reviews (see below).
 
 The conventions, skills, and guardrails that keep this safe live in
 [`CLAUDE.md`](CLAUDE.md) and [`.claude/skills/`](.claude/skills).
+
+### Two agents, side by side
+
+Two agent loops run in parallel, in separate terminals:
+
+- **Implement loop** (Claude today) — drives the GitHub-issue backlog: picks up
+  an issue, implements it on a branch, opens a PR, and merges once CI is green
+  (the `issue-orchestration` skill).
+- **Review loop** (Codex today) — watches for merged PRs and reviews each one
+  *post-merge*, filing any actionable findings back as GitHub issues (the
+  `review-merged-prs` skill).
+
+The roles are **model-neutral** — either agent can do either job. Both read the
+same shared instructions (`CLAUDE.md` = `AGENTS.md`) and the same skill library,
+so they never step on each other.
+
+```bash
+# terminal 1 — implement the backlog
+claude     # then invoke the issue-orchestration skill
+
+# terminal 2 — review merged PRs as they land
+codex      # then invoke the review-merged-prs skill
+```
+
+**End state:** issue filed → implemented & merged by the implement loop →
+deployed by CI → reviewed by the review loop → findings become new issues → back
+into the backlog. A human signs off on the architectural/security tier and on any
+README change.
 
 ## Architecture
 
