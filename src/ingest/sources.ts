@@ -2,6 +2,7 @@ import { parseAtom } from './parse/atom';
 import { parseAwsWhatsNew } from './parse/aws-whats-new';
 import { parseEdgar8k } from './parse/edgar-8k';
 import { parseRss20 } from './parse/rss20';
+import { parseSecEdgar } from './parse/sec-edgar';
 import type { FeedConfig } from './types';
 
 // #26 — Annapurna's silicon ships through AWS's What's New JSON search API.
@@ -187,4 +188,21 @@ export const SOURCES: FeedConfig[] = [
 	},
 	// #26 — one entry per silicon term, all source 'aws' (see awsFeed above).
 	...AWS_TERMS.map(awsFeed),
+	{
+		// #30 — Texas Instruments. RESEARCH OUTCOME: no working public TI news/IR
+		// feed exists (the Q4 IR `.aspx` RSS used by Cisco/Qualcomm 404s on TI's
+		// platform; the old *.mediaroom.com pressroom is gone; the ti.com newsroom
+		// has no RSS/Atom and renders from a private API). The one reliable,
+		// officially-supported channel is the SEC EDGAR submissions API for TXN
+		// (CIK 0000097476) — JSON, not a feed. parseSecEdgar keeps only 8-K current
+		// reports (material events: earnings, leadership, etc.), so this is TI's
+		// CORPORATE news, not product launches. Picked data.sec.gov (the documented
+		// data API, no robots disallow) over the /cgi-bin browse-edgar Atom feed
+		// (robots-disallowed). SEC requires a contact-bearing User-Agent, which
+		// run.ts already sends. Filings are ~1–2/month, so a 12-hour poll is ample.
+		source: 'ti',
+		feed: 'https://data.sec.gov/submissions/CIK0000097476.json',
+		pollIntervalSeconds: 43200,
+		parse: parseSecEdgar,
+	},
 ];

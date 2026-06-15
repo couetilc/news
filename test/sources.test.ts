@@ -14,6 +14,7 @@ import nvidiaBlogXml from './fixtures/nvidia-blog.xml?raw';
 import nvidiaNewsroomXml from './fixtures/nvidia-newsroom.xml?raw';
 import qualcommXml from './fixtures/qualcomm.xml?raw';
 import scienceDailyXml from './fixtures/science-daily.xml?raw';
+import tiEdgarJson from './fixtures/ti-sec-edgar.json?raw';
 
 const source = (name: string) => SOURCES.find((s) => s.source === name)!;
 
@@ -34,6 +35,7 @@ describe('SOURCES', () => {
 		expect(slugs).toContain('anthropic');
 		expect(slugs).toContain('aws');
 		expect(slugs).toContain('cisco');
+		expect(slugs).toContain('ti');
 	});
 
 	it('registers both Cisco feeds (IR RSS primary + EDGAR 8-K backstop) under one source', () => {
@@ -182,5 +184,18 @@ describe('SOURCES', () => {
 		const items = source('elonlit').parse(elonlitXml);
 		expect(items[0].contentHtml).toContain('<strong>markup</strong>');
 		expect(items[0].summary).toBe('<p>A short excerpt of the post.</p>');
+	});
+
+	it('parses TI SEC EDGAR 8-K filings: synthesized title, links out, no body (#30)', () => {
+		// Only 8-K/8-K/A current reports survive; periodic/ownership forms are dropped.
+		const items = source('ti').parse(tiEdgarJson);
+		expect(items[0].title).toBe(
+			'Texas Instruments 8-K — Departure or Appointment of Directors or Officers',
+		);
+		expect(items[0].guid).toBe('0000950103-26-008325');
+		expect(items[0].url).toBe(
+			'https://www.sec.gov/Archives/edgar/data/97476/000095010326008325/dp247795_8k.htm',
+		);
+		expect(items[0].contentHtml).toBeNull();
 	});
 });
