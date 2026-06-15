@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Merged PRs"
+  short_description: "Review merged PRs; file findings as issues"
+  default_prompt: "Use $review-merged-prs to watch for merged GitHub PRs, file actionable findings as agent-review issues, and label each reviewed PR agent-reviewed."
