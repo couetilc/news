@@ -101,4 +101,31 @@ export const SOURCES: FeedConfig[] = [
 		pollIntervalSeconds: 86400,
 		parse: (xml) => parseAtom(xml, { content: 'content' }),
 	},
+	// #22 — Anthropic has no official feed, so we read each section through the
+	// OpenRSS proxy. All three are RSS 2.0 with the full rendered article HTML in
+	// the <description> CDATA (no content:encoded), so `description` mode routes
+	// that body into contentHtml and leaves summary null — same path as IEEE
+	// Spectrum/Qualcomm. They share one `source: 'anthropic'`; run.ts isolates
+	// each feed, so an OpenRSS outage on one section never aborts the others.
+	// OpenRSS sends Cache-Control: max-age=32400 (9h) and each feed mirrors only
+	// the ~10-item landing page, so poll 3×/day (8h) — anything tighter just
+	// re-fetches the cached copy.
+	{
+		source: 'anthropic',
+		feed: 'https://openrss.org/feed/www.anthropic.com/news',
+		pollIntervalSeconds: 28800,
+		parse: (xml) => parseRss20(xml, { content: 'description' }),
+	},
+	{
+		source: 'anthropic',
+		feed: 'https://openrss.org/feed/www.anthropic.com/research',
+		pollIntervalSeconds: 28800,
+		parse: (xml) => parseRss20(xml, { content: 'description' }),
+	},
+	{
+		source: 'anthropic',
+		feed: 'https://openrss.org/feed/www.anthropic.com/engineering',
+		pollIntervalSeconds: 28800,
+		parse: (xml) => parseRss20(xml, { content: 'description' }),
+	},
 ];

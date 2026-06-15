@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { SOURCES } from '../src/ingest/sources';
 import amdXml from './fixtures/amd.xml?raw';
+import anthropicXml from './fixtures/anthropic.xml?raw';
 import appleXml from './fixtures/apple.xml?raw';
 import cloudflareXml from './fixtures/cloudflare-blog.xml?raw';
 import elonlitXml from './fixtures/elonlit.xml?raw';
@@ -27,6 +28,33 @@ describe('SOURCES', () => {
 		expect(slugs).toContain('intel');
 		expect(slugs).toContain('nvidia');
 		expect(slugs).toContain('elonlit');
+		expect(slugs).toContain('anthropic');
+	});
+
+	it('registers all three Anthropic OpenRSS sections under one source', () => {
+		const feeds = SOURCES.filter((s) => s.source === 'anthropic').map((s) => s.feed);
+		expect(feeds).toEqual([
+			'https://openrss.org/feed/www.anthropic.com/news',
+			'https://openrss.org/feed/www.anthropic.com/research',
+			'https://openrss.org/feed/www.anthropic.com/engineering',
+		]);
+		// 8h poll (3×/day): OpenRSS caches for 9h, so anything tighter just re-fetches.
+		for (const s of SOURCES.filter((s) => s.source === 'anthropic')) {
+			expect(s.pollIntervalSeconds).toBe(28800);
+		}
+	});
+
+	it('parses Anthropic OpenRSS full HTML from the description, no summary', () => {
+		// All three section feeds share the same parser closure, so exercise each
+		// one (news/research/engineering) against the fixture — both to assert the
+		// shared behavior and to cover every per-feed `parse` in SOURCES.
+		for (const s of SOURCES.filter((s) => s.source === 'anthropic')) {
+			const items = s.parse(anthropicXml);
+			expect(items[0].title).toBe('Introducing Claude Fable 5 and Mythos 5');
+			expect(items[0].url).toBe('https://www.anthropic.com/news/claude-fable-5-mythos-5');
+			expect(items[0].contentHtml).toContain('<strong>frontier</strong>');
+			expect(items[0].summary).toBeNull();
+		}
 	});
 
 	it('parses the Cloudflare blog from content:encoded with a separate summary', () => {

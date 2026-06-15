@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseRss20 } from '../src/ingest/parse/rss20';
 import amdXml from './fixtures/amd.xml?raw';
+import anthropicXml from './fixtures/anthropic.xml?raw';
 import cloudflareXml from './fixtures/cloudflare-blog.xml?raw';
 import ieeeXml from './fixtures/ieee-spectrum.xml?raw';
 import intelXml from './fixtures/intel.xml?raw';
@@ -178,6 +179,32 @@ describe('parseRss20 — bare <content> mode (NVIDIA newsroom, #25)', () => {
 			'https://nvidianews.nvidia.com/news/nvidia-announces-next-generation-gpu-architecture',
 		);
 		expect(items[0].publishedAt).toBe(Math.floor(Date.UTC(2026, 5, 12, 13, 0, 0) / 1000));
+	});
+});
+
+describe('parseRss20 — description mode (Anthropic via OpenRSS proxy)', () => {
+	// #22: OpenRSS mirrors each Anthropic section as RSS 2.0 with namespaced root
+	// (content/dc/ofeed) and the full rendered article HTML in the <description>
+	// CDATA — no content:encoded — so `description` mode routes it to contentHtml.
+	const items = parseRss20(anthropicXml, { content: 'description' });
+
+	it('extracts every item in feed order', () => {
+		expect(items.map((i) => i.title)).toEqual([
+			'Introducing Claude Fable 5 and Mythos 5',
+			'Expanding the Economic Index',
+		]);
+	});
+
+	it('takes the full HTML from the CDATA description and leaves summary null', () => {
+		expect(items[0]).toEqual({
+			guid: 'https://www.anthropic.com/news/claude-fable-5-mythos-5',
+			url: 'https://www.anthropic.com/news/claude-fable-5-mythos-5',
+			title: 'Introducing Claude Fable 5 and Mythos 5',
+			summary: null,
+			contentHtml:
+				'<article><h1>Introducing Claude Fable 5 and Mythos 5</h1><p>Today we are announcing our most capable models yet, with <strong>frontier</strong> performance across coding and agentic tasks.</p></article>',
+			publishedAt: Math.floor(Date.UTC(2026, 5, 9, 16, 0, 0) / 1000),
+		});
 	});
 });
 
