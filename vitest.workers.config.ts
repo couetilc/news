@@ -28,6 +28,7 @@ export default defineConfig({
 		// guard, which imports the astro:middleware virtual module) can't run under
 		// the worker pool — they live in vitest.node.config.ts.
 		exclude: [
+			'test/agents-md.test.ts',
 			'test/index.test.ts',
 			'test/status.test.ts',
 			'test/public.test.ts',

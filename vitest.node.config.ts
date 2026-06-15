@@ -42,6 +42,7 @@ export default getViteConfig(
 			name: 'node',
 			environment: 'node',
 			include: [
+				'test/agents-md.test.ts',
 				'test/index.test.ts',
 				'test/status.test.ts',
 				'test/public.test.ts',
