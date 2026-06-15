@@ -44,6 +44,8 @@ export default getViteConfig(
 			include: [
 				'test/index.test.ts',
 				'test/status.test.ts',
+				'test/public.test.ts',
+				'test/article.test.ts',
 				'test/worker.test.ts',
 				'test/auth-pages.test.ts',
 				'test/middleware.test.ts',

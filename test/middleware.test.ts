@@ -31,7 +31,8 @@ const sessionWith = (userId: number | undefined) => ({
 
 describe('auth middleware', () => {
 	it('lets public paths through without checking the session', async () => {
-		for (const path of ['/login', '/signup', '/logout']) {
+		// /public is the read-only feed (issue #49) — reachable logged out.
+		for (const path of ['/login', '/signup', '/logout', '/public']) {
 			const { promise } = run(path, undefined);
 			expect(await promise).toBe(NEXT);
 		}
@@ -42,6 +43,20 @@ describe('auth middleware', () => {
 		const { promise, redirect } = run('/', sessionWith(undefined));
 		const res = await promise;
 		expect(redirect).toHaveBeenCalledWith('/login', 303);
+		expect(res.headers.get('Location')).toBe('/login');
+		expect(next).not.toHaveBeenCalled();
+	});
+
+	it('rejects an unauthenticated POST to the write endpoint server-side', async () => {
+		// /api/read (the read/unread write) is deliberately NOT a public path, so a
+		// forged anonymous POST — e.g. from the public read-only feed — is redirected
+		// to /login by the guard before the route runs, never reaching D1. The page
+		// is read-only because the server refuses writes, not because the form is
+		// merely hidden.
+		const { promise, redirect } = run('/api/read', sessionWith(undefined));
+		const res = await promise;
+		expect(redirect).toHaveBeenCalledWith('/login', 303);
+		expect(res.status).toBe(303);
 		expect(res.headers.get('Location')).toBe('/login');
 		expect(next).not.toHaveBeenCalled();
 	});

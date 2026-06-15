@@ -5,17 +5,24 @@ import { sourceMeta } from '../lib/sources';
 
 interface Props {
 	item: ItemRow;
+	// Whether to render the read/unread toggle. The private homepage passes the
+	// default (true); the public read-only feed (issue #49) passes false so the
+	// row carries no control that POSTs to /api/read — there's no visitor session
+	// to own per-item read state, and the server would reject the write anyway.
+	interactive?: boolean;
 }
 
-const { item } = Astro.props;
+const { item, interactive = true } = Astro.props;
 const seconds = item.published_at ?? item.fetched_at;
 const source = sourceMeta(item.source);
-const isRead = item.read_at !== null;
+// The read-state dimming is Connor's private state; on the public feed every
+// item reads as fresh, so the row never dims and there's no toggle.
+const isRead = interactive && item.read_at !== null;
 
 // One briefing line: headline + agate dateline on the left, a read-state square
 // on the right. Read items dim back like continued/back-section matter; the
 // square fills with ink (echoing the source swatch) and its form posts the
-// opposite state so one tap flips it.
+// opposite state so one tap flips it. The public feed omits the square entirely.
 const row = isRead
 	? 'flex items-baseline gap-3 border-b border-rule py-2.5 opacity-55'
 	: 'flex items-baseline gap-3 border-b border-rule py-2.5';
@@ -44,9 +51,15 @@ const nextState = isRead ? '0' : '1';
 			<time datetime={isoTime(seconds)}>{shortDate(seconds)}</time>
 		</p>
 	</div>
-	<form method="POST" action="/api/read">
-		<input type="hidden" name="id" value={item.id} />
-		<input type="hidden" name="read" value={nextState} />
-		<button type="submit" class={square} aria-label={label}>✓</button>
-	</form>
+	{
+		interactive && (
+			<form method="POST" action="/api/read">
+				<input type="hidden" name="id" value={item.id} />
+				<input type="hidden" name="read" value={nextState} />
+				<button type="submit" class={square} aria-label={label}>
+					✓
+				</button>
+			</form>
+		)
+	}
 </li>
