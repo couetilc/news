@@ -72,4 +72,13 @@ export const SOURCES: FeedConfig[] = [
 		pollIntervalSeconds: 86400,
 		parse: (xml) => parseRss20(xml, { content: 'content:encoded' }),
 	},
+	{
+		// #23 — Elon Litman's blog (Pelican-generated Atom). Full HTML is in
+		// <content type="html"> with a separate <summary> excerpt. Low cadence
+		// (a few posts/year), so a daily poll is plenty.
+		source: 'elonlit',
+		feed: 'https://elonlit.com/feeds/all.atom.xml',
+		pollIntervalSeconds: 86400,
+		parse: (xml) => parseAtom(xml, { content: 'content' }),
+	},
 ];

@@ -45,6 +45,7 @@
 	--color-source-amd: #9a4a3a; /* muted brick-red (#24, AMD) */
 	--color-source-qualcomm: #8a5a2a; /* muted bronze/caramel (#28, Qualcomm) */
 	--color-source-intel: #5a6b7a; /* muted steel gray-blue (#27, Intel) */
+	--color-source-elonlit: #5f4a78; /* muted plum (#23, elonlit) */
 }
 
 @layer base {

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Elements of a Vector Space</title>
+  <link href="https://elonlit.com/" rel="alternate"></link>
+  <link href="https://elonlit.com/feeds/all.atom.xml" rel="self"></link>
+  <id>https://elonlit.com/</id>
+  <updated>2026-05-04T17:17:00-07:00</updated>
+  <entry>
+    <title>A Theory of Deep Learning</title>
+    <link href="https://elonlit.com/scrivings/a-theory-of-deep-learning/" rel="alternate"></link>
+    <published>2026-05-04T17:17:00-07:00</published>
+    <updated>2026-05-04T17:17:00-07:00</updated>
+    <author>
+      <name>Elon Litman</name>
+    </author>
+    <id>tag:elonlit.com,2026-05-04:/scrivings/a-theory-of-deep-learning/</id>
+    <summary type="html">&lt;p&gt;A short excerpt of the post.&lt;/p&gt;</summary>
+    <content type="html">&lt;p&gt;The full HTML body, with &lt;strong&gt;markup&lt;/strong&gt; and math.&lt;/p&gt;</content>
+    <category term="Deep Learning"></category>
+  </entry>
+  <entry>
+    <title>On JEPA and Self-Supervised Objectives</title>
+    <link href="https://elonlit.com/scrivings/jepa-and-ssl/" rel="alternate"></link>
+    <published>2026-02-11T09:00:00-08:00</published>
+    <updated>2026-02-11T09:00:00-08:00</updated>
+    <author>
+      <name>Elon Litman</name>
+    </author>
+    <id>tag:elonlit.com,2026-02-11:/scrivings/jepa-and-ssl/</id>
+    <summary type="html">&lt;p&gt;Second excerpt.&lt;/p&gt;</summary>
+    <content type="html">&lt;p&gt;Second full body.&lt;/p&gt;</content>
+    <category term="Self-Supervised Learning"></category>
+  </entry>
+</feed>
