@@ -47,6 +47,7 @@
 	--color-source-intel: #5a6b7a; /* muted steel gray-blue (#27, Intel) */
 	--color-source-nvidia: #6f6b32; /* muted olive-gold (#25, NVIDIA) */
 	--color-source-elonlit: #5f4a78; /* muted plum (#23, elonlit) */
+	--color-source-anthropic: #2f6660; /* muted deep-teal (#22, Anthropic) */
 }
 
 @layer base {
