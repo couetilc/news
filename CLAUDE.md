@@ -172,4 +172,4 @@ worker is also reachable at its `*.workers.dev` URL (left enabled).
 
 - Cloudflare account: `dbaa50e60c18b19d483578c42d9bb3ee` (connor@couetil.com)
 - Zone: `cuteteal.com` (`1413a4570fa6e193d5f224ebb5220bb5`)
-- GitHub repo: `couetilc/news` (private)
+- GitHub repo: `couetilc/news` (public — PRs restricted to collaborators, outside issues auto-closed)
