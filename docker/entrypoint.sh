@@ -76,7 +76,7 @@ You are running inside the isolated agent container for the news repo
 - /workspace was cloned fresh from GitHub at container start — you begin on
   `main`; create a branch before committing.
 - Pre-installed: node (already matches the repo's pin), npm, git, gh,
-  gitleaks, shellcheck, shfmt, actionlint, ripgrep (rg). mise is NOT
+  gitleaks, shellcheck, actionlint, ripgrep (rg). mise is NOT
   available here — skip any mise commands.
 - Never commit on main. Changes reach production only via PR → CI → merge.
 - The host machine is unreachable. Nothing outlives this container except
