@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parseRss20 } from '../src/ingest/parse/rss20';
 import cloudflareXml from './fixtures/cloudflare-blog.xml?raw';
 import ieeeXml from './fixtures/ieee-spectrum.xml?raw';
+import scienceDailyXml from './fixtures/science-daily.xml?raw';
 
 describe('parseRss20 — content:encoded mode (Cloudflare blog)', () => {
 	const items = parseRss20(cloudflareXml, { content: 'content:encoded' });
@@ -40,6 +41,37 @@ describe('parseRss20 — description mode (IEEE Spectrum)', () => {
 	it('preserves feed order including the stale 2022 tail item (sorting is the DB layer’s job)', () => {
 		expect(items).toHaveLength(3);
 		expect(items[2].publishedAt).toBe(Math.floor(Date.UTC(2022, 0, 3, 15, 0, 0) / 1000));
+	});
+});
+
+describe('parseRss20 — summaries-only mode (ScienceDaily)', () => {
+	// #21: ScienceDaily's all.xml carries the rewritten press-release summary in
+	// <description> and ships no content:encoded, so the content:encoded option
+	// keeps the description as the summary and leaves contentHtml null.
+	const items = parseRss20(scienceDailyXml, { content: 'content:encoded' });
+
+	it('extracts every item in feed order', () => {
+		expect(items.map((i) => i.title)).toEqual([
+			'Researchers map the brain circuit behind chronic pain',
+			'New catalyst turns captured carbon dioxide into jet fuel',
+			'Distant exoplanet shows signs of a water-rich atmosphere',
+		]);
+	});
+
+	it('keeps the description as the summary and leaves contentHtml null', () => {
+		expect(items[0].summary).toMatch(/^Scientists have identified a specific neural circuit/);
+		expect(items[0].summary).not.toBeNull();
+		expect(items[0].contentHtml).toBeNull();
+	});
+
+	it('normalizes guid, url, and published date from the non-permalink guid', () => {
+		expect(items[0].guid).toBe(
+			'https://www.sciencedaily.com/releases/2026/06/260612101500.htm',
+		);
+		expect(items[0].url).toBe(
+			'https://www.sciencedaily.com/releases/2026/06/260612101500.htm',
+		);
+		expect(items[0].publishedAt).toBe(Math.floor(Date.UTC(2026, 5, 12, 14, 15, 0) / 1000));
 	});
 });
 

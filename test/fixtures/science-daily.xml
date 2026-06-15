@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Latest Science News -- ScienceDaily</title>
+    <link>https://www.sciencedaily.com/news/</link>
+    <description>Breaking science news and articles on global warming, extrasolar planets, stem cells, bird flu, autism, nanotechnology, dinosaurs, evolution -- the latest discoveries in astronomy, anthropology, biology, chemistry, climate and environment, computers, engineering, health and medicine, math, physics, psychology, technology, and more.</description>
+    <language>en-us</language>
+    <copyright>Copyright 2026 ScienceDaily or by other parties, where indicated.</copyright>
+    <ttl>60</ttl>
+    <lastBuildDate>Fri, 12 Jun 2026 13:45:02 EDT</lastBuildDate>
+    <item>
+      <title>Researchers map the brain circuit behind chronic pain</title>
+      <link>https://www.sciencedaily.com/releases/2026/06/260612101500.htm</link>
+      <description>Scientists have identified a specific neural circuit that amplifies the perception of chronic pain in laboratory models. By selectively silencing the circuit, the team reduced pain-related behavior without dulling normal touch sensation, pointing toward targeted therapies that could spare patients the sedation and dependency risks of current painkillers.</description>
+      <guid isPermaLink="false">https://www.sciencedaily.com/releases/2026/06/260612101500.htm</guid>
+      <pubDate>Fri, 12 Jun 2026 10:15:00 EDT</pubDate>
+      <category>Chronic Pain</category>
+    </item>
+    <item>
+      <title>New catalyst turns captured carbon dioxide into jet fuel</title>
+      <link>https://www.sciencedaily.com/releases/2026/06/260612093000.htm</link>
+      <description>A copper-based catalyst converts captured carbon dioxide directly into long-chain hydrocarbons suitable for aviation fuel, the researchers report. Running on renewable electricity, the single-step process reached efficiencies that earlier multi-stage routes could not, raising the prospect of carbon-neutral flight if the catalyst proves durable at industrial scale.</description>
+      <guid isPermaLink="false">https://www.sciencedaily.com/releases/2026/06/260612093000.htm</guid>
+      <pubDate>Fri, 12 Jun 2026 09:30:00 EDT</pubDate>
+      <category>Energy Technology</category>
+    </item>
+    <item>
+      <title>Distant exoplanet shows signs of a water-rich atmosphere</title>
+      <link>https://www.sciencedaily.com/releases/2026/06/260611164500.htm</link>
+      <description>Observations of a sub-Neptune world orbiting a nearby red dwarf reveal spectral features consistent with abundant water vapor, astronomers say. The detection, if confirmed by follow-up observations, would make the planet one of the most promising targets yet in the search for habitable conditions beyond the solar system.</description>
+      <guid isPermaLink="false">https://www.sciencedaily.com/releases/2026/06/260611164500.htm</guid>
+      <pubDate>Thu, 11 Jun 2026 16:45:00 EDT</pubDate>
+      <category>Extrasolar Planets</category>
+    </item>
+  </channel>
+</rss>
