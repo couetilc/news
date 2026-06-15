@@ -1,13 +1,18 @@
 # Isolated agent environment for this repo: everything a Claude Code session
-# needs (node 24 matching mise.toml, git, gh, gitleaks, claude CLI), run as
+# needs (node 24 matching mise.toml, git, gh, gitleaks, claude CLI, plus
+# shellcheck/shfmt/actionlint/ripgrep for shell + CI-workflow linting), run as
 # non-root — --dangerously-skip-permissions refuses to run as root. Nothing
 # from the host is mounted: each container clones the repo from GitHub at
 # launch (entrypoint, GH_TOKEN), so parallel containers never share files;
 # work leaves only via git push.
 FROM node:24-slim
 
+# Base CLI toolchain. shellcheck + ripgrep are agent-DX additions: shellcheck
+# lints the repo's shell scripts (bin/claude, docker/entrypoint.sh,
+# .git-hooks/*, scripts/session-start.sh); ripgrep (rg) is fast search for
+# --shell sessions. (git/curl/ca-certificates/jq/procps predate these.)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-		git curl ca-certificates jq procps \
+		git curl ca-certificates jq procps shellcheck ripgrep \
 	&& curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
 		-o /usr/share/keyrings/githubcli-archive-keyring.gpg \
 	&& echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
@@ -22,6 +27,21 @@ RUN arch=$(dpkg --print-architecture) && case "$arch" in \
 	&& curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_${gl_arch}.tar.gz" \
 		| tar -xz -C /usr/local/bin gitleaks \
 	&& gitleaks version
+
+# shfmt + actionlint: shfmt formats/style-checks the repo's shell scripts
+# (pairs with shellcheck above); actionlint lints .github/workflows/*.yml so a
+# bad workflow edit is caught here, not by a red CI run (CI is this repo's
+# deploy path). Single static binaries from upstream releases, arch-matched —
+# same pattern as gitleaks. Bump the pinned versions as upstream releases.
+ARG SHFMT_VERSION=3.13.1
+ARG ACTIONLINT_VERSION=1.7.12
+RUN arch=$(dpkg --print-architecture) \
+	&& curl -fsSL "https://github.com/mvdan/sh/releases/download/v${SHFMT_VERSION}/shfmt_v${SHFMT_VERSION}_linux_${arch}" \
+		-o /usr/local/bin/shfmt \
+	&& chmod +x /usr/local/bin/shfmt \
+	&& curl -fsSL "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_${arch}.tar.gz" \
+		| tar -xz -C /usr/local/bin actionlint \
+	&& shfmt --version && actionlint -version
 
 # Playwright + headless Chromium for in-session UI/behavioral verification: the
 # `verify`/`run` skills drive the local dev server in a real browser to watch a
