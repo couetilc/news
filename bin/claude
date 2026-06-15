@@ -96,7 +96,7 @@ build_start=$SECONDS
 docker build -t "$IMAGE" docker/
 echo "Image ready in $((SECONDS - build_start))s." >&2
 
-CMD=(claude --dangerously-skip-permissions --effort xhigh)
+CMD=(claude --dangerously-skip-permissions --model opus --effort xhigh)
 if [ "${1:-}" = "--shell" ]; then
 	shift
 	CMD=(bash)
