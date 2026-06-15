@@ -1,3 +1,4 @@
+import { log } from '../lib/log';
 import {
 	ensureFeedRows,
 	getFeedStates,
@@ -53,7 +54,12 @@ async function pollFeed(deps: IngestDeps, config: FeedConfig, state: FeedState):
 				lastStatus: 304,
 				failureCount: 0,
 			});
-			console.log(`[ingest] ${config.source} ${config.feed} 304 not modified`);
+			log.info('ingest.poll', {
+				source: config.source,
+				feed: config.feed,
+				status: 304,
+				outcome: 'not_modified',
+			});
 			return;
 		}
 
@@ -70,9 +76,14 @@ async function pollFeed(deps: IngestDeps, config: FeedConfig, state: FeedState):
 			lastStatus: 200,
 			failureCount: 0,
 		});
-		console.log(
-			`[ingest] ${config.source} ${config.feed} 200 ${items.length} items, ${inserted} new`,
-		);
+		log.info('ingest.poll', {
+			source: config.source,
+			feed: config.feed,
+			status: 200,
+			items: items.length,
+			inserted,
+			outcome: 'ok',
+		});
 	} catch (err) {
 		// Keep prior etag/last_modified so a recovered feed can still 304.
 		await updateFeedState(db, config.feed, {
@@ -82,6 +93,10 @@ async function pollFeed(deps: IngestDeps, config: FeedConfig, state: FeedState):
 			lastStatus: state.last_status,
 			failureCount: state.failure_count + 1,
 		});
-		console.error(`[ingest] ${config.source} ${config.feed} failed:`, err);
+		log.error('ingest.error', {
+			source: config.source,
+			feed: config.feed,
+			err: String(err),
+		});
 	}
 }

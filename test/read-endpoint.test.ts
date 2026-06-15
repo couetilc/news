@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:test';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { insertItems, listItems } from '../src/ingest/db';
 import { POST } from '../src/pages/api/read';
 
@@ -19,8 +19,13 @@ beforeEach(async () => {
 	await db.prepare('DELETE FROM items').run();
 });
 
+afterEach(() => {
+	vi.restoreAllMocks();
+});
+
 describe('POST /api/read', () => {
 	it('marks an item read, then back to unread, redirecting each time', async () => {
+		const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 		await insertItems(db, 's', [
 			{ guid: 'g1', url: 'https://e.com/a', title: 'T', summary: null, contentHtml: null, publishedAt: 1000 },
 		], 100);
@@ -30,9 +35,13 @@ describe('POST /api/read', () => {
 		expect(read.status).toBe(303);
 		expect(read.headers.get('Location')).toBe('/');
 		expect((await listItems(db, 1))[0].read_at).toEqual(expect.any(Number));
+		// Mark-read logs the mutation with read:true.
+		expect(logSpy).toHaveBeenCalledWith({ level: 'info', event: 'read.toggle', id, read: true });
 
 		const unread = await submit({ id: String(id), read: '0' });
 		expect(unread.status).toBe(303);
 		expect((await listItems(db, 1))[0].read_at).toBeNull();
+		// Mark-unread logs the other branch with read:false.
+		expect(logSpy).toHaveBeenCalledWith({ level: 'info', event: 'read.toggle', id, read: false });
 	});
 });
