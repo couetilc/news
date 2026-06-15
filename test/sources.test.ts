@@ -14,6 +14,9 @@ import nvidiaBlogXml from './fixtures/nvidia-blog.xml?raw';
 import nvidiaNewsroomXml from './fixtures/nvidia-newsroom.xml?raw';
 import qualcommXml from './fixtures/qualcomm.xml?raw';
 import scienceDailyXml from './fixtures/science-daily.xml?raw';
+import tiBlogJson from './fixtures/ti-company-blog.json?raw';
+import tiNewsJson from './fixtures/ti-news-releases.json?raw';
+import tiEdgarJson from './fixtures/ti-sec-edgar.json?raw';
 
 const source = (name: string) => SOURCES.find((s) => s.source === name)!;
 
@@ -34,6 +37,7 @@ describe('SOURCES', () => {
 		expect(slugs).toContain('anthropic');
 		expect(slugs).toContain('aws');
 		expect(slugs).toContain('cisco');
+		expect(slugs).toContain('ti');
 	});
 
 	it('registers both Cisco feeds (IR RSS primary + EDGAR 8-K backstop) under one source', () => {
@@ -182,5 +186,45 @@ describe('SOURCES', () => {
 		const items = source('elonlit').parse(elonlitXml);
 		expect(items[0].contentHtml).toContain('<strong>markup</strong>');
 		expect(items[0].summary).toBe('<p>A short excerpt of the post.</p>');
+	});
+
+	it('registers all three TI feeds (news + blog newsroom API + EDGAR backstop) under one source (#30)', () => {
+		const feeds = SOURCES.filter((s) => s.source === 'ti').map((s) => s.feed);
+		expect(feeds).toEqual([
+			'https://www.ti.com/bin/ti/newsroom?page=1&lang=en-us&categories=none&years=none&type=news',
+			'https://www.ti.com/bin/ti/newsroom?page=1&lang=en-us&categories=none&years=none&type=blog',
+			'https://data.sec.gov/submissions/CIK0000097476.json',
+		]);
+	});
+
+	it('parses the TI news-releases API: headline as title, subheadline summary, links out (#30)', () => {
+		const news = SOURCES.find((s) => s.source === 'ti' && s.feed.includes('type=news'))!;
+		const items = news.parse(tiNewsJson);
+		expect(items[0].title).toBe(
+			"TI brings intelligence to battery management systems with industry's highest-cell-count EIS-enabled battery monitor",
+		);
+		expect(items[0].url).toContain('/about-ti/newsroom/news-releases/');
+		expect(items[0].contentHtml).toBeNull();
+	});
+
+	it('parses the TI company-blog API with the same parser (#30)', () => {
+		const blog = SOURCES.find((s) => s.source === 'ti' && s.feed.includes('type=blog'))!;
+		const items = blog.parse(tiBlogJson);
+		expect(items[0].title).toBe('Reliability will define the next decade of energy storage');
+		expect(items[0].url).toContain('/about-ti/newsroom/company-blog/');
+	});
+
+	it('parses TI SEC EDGAR 8-K filings: synthesized title, links out, no body (#30)', () => {
+		// Only 8-K/8-K/A current reports survive; periodic/ownership forms are dropped.
+		const edgar = SOURCES.find((s) => s.source === 'ti' && s.feed.includes('sec.gov'))!;
+		const items = edgar.parse(tiEdgarJson);
+		expect(items[0].title).toBe(
+			'Texas Instruments 8-K — Departure or Appointment of Directors or Officers',
+		);
+		expect(items[0].guid).toBe('0000950103-26-008325');
+		expect(items[0].url).toBe(
+			'https://www.sec.gov/Archives/edgar/data/97476/000095010326008325/dp247795_8k.htm',
+		);
+		expect(items[0].contentHtml).toBeNull();
 	});
 });
