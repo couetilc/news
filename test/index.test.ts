@@ -1,9 +1,13 @@
 import { experimental_AstroContainer as AstroContainer } from 'astro/container';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { distinctSources, listItems } from '../src/ingest/db';
+import { countItemsByRead, distinctSources, listItemsByRead } from '../src/ingest/db';
 import type { ItemRow } from '../src/ingest/db';
 
-vi.mock('../src/ingest/db', () => ({ listItems: vi.fn(), distinctSources: vi.fn() }));
+vi.mock('../src/ingest/db', () => ({
+	listItemsByRead: vi.fn(),
+	countItemsByRead: vi.fn(),
+	distinctSources: vi.fn(),
+}));
 
 import Index from '../src/pages/index.astro';
 
@@ -21,8 +25,29 @@ const row = (over: Partial<ItemRow>): ItemRow => ({
 	...over,
 });
 
-// `url` drives Astro.url.searchParams (the ?source filter); the container reads
-// it off the Request it's handed.
+// The page asks the DB per section (read=false unread, read=true read) for both
+// a row window and a count. `feed` wires the section-dispatched mock so a test
+// can set each section's rows and total independently — mirroring the two
+// independent cursors. Counts default to the rows' length so single-page
+// sections "just work" without spelling out a total.
+function feed(opts: {
+	unread?: ItemRow[];
+	read?: ItemRow[];
+	unreadTotal?: number;
+	readTotal?: number;
+}) {
+	const unread = opts.unread ?? [];
+	const read = opts.read ?? [];
+	vi.mocked(listItemsByRead).mockImplementation(async (_db, { read: isRead }) =>
+		isRead ? read : unread,
+	);
+	vi.mocked(countItemsByRead).mockImplementation(async (_db, { read: isRead }) =>
+		isRead ? (opts.readTotal ?? read.length) : (opts.unreadTotal ?? unread.length),
+	);
+}
+
+// `url` drives Astro.url.searchParams (?source, ?unread, ?read); the container
+// reads it off the Request it's handed.
 const render = async (url = 'https://news.test/') => {
 	const container = await AstroContainer.create();
 	return container.renderToString(Index, { request: new Request(url) });
@@ -30,13 +55,14 @@ const render = async (url = 'https://news.test/') => {
 
 describe('index page', () => {
 	afterEach(() => {
-		vi.mocked(listItems).mockReset();
+		vi.mocked(listItemsByRead).mockReset();
+		vi.mocked(countItemsByRead).mockReset();
 		vi.mocked(distinctSources).mockReset();
 	});
 
 	it('shows an empty state when nothing has been aggregated', async () => {
 		vi.mocked(distinctSources).mockResolvedValue([]);
-		vi.mocked(listItems).mockResolvedValue([]);
+		feed({});
 		const html = await render();
 		expect(html).toContain('Nothing aggregated yet');
 		// With no sources present there is no filter bar to draw.
@@ -45,10 +71,12 @@ describe('index page', () => {
 
 	it('lists each item with a link, source, and timestamp', async () => {
 		vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog', 'ieee-spectrum']);
-		vi.mocked(listItems).mockResolvedValue([
-			row({ id: 2, title: 'Newest', url: 'https://example.com/new', source: 'ieee-spectrum', published_at: 5000 }),
-			row({ id: 1, title: 'No date', url: 'https://example.com/old', published_at: null, fetched_at: 3000 }),
-		]);
+		feed({
+			unread: [
+				row({ id: 2, title: 'Newest', url: 'https://example.com/new', source: 'ieee-spectrum', published_at: 5000 }),
+				row({ id: 1, title: 'No date', url: 'https://example.com/old', published_at: null, fetched_at: 3000 }),
+			],
+		});
 
 		const html = await render();
 		expect(html).not.toContain('Nothing aggregated yet');
@@ -69,13 +97,13 @@ describe('index page', () => {
 		expect(html).toContain('aria-label="Mark as read"');
 		expect(html).not.toContain('aria-label="Mark as unread"');
 		expect(html).not.toMatch(/>\s*Read\s*</);
+		// One page each side: no pager renders.
+		expect(html).not.toContain('Page 1 of');
 	});
 
 	it('falls back to the raw slug and the neutral flag for an unregistered source', async () => {
 		vi.mocked(distinctSources).mockResolvedValue(['mystery-wire']);
-		vi.mocked(listItems).mockResolvedValue([
-			row({ source: 'mystery-wire', title: 'Unknown source' }),
-		]);
+		feed({ unread: [row({ source: 'mystery-wire', title: 'Unknown source' })] });
 
 		const html = await render();
 		expect(html).toContain('mystery-wire');
@@ -84,10 +112,10 @@ describe('index page', () => {
 
 	it('drops read items into a Read section with an un-read control', async () => {
 		vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog']);
-		vi.mocked(listItems).mockResolvedValue([
-			row({ id: 2, title: 'Still unread', read_at: null }),
-			row({ id: 1, title: 'Already read', read_at: 4000 }),
-		]);
+		feed({
+			unread: [row({ id: 2, title: 'Still unread', read_at: null })],
+			read: [row({ id: 1, title: 'Already read', read_at: 4000 })],
+		});
 
 		const html = await render();
 		// The section header appears once both states are present.
@@ -104,10 +132,10 @@ describe('index page', () => {
 
 	it('wires up the read/unread move animation: client router + per-item morph targets', async () => {
 		vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog']);
-		vi.mocked(listItems).mockResolvedValue([
-			row({ id: 2, title: 'Still unread', read_at: null }),
-			row({ id: 1, title: 'Already read', read_at: 4000 }),
-		]);
+		feed({
+			unread: [row({ id: 2, title: 'Still unread', read_at: null })],
+			read: [row({ id: 1, title: 'Already read', read_at: 4000 })],
+		});
 
 		const html = await render();
 		// The client router upgrades the form POST → 303 reload into a
@@ -125,9 +153,7 @@ describe('index page', () => {
 
 	it('renders only the Read section when every item has been read', async () => {
 		vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog']);
-		vi.mocked(listItems).mockResolvedValue([
-			row({ id: 1, title: 'Read one', read_at: 4000 }),
-		]);
+		feed({ read: [row({ id: 1, title: 'Read one', read_at: 4000 })] });
 
 		const html = await render();
 		expect(html).toMatch(/>\s*Read\s*</);
@@ -138,7 +164,7 @@ describe('index page', () => {
 	describe('source filter bar', () => {
 		it('renders a chip per present source with name + swatch, plus an All reset', async () => {
 			vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog', 'ieee-spectrum']);
-			vi.mocked(listItems).mockResolvedValue([row({})]);
+			feed({ unread: [row({})] });
 
 			const html = await render();
 			expect(html).toContain('Filter by source');
@@ -150,16 +176,17 @@ describe('index page', () => {
 			// The All reset links to the bare path (clears the filter).
 			expect(html).toMatch(/href="\/"[^>]*>All</);
 			// With no ?source, nothing is marked active and every source is queried.
-			expect(vi.mocked(listItems).mock.calls[0][2]).toEqual([]);
+			expect(vi.mocked(listItemsByRead).mock.calls[0][1].sources).toEqual([]);
 		});
 
 		it('marks the selected source active and narrows the query to it', async () => {
 			vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog', 'ieee-spectrum']);
-			vi.mocked(listItems).mockResolvedValue([row({ source: 'ieee-spectrum' })]);
+			feed({ unread: [row({ source: 'ieee-spectrum' })] });
 
 			const html = await render('https://news.test/?source=ieee-spectrum');
-			// listItems is called with the active source list.
-			expect(vi.mocked(listItems).mock.calls[0][2]).toEqual(['ieee-spectrum']);
+			// Both the row window and the count are narrowed to the active source.
+			expect(vi.mocked(listItemsByRead).mock.calls[0][1].sources).toEqual(['ieee-spectrum']);
+			expect(vi.mocked(countItemsByRead).mock.calls[0][1].sources).toEqual(['ieee-spectrum']);
 			// The active chip carries aria-current; the inactive chip's href toggles
 			// it on (adds its slug to the selection) for multi-select without JS.
 			expect(html).toMatch(/aria-current="true"/);
@@ -169,26 +196,26 @@ describe('index page', () => {
 
 		it('supports multi-select via repeated ?source params', async () => {
 			vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog', 'ieee-spectrum', 'apple']);
-			vi.mocked(listItems).mockResolvedValue([row({})]);
+			feed({ unread: [row({})] });
 
 			await render('https://news.test/?source=cloudflare-blog&source=apple');
-			expect(vi.mocked(listItems).mock.calls[0][2]).toEqual(['cloudflare-blog', 'apple']);
+			expect(vi.mocked(listItemsByRead).mock.calls[0][1].sources).toEqual(['cloudflare-blog', 'apple']);
 		});
 
 		it('treats an unknown ?source as All (filtered out, never a 500)', async () => {
 			vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog']);
-			vi.mocked(listItems).mockResolvedValue([row({})]);
+			feed({ unread: [row({})] });
 
 			const html = await render('https://news.test/?source=does-not-exist');
 			// The unknown slug is dropped, so the query runs unfiltered ("All").
-			expect(vi.mocked(listItems).mock.calls[0][2]).toEqual([]);
+			expect(vi.mocked(listItemsByRead).mock.calls[0][1].sources).toEqual([]);
 			// The All reset is the active chip.
 			expect(html).toMatch(/href="\/"[^>]*aria-current="true"[^>]*>All</);
 		});
 
 		it('shows a per-source empty state when the selection has no items', async () => {
 			vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog']);
-			vi.mocked(listItems).mockResolvedValue([]);
+			feed({});
 
 			const html = await render('https://news.test/?source=cloudflare-blog');
 			// Not the global empty state — the filter bar still shows so the reader
@@ -196,6 +223,119 @@ describe('index page', () => {
 			expect(html).not.toContain('Nothing aggregated yet');
 			expect(html).toContain('Nothing here from this source yet');
 			expect(html).toContain('Filter by source');
+		});
+	});
+
+	describe('pagination', () => {
+		const many = (n: number, read: boolean): ItemRow[] =>
+			Array.from({ length: n }, (_, i) =>
+				row({ id: i + 1, title: `Item ${i + 1}`, read_at: read ? 4000 : null }),
+			);
+
+		it('renders no pager when each section fits on one page (≤50)', async () => {
+			vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog']);
+			feed({ unread: many(50, false), unreadTotal: 50 });
+			const html = await render();
+			expect(html).not.toContain('Page 1 of');
+			expect(html).not.toContain('Next →');
+		});
+
+		it('shows next (not prev) on page 1 of a multi-page section', async () => {
+			vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog']);
+			feed({ unread: many(50, false), unreadTotal: 120 });
+			const html = await render();
+			expect(html).toContain('Page 1 of 3');
+			expect(html).toContain('Next →');
+			// Prev is rendered as a disabled span on page 1 (no link href to page 0).
+			expect(html).not.toContain('rel="prev"');
+			expect(html).toContain('rel="next"');
+			// Next link advances the unread cursor only.
+			expect(html).toContain('href="/?unread=2"');
+		});
+
+		it('shows prev (not next) on the last page', async () => {
+			vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog']);
+			feed({ unread: many(20, false), unreadTotal: 120 });
+			const html = await render('https://news.test/?unread=3');
+			expect(html).toContain('Page 3 of 3');
+			expect(html).toContain('rel="prev"');
+			expect(html).not.toContain('rel="next"');
+			expect(html).toContain('href="/?unread=2"');
+		});
+
+		it('clamps a too-far page onto the last page', async () => {
+			vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog']);
+			feed({ unread: many(20, false), unreadTotal: 120 });
+			// ?unread=99 is past the last page (3); it clamps to page 3.
+			const html = await render('https://news.test/?unread=99');
+			expect(html).toContain('Page 3 of 3');
+			// Offset reflects the clamped page, not the requested one.
+			expect(vi.mocked(listItemsByRead).mock.calls.find((c) => !c[0]?.read));
+			const unreadCall = vi
+				.mocked(listItemsByRead)
+				.mock.calls.find((c) => c[1].read === false);
+			expect(unreadCall?.[1].offset).toBe(100);
+		});
+
+		it('parses a non-numeric / zero / negative page as page 1', async () => {
+			vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog']);
+			feed({ unread: many(50, false), unreadTotal: 120 });
+			const html = await render('https://news.test/?unread=abc');
+			expect(html).toContain('Page 1 of 3');
+			const html0 = await render('https://news.test/?unread=0');
+			expect(html0).toContain('Page 1 of 3');
+			const htmlNeg = await render('https://news.test/?unread=-2');
+			expect(htmlNeg).toContain('Page 1 of 3');
+		});
+
+		it('paginates the two sections on independent cursors', async () => {
+			vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog']);
+			feed({
+				unread: many(50, false),
+				read: many(50, true),
+				unreadTotal: 120,
+				readTotal: 120,
+			});
+			const html = await render('https://news.test/?unread=2&read=3');
+			// Each section shows its own page number.
+			expect(html).toContain('Page 2 of 3');
+			expect(html).toContain('Page 3 of 3');
+			// Each section requested its own offset.
+			const unreadCall = vi.mocked(listItemsByRead).mock.calls.find((c) => c[1].read === false);
+			const readCall = vi.mocked(listItemsByRead).mock.calls.find((c) => c[1].read === true);
+			expect(unreadCall?.[1].offset).toBe(50);
+			expect(readCall?.[1].offset).toBe(100);
+		});
+
+		it('page links carry the active ?source and preserve the sibling cursor', async () => {
+			vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog', 'ieee-spectrum']);
+			feed({
+				unread: many(50, false),
+				read: many(50, true),
+				unreadTotal: 120,
+				readTotal: 120,
+			});
+			const html = await render('https://news.test/?source=ieee-spectrum&unread=2&read=2');
+			// The unread "next" link keeps the source and the read cursor (=2),
+			// advancing only unread to 3.
+			expect(html).toContain('href="/?source=ieee-spectrum&amp;read=2&amp;unread=3"');
+			// The read "next" link keeps the source and the unread cursor (=2),
+			// advancing only read to 3.
+			expect(html).toContain('href="/?source=ieee-spectrum&amp;unread=2&amp;read=3"');
+		});
+
+		it('omits the sibling cursor from links when the sibling is on page 1', async () => {
+			vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog']);
+			feed({
+				unread: many(50, false),
+				read: many(10, true),
+				unreadTotal: 120,
+				readTotal: 10,
+			});
+			const html = await render('https://news.test/?unread=2');
+			// Read is single-page (page 1), so the unread links don't carry ?read.
+			expect(html).toContain('href="/?unread=3"');
+			expect(html).not.toContain('read=1');
 		});
 	});
 });
