@@ -1,4 +1,5 @@
 import type { FeedConfig, ParsedItem } from './types';
+import { sourceMeta } from '../lib/sources';
 
 // A row of the feeds state table (see migrations/0001_init.sql).
 export interface FeedState {
@@ -93,22 +94,42 @@ export async function updateFeedState(
 		.run();
 }
 
-// Newest items across all sources, unread first. `read_at IS NOT NULL` sorts
-// unread (0) ahead of read (1) so the homepage can split them into a live feed
-// and a "Read" section below without a second query; within each group,
-// COALESCE keeps an item with no published_at sorted by when we fetched it, and
-// id breaks ties deterministically.
-export async function listItems(db: D1Database, limit: number): Promise<ItemRow[]> {
+// Newest items, unread first. `read_at IS NOT NULL` sorts unread (0) ahead of
+// read (1) so the homepage can split them into a live feed and a "Read" section
+// below without a second query; within each group, COALESCE keeps an item with
+// no published_at sorted by when we fetched it, and id breaks ties
+// deterministically. An optional `sources` list narrows the feed to those source
+// slugs (WHERE source IN (...)) for the homepage filter; omitting it or passing
+// an empty list returns every source ("All").
+export async function listItems(
+	db: D1Database,
+	limit: number,
+	sources: string[] = [],
+): Promise<ItemRow[]> {
+	const where = sources.length > 0 ? `WHERE source IN (${sources.map(() => '?').join(', ')})` : '';
 	const { results } = await db
 		.prepare(
 			`SELECT id, source, guid, url, title, summary, content_html, published_at, fetched_at, read_at
 			 FROM items
+			 ${where}
 			 ORDER BY (read_at IS NOT NULL), COALESCE(published_at, fetched_at) DESC, id DESC
 			 LIMIT ?`,
 		)
-		.bind(limit)
+		.bind(...sources, limit)
 		.all<ItemRow>();
 	return results;
+}
+
+// The source slugs actually present in the items table — the sources the feed
+// can be filtered by, so empty/unregistered registry entries never show. Ordered
+// by display name (via sourceMeta) for a stable, human-sensible filter bar.
+export async function distinctSources(db: D1Database): Promise<string[]> {
+	const { results } = await db
+		.prepare('SELECT DISTINCT source FROM items')
+		.all<{ source: string }>();
+	return results
+		.map((r) => r.source)
+		.sort((a, b) => sourceMeta(a).name.localeCompare(sourceMeta(b).name));
 }
 
 // Flip one item's read state: readAt = unix seconds marks it read, null marks
