@@ -1,0 +1,31 @@
+{
+  "items": [
+    {
+      "item": {
+        "id": "whats-new-v2#launch-graviton5-m9g",
+        "locale": "en_US",
+        "directoryId": "whats-new-v2",
+        "additionalFields": {
+          "headline": "Amazon EC2 M9g and M9gd instances powered by AWS Graviton5 are now available",
+          "postBody": "<p>Starting today, Amazon EC2 M9g and M9gd general purpose instances powered by <strong>AWS Graviton5</strong> processors are generally available.</p>",
+          "postDateTime": "2026-06-10T15:00:00Z",
+          "headlineUrl": "/about-aws/whats-new/2026/06/ec2-m9g-m9gd-instances-graviton5-available/"
+        }
+      }
+    },
+    {
+      "item": {
+        "id": "whats-new-v2#launch-shared-nitro-graviton",
+        "locale": "en_US",
+        "directoryId": "whats-new-v2",
+        "additionalFields": {
+          "headline": "AWS Nitro System enhancements for Graviton-based instances",
+          "postBody": "<p>The AWS Nitro System now offers improved networking for Graviton-based instances.</p>",
+          "postDateTime": "2026-06-08T18:30:00Z",
+          "headlineUrl": "https://aws.amazon.com/about-aws/whats-new/2026/06/nitro-graviton-networking/"
+        }
+      }
+    }
+  ],
+  "metadata": { "count": 2, "totalHits": 319 }
+}

@@ -3,6 +3,7 @@ import { SOURCES } from '../src/ingest/sources';
 import amdXml from './fixtures/amd.xml?raw';
 import anthropicXml from './fixtures/anthropic.xml?raw';
 import appleXml from './fixtures/apple.xml?raw';
+import gravitonJson from './fixtures/aws-graviton.json?raw';
 import cloudflareXml from './fixtures/cloudflare-blog.xml?raw';
 import elonlitXml from './fixtures/elonlit.xml?raw';
 import ieeeXml from './fixtures/ieee-spectrum.xml?raw';
@@ -29,6 +30,7 @@ describe('SOURCES', () => {
 		expect(slugs).toContain('nvidia');
 		expect(slugs).toContain('elonlit');
 		expect(slugs).toContain('anthropic');
+		expect(slugs).toContain('aws');
 	});
 
 	it('registers all three Anthropic OpenRSS sections under one source', () => {
@@ -55,6 +57,28 @@ describe('SOURCES', () => {
 			expect(items[0].contentHtml).toContain('<strong>frontier</strong>');
 			expect(items[0].summary).toBeNull();
 		}
+	});
+
+	it('configures one aws feed per silicon term, sharing source "aws"', () => {
+		const aws = SOURCES.filter((s) => s.source === 'aws');
+		// graviton/trainium/inferentia/nitro (#26).
+		expect(aws).toHaveLength(4);
+		const terms = aws.map((s) => new URL(s.feed).searchParams.get('q')).sort();
+		expect(terms).toEqual(['graviton', 'inferentia', 'nitro', 'trainium']);
+		// Distinct poll-state URLs (the feeds-table primary key) per term.
+		expect(new Set(aws.map((s) => s.feed)).size).toBe(4);
+	});
+
+	it('parses an AWS What’s New JSON query: post body as content, absolute url, no summary', () => {
+		const items = source('aws').parse(gravitonJson);
+		expect(items[0].title).toBe(
+			'Amazon EC2 M9g and M9gd instances powered by AWS Graviton5 are now available',
+		);
+		expect(items[0].contentHtml).toContain('AWS Graviton5');
+		expect(items[0].summary).toBeNull();
+		expect(items[0].url).toBe(
+			'https://aws.amazon.com/about-aws/whats-new/2026/06/ec2-m9g-m9gd-instances-graviton5-available/',
+		);
 	});
 
 	it('parses the Cloudflare blog from content:encoded with a separate summary', () => {

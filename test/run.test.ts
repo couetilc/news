@@ -2,8 +2,11 @@ import { env } from 'cloudflare:test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ensureFeedRows, getFeedStates, listItems, updateFeedState } from '../src/ingest/db';
 import { parseRss20 } from '../src/ingest/parse/rss20';
+import { parseAwsWhatsNew } from '../src/ingest/parse/aws-whats-new';
 import { ingestAll, type IngestDeps } from '../src/ingest/run';
 import type { FeedConfig } from '../src/ingest/types';
+import gravitonJson from './fixtures/aws-graviton.json?raw';
+import nitroJson from './fixtures/aws-nitro.json?raw';
 import cloudflareXml from './fixtures/cloudflare-blog.xml?raw';
 
 const USER_AGENT = 'news.cuteteal.com aggregator (connor@couetil.com)';
@@ -156,6 +159,43 @@ describe('ingestAll', () => {
 		});
 		// The healthy feed was unaffected by the bad one.
 		expect(await listItems(db, 10)).toHaveLength(2);
+	});
+
+	it('dedupes AWS items shared across two term queries (same source, same id → one row)', async () => {
+		// #26: graviton and nitro queries are separate FeedConfigs sharing
+		// source 'aws'. Both fixtures contain the id launch-shared-nitro-graviton.
+		// run.ts polls each feed and insertItems' (source, guid) ON CONFLICT
+		// collapses the overlap — no bespoke cross-query dedupe code.
+		const gravitonFeed: FeedConfig = {
+			source: 'aws',
+			feed: 'https://aws.test/search?q=graviton',
+			pollIntervalSeconds: 21600,
+			parse: parseAwsWhatsNew,
+		};
+		const nitroFeed: FeedConfig = { ...gravitonFeed, feed: 'https://aws.test/search?q=nitro' };
+
+		const { fn } = fakeFetch({
+			'https://aws.test/search?q=graviton': () => new Response(gravitonJson, { status: 200 }),
+			'https://aws.test/search?q=nitro': () => new Response(nitroJson, { status: 200 }),
+		});
+
+		await ingestAll(deps(fn), [gravitonFeed, nitroFeed]);
+
+		const rows = await listItems(db, 50);
+		// graviton: 2 items (m9g + shared); nitro: 2 items (shared + enclaves).
+		// The shared id appears once → 3 distinct rows.
+		expect(rows).toHaveLength(3);
+		const guids = rows.map((r) => r.guid).sort();
+		expect(guids).toEqual([
+			'whats-new-v2#launch-graviton5-m9g',
+			'whats-new-v2#launch-nitro-enclaves',
+			'whats-new-v2#launch-shared-nitro-graviton',
+		]);
+		// Each query gets its own feeds-table state row keyed by URL.
+		expect((await getFeedStates(db)).map((s) => s.feed).sort()).toEqual([
+			'https://aws.test/search?q=graviton',
+			'https://aws.test/search?q=nitro',
+		]);
 	});
 
 	it('records a failure when fetch itself throws', async () => {
