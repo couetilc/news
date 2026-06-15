@@ -15,7 +15,24 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
+      # fetch-depth: 0 so gitleaks can scan the full commit history below, not
+      # just the shallow default checkout (depth 1).
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      # Secret scan: download the pinned gitleaks binary (matches the version
+      # vendored in the agent container) and scan the git history directly,
+      # failing the job on any detected secret. We invoke the binary rather than
+      # gitleaks/gitleaks-action to avoid that action's GITLEAKS_LICENSE
+      # ambiguity for org-owned repos.
+      - name: Scan for secrets (gitleaks)
+        env:
+          GITLEAKS_VERSION: 8.29.0
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /tmp gitleaks
+          /tmp/gitleaks version
+          /tmp/gitleaks git . --redact --exit-code 1
       - uses: actions/setup-node@v6
         with:
           node-version: 24
