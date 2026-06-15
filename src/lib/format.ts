@@ -46,3 +46,18 @@ export function shortDate(seconds: number): string {
 export function isoTime(seconds: number): string {
 	return new Date(seconds * 1000).toISOString();
 }
+
+// Zero-pad to two digits — for the UTC clock on the status line.
+function pad(n: number): string {
+	return String(n).padStart(2, '0');
+}
+
+// Human-readable UTC stamp for the deploy time on /status:
+// "Jun 13, 2026 14:05 UTC". Branch-free (reads UTC fields, indexes MONTHS).
+export function stampUTC(date: Date): string {
+	const month = MONTHS[date.getUTCMonth()].slice(0, 3);
+	const day = date.getUTCDate();
+	const year = date.getUTCFullYear();
+	const time = `${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`;
+	return `${month} ${day}, ${year} ${time} UTC`;
+}

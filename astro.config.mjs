@@ -21,5 +21,16 @@ export default defineConfig({
     // plugin — it registers @tailwindcss/vite itself so the page's CSS import
     // still resolves during the Container API render. Keep both in sync.
     plugins: [tailwindcss()],
+    // Bake the deploy SHA / ref / build time into the worker at `astro build`
+    // for the /status page (the worker can't read its own git revision at
+    // runtime). CI sets GITHUB_SHA / GITHUB_REF_NAME automatically; locally
+    // these are absent, so src/lib/deploy.ts falls back to 'dev' / 'local' /
+    // 'unknown' (the tokens stay undefined and its `typeof` guards kick in).
+    // No .github/workflows/* change needed — the build env already has them.
+    define: {
+      __DEPLOY_SHA__: JSON.stringify(process.env.GITHUB_SHA ?? 'dev'),
+      __DEPLOY_REF__: JSON.stringify(process.env.GITHUB_REF_NAME ?? 'local'),
+      __DEPLOY_TIME__: JSON.stringify(new Date().toISOString()),
+    },
   },
 });

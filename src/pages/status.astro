@@ -1,0 +1,74 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { deployInfo } from '../lib/deploy';
+
+// Operational page: "what's actually running right now?". The deploy SHA, ref,
+// and build time are baked in at `astro build` (see src/lib/deploy.ts), so this
+// is fixed per deploy — prerender it rather than SSR on every request.
+export const prerender = true;
+
+const deploy = deployInfo();
+
+// Each row of the colophon: a small-caps label and its value. Kept as data so
+// the markup stays a single branch-free loop.
+const rows = [
+	{ label: 'Commit', value: deploy.shortSha, href: deploy.commitUrl, full: deploy.sha },
+	{ label: 'Ref', value: deploy.ref },
+	{ label: 'Deployed', value: deploy.timeLabel, time: deploy.time },
+];
+---
+
+<Layout title="Status · News">
+	<div class="mx-auto max-w-2xl">
+		<h2
+			class="mb-1 flex items-center gap-3 font-sans text-[0.65rem] uppercase tracking-[0.3em] text-muted"
+		>
+			<span class="h-px flex-1 bg-rule" aria-hidden="true"></span>
+			Status
+			<span class="h-px flex-1 bg-rule" aria-hidden="true"></span>
+		</h2>
+		<p class="mb-4 text-center font-sans text-xs text-muted">
+			What is running in production right now.
+		</p>
+
+		<dl class="border-t border-rule">
+			{
+				rows.map((r) => (
+					<div class="flex items-baseline justify-between gap-4 border-b border-rule py-2.5">
+						<dt class="font-sans text-[0.65rem] uppercase tracking-wider text-muted">
+							{r.label}
+						</dt>
+						<dd class="min-w-0 text-right">
+							{r.href ? (
+								<a
+									href={r.href}
+									title={r.full}
+									class="font-mono text-sm text-ink decoration-from-font underline-offset-2 hover:text-accent hover:underline"
+								>
+									{r.value}
+								</a>
+							) : r.time ? (
+								<time
+									datetime={r.time}
+									class="font-mono text-sm text-ink"
+								>
+									{r.value}
+								</time>
+							) : (
+								<span class="font-mono text-sm text-ink">{r.value}</span>
+							)}
+						</dd>
+					</div>
+				))
+			}
+		</dl>
+
+		<p class="mt-4 text-center font-sans text-xs">
+			<a
+				href={deploy.observabilityUrl}
+				class="text-muted decoration-from-font underline-offset-2 hover:text-accent hover:underline"
+				>Observability dashboard →</a
+			>
+		</p>
+	</div>
+</Layout>

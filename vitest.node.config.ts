@@ -43,6 +43,7 @@ export default getViteConfig(
 			environment: 'node',
 			include: [
 				'test/index.test.ts',
+				'test/status.test.ts',
 				'test/worker.test.ts',
 				'test/auth-pages.test.ts',
 				'test/middleware.test.ts',

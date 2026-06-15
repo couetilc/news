@@ -29,6 +29,7 @@ export default defineConfig({
 		// the worker pool — they live in vitest.node.config.ts.
 		exclude: [
 			'test/index.test.ts',
+			'test/status.test.ts',
 			'test/worker.test.ts',
 			'test/auth-pages.test.ts',
 			'test/middleware.test.ts',
