@@ -3,11 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ensureFeedRows, getFeedStates, listItems, updateFeedState } from '../src/ingest/db';
 import { parseRss20 } from '../src/ingest/parse/rss20';
 import { parseAwsWhatsNew } from '../src/ingest/parse/aws-whats-new';
+import { parseEdgar8k } from '../src/ingest/parse/edgar-8k';
 import { ingestAll, type IngestDeps } from '../src/ingest/run';
 import type { FeedConfig } from '../src/ingest/types';
 import gravitonJson from './fixtures/aws-graviton.json?raw';
 import nitroJson from './fixtures/aws-nitro.json?raw';
 import cloudflareXml from './fixtures/cloudflare-blog.xml?raw';
+import ciscoXml from './fixtures/cisco.xml?raw';
+import ciscoEdgarXml from './fixtures/cisco-edgar-8k.xml?raw';
 
 const USER_AGENT = 'news.cuteteal.com aggregator (connor@couetil.com)';
 const db = env.NEWS_DB;
@@ -196,6 +199,48 @@ describe('ingestAll', () => {
 			'https://aws.test/search?q=graviton',
 			'https://aws.test/search?q=nitro',
 		]);
+	});
+
+	it('ingests Cisco IR + EDGAR as one source, and re-polling EDGAR is idempotent (#31)', async () => {
+		// #31: the IR press-release feed and the SEC EDGAR 8-K backstop both carry
+		// source 'cisco' but use disjoint guid schemes (UUID vs accession number),
+		// so an earnings event lands as two rows by design — the PR and the filing.
+		// EDGAR filters to Item 2.02 (2 of the fixture's 3 8-Ks survive). A second
+		// EDGAR poll returns the same accessions, and (source, guid) ON CONFLICT
+		// collapses them — no duplicate rows accrue.
+		const irFeed: FeedConfig = {
+			source: 'cisco',
+			feed: 'https://cisco.test/ir',
+			pollIntervalSeconds: 3600,
+			parse: (xml) => parseRss20(xml, { content: 'description' }),
+		};
+		const edgarFeed: FeedConfig = {
+			source: 'cisco',
+			feed: 'https://cisco.test/edgar',
+			pollIntervalSeconds: 3600,
+			parse: parseEdgar8k,
+		};
+
+		const { fn } = fakeFetch({
+			'https://cisco.test/ir': () => new Response(ciscoXml, { status: 200 }),
+			'https://cisco.test/edgar': () => new Response(ciscoEdgarXml, { status: 200 }),
+		});
+
+		// First tick: 3 IR press releases + 2 Item-2.02 EDGAR filings = 5 rows.
+		await ingestAll(deps(fn, 1000), [irFeed, edgarFeed]);
+		expect(await listItems(db, 50)).toHaveLength(5);
+
+		// Second tick (feeds now due again): same payloads, no new rows.
+		await ingestAll(deps(fn, 1000 + 3600), [irFeed, edgarFeed]);
+		const rows = await listItems(db, 50);
+		expect(rows).toHaveLength(5);
+		// All five share source 'cisco'; the two EDGAR rows are the Item-2.02 ones.
+		expect(rows.every((r) => r.source === 'cisco')).toBe(true);
+		const guids = rows.map((r) => r.guid);
+		expect(guids).toContain('0000858877-26-000075');
+		expect(guids).toContain('0000858877-26-000006');
+		// The Item-5.02 (non-earnings) 8-K never made it in.
+		expect(guids).not.toContain('0000858877-26-000057');
 	});
 
 	it('records a failure when fetch itself throws', async () => {

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parseRss20 } from '../src/ingest/parse/rss20';
 import amdXml from './fixtures/amd.xml?raw';
 import anthropicXml from './fixtures/anthropic.xml?raw';
+import ciscoXml from './fixtures/cisco.xml?raw';
 import cloudflareXml from './fixtures/cloudflare-blog.xml?raw';
 import ieeeXml from './fixtures/ieee-spectrum.xml?raw';
 import intelXml from './fixtures/intel.xml?raw';
@@ -125,6 +126,38 @@ describe('parseRss20 — description mode (Qualcomm Q4 Inc IR feed)', () => {
 	it('carries product PRs (e.g. the CES Snapdragon announcement) alongside financial ones', () => {
 		expect(items[1].contentHtml).toContain('CES 2026');
 		expect(items[1].summary).toBeNull();
+	});
+});
+
+describe('parseRss20 — description mode (Cisco IR feed, titles only, #31)', () => {
+	const items = parseRss20(ciscoXml, { content: 'description' });
+
+	it('extracts every press release in feed order', () => {
+		expect(items.map((i) => i.title)).toEqual([
+			'CISCO REPORTS THIRD QUARTER EARNINGS',
+			'Cisco Schedules Conference Call for Q3 FY2026 Financial Results',
+			'Cisco Unveils Agentic Platform for Operating and Defending Critical IT Infrastructure',
+		]);
+	});
+
+	it('parses a title-only earnings PR: empty description → null content and summary', () => {
+		expect(items[0]).toEqual({
+			guid: '2a357c7d-9808-425d-9cb6-74e2646e40e3',
+			url: 'https://investor.cisco.com/news/news-details/2026/CISCO-REPORTS-THIRD-QUARTER-EARNINGS/default.aspx',
+			title: 'CISCO REPORTS THIRD QUARTER EARNINGS',
+			summary: null,
+			contentHtml: null,
+			// pubDate carries a numeric offset (-0400) → 20:05:00Z.
+			publishedAt: Math.floor(Date.UTC(2026, 4, 13, 20, 5, 0) / 1000),
+		});
+	});
+
+	it('carries the "Schedules Conference Call" PR that drives the burst-poll window', () => {
+		expect(items[1].title).toMatch(/Schedules Conference Call/i);
+	});
+
+	it('matches the earnings PR with the issue’s /REPORTS .* QUARTER EARNINGS/i pattern', () => {
+		expect(items[0].title).toMatch(/REPORTS .* QUARTER EARNINGS/i);
 	});
 });
 

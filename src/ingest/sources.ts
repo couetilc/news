@@ -1,5 +1,6 @@
 import { parseAtom } from './parse/atom';
 import { parseAwsWhatsNew } from './parse/aws-whats-new';
+import { parseEdgar8k } from './parse/edgar-8k';
 import { parseRss20 } from './parse/rss20';
 import type { FeedConfig } from './types';
 
@@ -154,6 +155,35 @@ export const SOURCES: FeedConfig[] = [
 		feed: 'https://openrss.org/feed/www.anthropic.com/engineering',
 		pollIntervalSeconds: 28800,
 		parse: (xml) => parseRss20(xml, { content: 'description' }),
+	},
+	{
+		// #31 — Cisco IR press releases (Q4 Inc RSS 2.0), the PRIMARY earnings
+		// signal. Titles only: <description> is empty, so `description` mode yields
+		// null contentHtml and we link out. The earnings PR lands ~16:05 ET on the
+		// day (title matches /REPORTS .* QUARTER EARNINGS/i), preceded ~2 weeks
+		// earlier by a "Schedules Conference Call" PR. ~2–4/month, but the release
+		// is time-critical, so poll hourly. Use EXACTLY this `.aspx` path — other
+		// IR-host paths (e.g. /rss/news-releases.xml) are Cloudflare-challenged (403).
+		// pubDates carry a numeric offset (`... -0400`), which Date.parse handles.
+		source: 'cisco',
+		feed: 'https://investor.cisco.com/rss/pressrelease.aspx',
+		pollIntervalSeconds: 3600,
+		parse: (xml) => parseRss20(xml, { content: 'description' }),
+	},
+	{
+		// #31 — SEC EDGAR 8-K BACKSTOP for Cisco (CIK 0000858877). The earnings 8-K
+		// lands within minutes of the IR PR, so it's a safety net if the IR feed is
+		// Cloudflare-challenged or lags. browse-edgar's Atom output carries every
+		// 8-K (director changes, bylaws, …); parseEdgar8k keeps only the earnings
+		// ones (SEC Item 2.02, "Results of Operations") and dedupes on the
+		// accession number. EDGAR requires the contact-bearing User-Agent run.ts
+		// already sends, and asks for ≤10 req/s — hourly is far under that. Shares
+		// the `cisco` slug with the IR feed; the two use disjoint guid schemes
+		// (UUID vs accession), so an earnings event surfaces as two rows by design.
+		source: 'cisco',
+		feed: 'https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0000858877&type=8-K&output=atom&count=10',
+		pollIntervalSeconds: 3600,
+		parse: parseEdgar8k,
 	},
 	// #26 — one entry per silicon term, all source 'aws' (see awsFeed above).
 	...AWS_TERMS.map(awsFeed),

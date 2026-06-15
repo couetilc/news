@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <author>
+    <email>webmaster@sec.gov</email>
+    <name>Webmaster</name>
+  </author>
+  <company-info>
+    <cik>0000858877</cik>
+    <conformed-name>CISCO SYSTEMS, INC.</conformed-name>
+    <fiscal-year-end>0725</fiscal-year-end>
+  </company-info>
+  <entry>
+    <category label="form type" scheme="https://www.sec.gov/" term="8-K" />
+    <content type="text/xml">
+      <accession-number>0000858877-26-000075</accession-number>
+      <act>34</act>
+      <filing-date>2026-05-13</filing-date>
+      <filing-href>https://www.sec.gov/Archives/edgar/data/858877/000085887726000075/0000858877-26-000075-index.htm</filing-href>
+      <filing-type>8-K</filing-type>
+      <form-name>Current report</form-name>
+      <items-desc>items 2.02, 2.05and9.01</items-desc>
+      <size>909 KB</size>
+    </content>
+    <id>urn:tag:sec.gov,2008:accession-number=0000858877-26-000075</id>
+    <link href="https://www.sec.gov/Archives/edgar/data/858877/000085887726000075/0000858877-26-000075-index.htm" rel="alternate" type="text/html" />
+    <summary type="html"> &lt;b&gt;Filed:&lt;/b&gt; 2026-05-13 &lt;b&gt;AccNo:&lt;/b&gt; 0000858877-26-000075 &lt;b&gt;Size:&lt;/b&gt; 909 KB&lt;br&gt;Item 2.02: Results of Operations and Financial Condition&lt;br&gt;Item 2.05: Cost Associated with Exit or Disposal Activities&lt;br&gt;Item 9.01: Financial Statements and Exhibits</summary>
+    <title>8-K  - Current report</title>
+    <updated>2026-05-13T16:06:53-04:00</updated>
+  </entry>
+  <entry>
+    <category label="form type" scheme="https://www.sec.gov/" term="8-K" />
+    <content type="text/xml">
+      <accession-number>0000858877-26-000057</accession-number>
+      <act>34</act>
+      <filing-date>2026-05-01</filing-date>
+      <filing-href>https://www.sec.gov/Archives/edgar/data/858877/000085887726000057/0000858877-26-000057-index.htm</filing-href>
+      <filing-type>8-K</filing-type>
+      <form-name>Current report</form-name>
+      <items-desc>item 5.02</items-desc>
+      <size>143 KB</size>
+    </content>
+    <id>urn:tag:sec.gov,2008:accession-number=0000858877-26-000057</id>
+    <link href="https://www.sec.gov/Archives/edgar/data/858877/000085887726000057/0000858877-26-000057-index.htm" rel="alternate" type="text/html" />
+    <summary type="html"> &lt;b&gt;Filed:&lt;/b&gt; 2026-05-01 &lt;b&gt;AccNo:&lt;/b&gt; 0000858877-26-000057 &lt;b&gt;Size:&lt;/b&gt; 143 KB&lt;br&gt;Item 5.02: Departure of Directors or Certain Officers</summary>
+    <title>8-K  - Current report</title>
+    <updated>2026-05-01T16:05:06-04:00</updated>
+  </entry>
+  <entry>
+    <category label="form type" scheme="https://www.sec.gov/" term="8-K" />
+    <content type="text/xml">
+      <accession-number>0000858877-26-000006</accession-number>
+      <act>34</act>
+      <filing-date>2026-02-11</filing-date>
+      <filing-href>https://www.sec.gov/Archives/edgar/data/858877/000085887726000006/0000858877-26-000006-index.htm</filing-href>
+      <filing-type>8-K</filing-type>
+      <form-name>Current report</form-name>
+      <items-desc>items 2.02 and 9.01</items-desc>
+      <size>905 KB</size>
+    </content>
+    <id>urn:tag:sec.gov,2008:accession-number=0000858877-26-000006</id>
+    <link href="https://www.sec.gov/Archives/edgar/data/858877/000085887726000006/0000858877-26-000006-index.htm" rel="alternate" type="text/html" />
+    <summary type="html"> &lt;b&gt;Filed:&lt;/b&gt; 2026-02-11 &lt;b&gt;AccNo:&lt;/b&gt; 0000858877-26-000006 &lt;b&gt;Size:&lt;/b&gt; 905 KB&lt;br&gt;Item 2.02: Results of Operations and Financial Condition&lt;br&gt;Item 9.01: Financial Statements and Exhibits</summary>
+    <title>8-K  - Current report</title>
+    <updated>2026-02-11T16:08:21-05:00</updated>
+  </entry>
+</feed>
