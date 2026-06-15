@@ -1,0 +1,39 @@
+# Personal, single-user repo: only the owner and repo collaborators may open
+# issues. This mirrors the "restrict pull requests to collaborators" repo
+# setting (Settings > General > Features), which as of 2026-06 has no built-in
+# equivalent for issues. Any issue opened by anyone else is commented on,
+# closed (not planned), and locked — both to keep the backlog owner-only and so
+# untrusted issue text can never be picked up as backlog by the full-auto
+# agents (see .claude/skills/agentic-environments/SKILL.md).
+#
+# This is moderation, not prevention: the issue exists briefly before this runs.
+name: Restrict issue authors
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    # author_association is OWNER for Connor and COLLABORATOR for anyone invited
+    # to the repo (MEMBER only applies to org-owned repos — harmless to allow).
+    # Everyone else (NONE, CONTRIBUTOR, FIRST_TIME_CONTRIBUTOR, …) is closed.
+    if: >-
+      github.event.issue.author_association != 'OWNER' &&
+      github.event.issue.author_association != 'COLLABORATOR' &&
+      github.event.issue.author_association != 'MEMBER'
+    steps:
+      - name: Comment, close, and lock
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.issue.number }}
+        run: |
+          gh issue comment "$NUMBER" --repo "$REPO" --body \
+            "Thanks for your interest! This is a personal, single-user project that doesn't accept issues from outside contributors, so this issue is being closed automatically."
+          gh issue close "$NUMBER" --repo "$REPO" --reason "not planned"
+          gh issue lock "$NUMBER" --repo "$REPO" --reason "off_topic"
