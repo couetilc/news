@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>AMD Press Releases</title>
+    <link>https://ir.amd.com/news-events/press-releases</link>
+    <description>AMD investor relations press releases</description>
+    <item>
+      <title>AMD Announces Next-Generation EPYC Processors</title>
+      <link>https://ir.amd.com/news-events/press-releases/detail/1234/amd-epyc</link>
+      <guid>https://ir.amd.com/news-events/press-releases/detail/1234/amd-epyc</guid>
+      <pubDate>Mon, 08 Jun 26 13:00:00 GMT</pubDate>
+      <description></description>
+    </item>
+    <item>
+      <title>AMD Reports First Quarter 2026 Financial Results</title>
+      <link>https://ir.amd.com/news-events/press-releases/detail/1230/amd-q1-2026</link>
+      <guid>https://ir.amd.com/news-events/press-releases/detail/1230/amd-q1-2026</guid>
+      <pubDate>Tue, 28 Apr 26 20:05:00 GMT</pubDate>
+      <description></description>
+    </item>
+  </channel>
+</rss>

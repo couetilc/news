@@ -42,6 +42,7 @@
 	--color-source-ieee: #3e587a; /* muted slate-blue */
 	--color-source-apple: #6b5640; /* muted sepia/coffee (#29, Apple) */
 	--color-source-science-daily: #4a6b52; /* muted forest-green */
+	--color-source-amd: #9a4a3a; /* muted brick-red (#24, AMD) */
 }
 
 @layer base {
