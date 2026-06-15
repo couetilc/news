@@ -1,3 +1,4 @@
+import { parseAtom } from './parse/atom';
 import { parseRss20 } from './parse/rss20';
 import type { FeedConfig } from './types';
 
@@ -20,5 +21,15 @@ export const SOURCES: FeedConfig[] = [
 		feed: 'https://spectrum.ieee.org/feeds/feed.rss',
 		pollIntervalSeconds: 7200,
 		parse: (xml) => parseRss20(xml, { content: 'description' }),
+	},
+	{
+		// #29 — Atom despite the .rss extension. Each <entry> carries a one-liner
+		// teaser in <content> (not the full release) and links out; <updated> is
+		// the only timestamp. Tagged <category term="PRESS RELEASE"|"UPDATE"> — we
+		// keep both. ~2–5/week, so poll daily.
+		source: 'apple',
+		feed: 'https://www.apple.com/newsroom/rss-feed.rss',
+		pollIntervalSeconds: 86400,
+		parse: (xml) => parseAtom(xml, { content: 'summary-only' }),
 	},
 ];
