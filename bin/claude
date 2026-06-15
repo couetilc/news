@@ -47,8 +47,54 @@ if ! grep -q '^GH_TOKEN=.\+' .env; then
 	exit 1
 fi
 
+# Keep the host's main current with origin before building. The container
+# clones app code fresh at launch, but the agent image is built from the local
+# docker/ context and we invoke the local bin/claude — both read from the host
+# working tree, so a stale main means a stale agent setup. Fast-forward when we
+# can; otherwise warn. This never blocks the launch: calling sync_main via
+# `|| true` suspends `set -e` for the whole function body.
+sync_main() {
+	git rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 0
+	echo "Syncing main with origin..." >&2
+	if ! git fetch --quiet origin main 2>/dev/null; then
+		echo "  warning: couldn't reach origin (offline?); using local checkout as-is" >&2
+		return 0
+	fi
+	local branch
+	branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
+	if [ "$branch" = "main" ]; then
+		if git merge --ff-only origin/main >/dev/null 2>&1; then
+			echo "  main fast-forwarded to origin/main" >&2
+		else
+			echo "  warning: local main won't fast-forward (diverged or dirty tree); continuing as-is" >&2
+		fi
+	elif git merge-base --is-ancestor main origin/main 2>/dev/null; then
+		# On a feature branch: move the local main ref up to origin/main
+		# without touching the current branch or working tree.
+		git update-ref refs/heads/main origin/main
+		echo "  main fast-forwarded to origin/main (on branch '$branch'; working tree untouched)" >&2
+	else
+		echo "  warning: local main has diverged from origin/main; leaving it unchanged" >&2
+	fi
+}
+sync_main || true
+
 IMAGE=news-agent
-docker build -q -t "$IMAGE" docker/ >/dev/null
+# Build (or refresh) the agent image. The first build — and any after
+# `--clean` — downloads the toolchain plus a headless Chromium shell, so it
+# takes a few minutes; cached rebuilds finish in seconds. Either way, show
+# BuildKit's progress so a cold build reads as work-in-progress, not a hang.
+# (The old silent `-q … >/dev/null` build was the ~3-minute "is it stuck?"
+# block that motivated this.)
+if docker image inspect "$IMAGE" >/dev/null 2>&1; then
+	echo "Refreshing $IMAGE image (cached layers reused; usually seconds)..." >&2
+else
+	echo "Building $IMAGE image for the first time: node/gh/gitleaks/claude + headless Chromium (~150MB)." >&2
+	echo "This is a one-time cost of a few minutes; later runs reuse the Docker cache." >&2
+fi
+build_start=$SECONDS
+docker build -t "$IMAGE" docker/
+echo "Image ready in $((SECONDS - build_start))s." >&2
 
 CMD=(claude --dangerously-skip-permissions --effort xhigh)
 if [ "${1:-}" = "--shell" ]; then
