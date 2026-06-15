@@ -91,13 +91,27 @@ You run as non-root: `apt install` is impossible mid-session. The policy:
    an npm devDependency, or a binary downloaded to `~/.local/bin`. These die
    with the container; never edit the container definition for a tool you
    have needed once.
-2. **Rule of two**: only when a tool is needed *again* (or is plainly
-   load-bearing for the repo's direction) promote it into
-   `docker/Dockerfile` via the normal branch → PR flow. The change benefits
-   future containers after review — it cannot affect your current session.
-3. **Justify in place**: every package added to the Dockerfile gets a
-   one-line comment naming the workflow that needs it, so a future session
-   can safely remove it when that workflow disappears.
+2. **Rule of two → raise an issue, don't self-edit the image**: when a tool
+   is needed *again* (or is plainly load-bearing for the repo's direction),
+   do NOT edit `docker/Dockerfile` in this session. Instead open a GitHub
+   issue requesting it (`gh issue create`) — this surfaces the improvement
+   asynchronously, with no human present, while keeping the actual container
+   change behind human approval. First check you're not duplicating an open
+   request (`gh issue list --search "<tool> in:title"`), then write a body a
+   future implementer can act on, with the approval gate embedded verbatim:
+
+       Tool: <name> — needed for <workflow> (Rule-of-Two: <where it recurred>).
+       Install: <apt, or a pinned binary from releases with arm64/amd64 notes
+         — mirror how gitleaks/actionlint are vendored in docker/Dockerfile>.
+       Ephemeral workaround used meanwhile: <if any>.
+       ⚠️ Human approval required before merge: an agent may open the
+       implementing PR, but must wait for an explicit human go-ahead (a comment
+       on this issue or the PR) before merging it — do not auto-merge.
+
+3. **Justify in place**: when the image *is* changed (when that issue is
+   implemented), every package added to `docker/Dockerfile` gets a one-line
+   comment naming the workflow that needs it, so a future session can safely
+   remove it when that workflow disappears.
 EOF
 
 # node_modules lives in this container's own filesystem (no darwin binaries
