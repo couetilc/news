@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:test';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ensureFeedRows, getFeedStates, listItems, updateFeedState } from '../src/ingest/db';
 import { parseRss20 } from '../src/ingest/parse/rss20';
 import { ingestAll, type IngestDeps } from '../src/ingest/run';
@@ -38,8 +38,13 @@ beforeEach(async () => {
 	await db.batch([db.prepare('DELETE FROM items'), db.prepare('DELETE FROM feeds')]);
 });
 
+afterEach(() => {
+	vi.restoreAllMocks();
+});
+
 describe('ingestAll', () => {
 	it('polls a due feed, inserts items, and stores the response validators', async () => {
+		const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 		const { fn, calls } = fakeFetch({
 			'https://cf.test/rss': () =>
 				new Response(cloudflareXml, {
@@ -52,6 +57,18 @@ describe('ingestAll', () => {
 
 		const rows = await listItems(db, 10);
 		expect(rows).toHaveLength(2);
+
+		// A structured (object-form) record lands so Workers Logs can index it.
+		expect(logSpy).toHaveBeenCalledWith({
+			level: 'info',
+			event: 'ingest.poll',
+			source: 'cf',
+			feed: 'https://cf.test/rss',
+			status: 200,
+			items: 2,
+			inserted: 2,
+			outcome: 'ok',
+		});
 
 		const [state] = await getFeedStates(db);
 		expect(state).toMatchObject({
@@ -85,6 +102,7 @@ describe('ingestAll', () => {
 	});
 
 	it('sends conditional headers and treats 304 as no-op but reschedules', async () => {
+		const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 		await ensureFeedRows(db, [cfFeed]);
 		await updateFeedState(db, cfFeed.feed, {
 			etag: 'old-etag',
@@ -110,6 +128,16 @@ describe('ingestAll', () => {
 			next_poll_at: 2000 + 3600,
 			failure_count: 0,
 		});
+
+		// 304 logs the not_modified outcome (no items/inserted on a no-op).
+		expect(logSpy).toHaveBeenCalledWith({
+			level: 'info',
+			event: 'ingest.poll',
+			source: 'cf',
+			feed: 'https://cf.test/rss',
+			status: 304,
+			outcome: 'not_modified',
+		});
 	});
 
 	it('isolates a failing feed: a non-200 records a failure, other feeds still ingest', async () => {
@@ -131,6 +159,7 @@ describe('ingestAll', () => {
 	});
 
 	it('records a failure when fetch itself throws', async () => {
+		const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 		const { fn } = fakeFetch({
 			'https://cf.test/rss': () => {
 				throw new Error('network down');
@@ -142,5 +171,14 @@ describe('ingestAll', () => {
 		const [state] = await getFeedStates(db);
 		expect(state.failure_count).toBe(1);
 		expect(await listItems(db, 10)).toEqual([]);
+
+		// The error path emits an object-form record with the stringified error.
+		expect(errSpy).toHaveBeenCalledWith({
+			level: 'error',
+			event: 'ingest.error',
+			source: 'cf',
+			feed: 'https://cf.test/rss',
+			err: 'Error: network down',
+		});
 	});
 });
