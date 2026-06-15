@@ -1,0 +1,55 @@
+---
+import { sourceMeta } from '../lib/sources';
+
+interface Props {
+	// Source slugs present in the feed, already ordered (see distinctSources).
+	sources: string[];
+	// The slugs currently filtering the feed; empty means "All".
+	active: string[];
+}
+
+const { sources, active } = Astro.props;
+const activeSet = new Set(active);
+const allActive = active.length === 0;
+
+// A chip's href toggles its own source within the current selection: a chip
+// that's off turns on (adds its slug), one that's on turns off (drops it). With
+// JS off these are plain links, so multi-select still works by tapping chips in
+// turn. "All" is just the no-param URL.
+function hrefFor(slug: string): string {
+	const next = new Set(active);
+	if (next.has(slug)) next.delete(slug);
+	else next.add(slug);
+	const params = new URLSearchParams();
+	for (const s of next) params.append('source', s);
+	const qs = params.toString();
+	return qs ? `/?${qs}` : '/';
+}
+
+// Shared chip shape: a compact, ruled, small-caps tag in the newspaper voice —
+// no rounded pills. Active chips invert to ink; inactive ones are hairline-ruled.
+const base =
+	'inline-flex items-center gap-1.5 border px-2 py-1 font-sans text-[0.65rem] uppercase tracking-wider';
+const on = `${base} border-ink bg-ink text-paper`;
+const off = `${base} border-rule text-ink-soft hover:border-ink hover:text-accent`;
+---
+
+<nav aria-label="Filter by source" class="mb-6 flex flex-wrap items-center gap-2">
+	<a href="/" class={allActive ? on : off} aria-current={allActive ? 'true' : undefined}>All</a>
+	{
+		sources.map((slug) => {
+			const meta = sourceMeta(slug);
+			const isActive = activeSet.has(slug);
+			return (
+				<a
+					href={hrefFor(slug)}
+					class={isActive ? on : off}
+					aria-current={isActive ? 'true' : undefined}
+				>
+					<span class={`inline-block size-2 ${meta.swatch}`} aria-hidden="true" />
+					{meta.name}
+				</a>
+			);
+		})
+	}
+</nav>

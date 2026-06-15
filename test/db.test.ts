@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+	distinctSources,
 	ensureFeedRows,
 	getFeedStates,
 	insertItems,
@@ -143,6 +144,66 @@ describe('listItems', () => {
 		// Unread (middle, oldest) lead newest-first; the read item trails.
 		expect(rows.map((r) => r.guid)).toEqual(['middle', 'oldest', 'newest']);
 		expect(rows.map((r) => r.read_at)).toEqual([null, null, 5000]);
+	});
+
+	it('narrows to a single source when one is given, keeping the order', async () => {
+		await insertItems(db, 'a', [item({ guid: 'a-new', publishedAt: 3000 })], 100);
+		await insertItems(db, 'b', [item({ guid: 'b-mid', publishedAt: 2000 })], 100);
+		await insertItems(db, 'a', [item({ guid: 'a-old', publishedAt: 1000 })], 100);
+
+		const rows = await listItems(db, 10, ['a']);
+		expect(rows.map((r) => r.guid)).toEqual(['a-new', 'a-old']);
+	});
+
+	it('narrows to several sources via IN (...), still unread-before-read', async () => {
+		await insertItems(db, 'a', [item({ guid: 'a1', publishedAt: 3000 })], 100);
+		await insertItems(db, 'b', [item({ guid: 'b1', publishedAt: 2500 })], 100);
+		await insertItems(db, 'c', [item({ guid: 'c1', publishedAt: 2000 })], 100);
+		// Mark a1 read so it trails within the a+b selection.
+		const [{ id: a1Id }] = await listItems(db, 1, ['a']);
+		await setItemRead(db, a1Id, 9000);
+
+		const rows = await listItems(db, 10, ['a', 'b']);
+		// c is excluded; unread b1 leads, read a1 trails.
+		expect(rows.map((r) => r.guid)).toEqual(['b1', 'a1']);
+		expect(rows.map((r) => r.read_at)).toEqual([null, 9000]);
+	});
+
+	it('returns nothing for a present-but-empty selection', async () => {
+		await insertItems(db, 'a', [item({ guid: 'a1' })], 100);
+		expect(await listItems(db, 10, ['b'])).toEqual([]);
+	});
+
+	it('treats an empty source list as no filter (All)', async () => {
+		await insertItems(db, 'a', [item({ guid: 'a1' })], 100);
+		await insertItems(db, 'b', [item({ guid: 'b1' })], 100);
+		const rows = await listItems(db, 10, []);
+		expect(rows.map((r) => r.guid).sort()).toEqual(['a1', 'b1']);
+	});
+});
+
+describe('distinctSources', () => {
+	it('returns only the sources actually present, ordered by display name', async () => {
+		// Slugs chosen so slug order (cloudflare-blog, ieee-spectrum, apple) differs
+		// from display-name order (Apple, Cloudflare Blog, IEEE Spectrum).
+		await insertItems(db, 'ieee-spectrum', [item({ guid: 'i1' })], 100);
+		await insertItems(db, 'cloudflare-blog', [item({ guid: 'c1' })], 100);
+		await insertItems(db, 'apple', [item({ guid: 'p1' })], 100);
+		// A duplicate of an existing source must not appear twice.
+		await insertItems(db, 'apple', [item({ guid: 'p2' })], 100);
+
+		expect(await distinctSources(db)).toEqual(['apple', 'cloudflare-blog', 'ieee-spectrum']);
+	});
+
+	it('returns an empty list when no items have been aggregated', async () => {
+		expect(await distinctSources(db)).toEqual([]);
+	});
+
+	it('orders an unregistered source by its raw slug fallback name', async () => {
+		await insertItems(db, 'zzz-wire', [item({ guid: 'z1' })], 100);
+		await insertItems(db, 'apple', [item({ guid: 'p1' })], 100);
+		// "Apple" sorts before the fallback name "zzz-wire".
+		expect(await distinctSources(db)).toEqual(['apple', 'zzz-wire']);
 	});
 });
 

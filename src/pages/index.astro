@@ -1,13 +1,22 @@
 ---
 import { env } from 'cloudflare:workers';
-import { listItems } from '../ingest/db';
+import { distinctSources, listItems } from '../ingest/db';
 import Article from '../components/Article.astro';
+import FilterBar from '../components/FilterBar.astro';
 import Layout from '../layouts/Layout.astro';
+
+// Sources actually present drive the filter bar. The ?source param (repeatable
+// for multi-select) is intersected with them, so an unknown or absent slug just
+// drops out — an empty result means "All", never a 500.
+const present = await distinctSources(env.NEWS_DB);
+const presentSet = new Set(present);
+const active = Astro.url.searchParams.getAll('source').filter((s) => presentSet.has(s));
 
 // listItems returns unread first, then read — both newest-first. Split on
 // read_at so the feed reads as one chronological column with the already-read
-// items collected into a quieter section at the bottom.
-const items = await listItems(env.NEWS_DB, 100);
+// items collected into a quieter section at the bottom. The active filter (if
+// any) narrows both sections to those sources.
+const items = await listItems(env.NEWS_DB, 100, active);
 const unread = items.filter((item) => item.read_at === null);
 const read = items.filter((item) => item.read_at !== null);
 ---
@@ -25,32 +34,41 @@ const read = items.filter((item) => item.read_at !== null);
 		</button>
 	</form>
 	{
-		items.length === 0 ? (
+		present.length === 0 ? (
 			<p class="py-16 text-center text-lg italic text-muted">
 				Nothing aggregated yet — check back soon.
 			</p>
 		) : (
 			<div class="mx-auto max-w-2xl">
-				{unread.length > 0 && (
-					<ol>
-						{unread.map((item) => (
-							<Article item={item} />
-						))}
-					</ol>
-				)}
-				{read.length > 0 && (
-					<section class="mt-10">
-						<h2 class="mb-1 flex items-center gap-3 font-sans text-[0.65rem] uppercase tracking-[0.3em] text-muted">
-							<span class="h-px flex-1 bg-rule" aria-hidden="true" />
-							Read
-							<span class="h-px flex-1 bg-rule" aria-hidden="true" />
-						</h2>
-						<ol>
-							{read.map((item) => (
-								<Article item={item} />
-							))}
-						</ol>
-					</section>
+				<FilterBar sources={present} active={active} />
+				{items.length === 0 ? (
+					<p class="py-16 text-center text-lg italic text-muted">
+						Nothing here from this source yet.
+					</p>
+				) : (
+					<>
+						{unread.length > 0 && (
+							<ol>
+								{unread.map((item) => (
+									<Article item={item} />
+								))}
+							</ol>
+						)}
+						{read.length > 0 && (
+							<section class="mt-10">
+								<h2 class="mb-1 flex items-center gap-3 font-sans text-[0.65rem] uppercase tracking-[0.3em] text-muted">
+									<span class="h-px flex-1 bg-rule" aria-hidden="true" />
+									Read
+									<span class="h-px flex-1 bg-rule" aria-hidden="true" />
+								</h2>
+								<ol>
+									{read.map((item) => (
+										<Article item={item} />
+									))}
+								</ol>
+							</section>
+						)}
+					</>
 				)}
 			</div>
 		)
