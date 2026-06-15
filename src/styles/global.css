@@ -48,6 +48,7 @@
 	--color-source-nvidia: #6f6b32; /* muted olive-gold (#25, NVIDIA) */
 	--color-source-elonlit: #5f4a78; /* muted plum (#23, elonlit) */
 	--color-source-anthropic: #2f6660; /* muted deep-teal (#22, Anthropic) */
+	--color-source-aws: #7a4a64; /* muted mauve (#26, AWS) */
 }
 
 @layer base {

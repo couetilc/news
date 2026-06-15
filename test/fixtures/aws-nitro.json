@@ -1,0 +1,31 @@
+{
+  "items": [
+    {
+      "item": {
+        "id": "whats-new-v2#launch-shared-nitro-graviton",
+        "locale": "en_US",
+        "directoryId": "whats-new-v2",
+        "additionalFields": {
+          "headline": "AWS Nitro System enhancements for Graviton-based instances",
+          "postBody": "<p>The AWS Nitro System now offers improved networking for Graviton-based instances.</p>",
+          "postDateTime": "2026-06-08T18:30:00Z",
+          "headlineUrl": "https://aws.amazon.com/about-aws/whats-new/2026/06/nitro-graviton-networking/"
+        }
+      }
+    },
+    {
+      "item": {
+        "id": "whats-new-v2#launch-nitro-enclaves",
+        "locale": "en_US",
+        "directoryId": "whats-new-v2",
+        "additionalFields": {
+          "headline": "AWS Nitro Enclaves now supports larger memory allocations",
+          "postBody": "<p>AWS Nitro Enclaves now supports allocating up to 1 TB of memory per enclave.</p>",
+          "postDateTime": "2026-06-05T12:00:00Z",
+          "headlineUrl": "/about-aws/whats-new/2026/06/nitro-enclaves-larger-memory/"
+        }
+      }
+    }
+  ],
+  "metadata": { "count": 2, "totalHits": 87 }
+}

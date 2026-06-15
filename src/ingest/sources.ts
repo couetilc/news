@@ -1,6 +1,33 @@
 import { parseAtom } from './parse/atom';
+import { parseAwsWhatsNew } from './parse/aws-whats-new';
 import { parseRss20 } from './parse/rss20';
 import type { FeedConfig } from './types';
+
+// #26 — Annapurna's silicon ships through AWS's What's New JSON search API.
+// Tags are unreliable (Graviton launches carry only `amazon-ec2`), so we run a
+// free-text `q=` query per term. Each term is its own FeedConfig sharing
+// `source: 'aws'`: run.ts polls each URL independently and insertItems dedupes
+// by (source, guid), so a launch that matches two terms collapses to one row —
+// no bespoke cross-query dedupe needed. The JSON API ignores conditional-GET,
+// which run.ts already tolerates (it just re-parses a 200). ~a few/week, so a
+// 6-hour poll per term is ample.
+const AWS_TERMS = ['graviton', 'trainium', 'inferentia', 'nitro'] as const;
+
+function awsFeed(term: string): FeedConfig {
+	const url = new URL('https://aws.amazon.com/api/dirs/items/search');
+	url.searchParams.set('item.directoryId', 'whats-new-v2');
+	url.searchParams.set('sort_by', 'item.additionalFields.postDateTime');
+	url.searchParams.set('sort_order', 'desc');
+	url.searchParams.set('size', '10');
+	url.searchParams.set('item.locale', 'en_US');
+	url.searchParams.set('q', term);
+	return {
+		source: 'aws',
+		feed: url.toString(),
+		pollIntervalSeconds: 21600,
+		parse: parseAwsWhatsNew,
+	};
+}
 
 // The configured feeds. v1 ships the two easiest full-text sources (#19, #20);
 // further `Source:` issues add entries here. Each carries its own parser
@@ -128,4 +155,6 @@ export const SOURCES: FeedConfig[] = [
 		pollIntervalSeconds: 28800,
 		parse: (xml) => parseRss20(xml, { content: 'description' }),
 	},
+	// #26 — one entry per silicon term, all source 'aws' (see awsFeed above).
+	...AWS_TERMS.map(awsFeed),
 ];
