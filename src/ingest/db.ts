@@ -120,6 +120,59 @@ export async function listItems(
 	return results;
 }
 
+// One paginated section of the homepage digest. `read` picks the section —
+// false reads the still-unread feed (read_at IS NULL), true reads the "Read"
+// section (read_at IS NOT NULL) — so each section paginates on its own cursor
+// and walking deep into one never disturbs the other. Within a section the
+// order matches the old single query (newest-first, id breaking ties), since
+// the read/unread split is now in the WHERE clause instead of a sort key.
+// `limit`/`offset` are the page window (50 per page; offset = (page-1)*50).
+// The optional `sources` filter narrows by source slug, same shape as listItems.
+export interface SectionQuery {
+	read: boolean;
+	limit: number;
+	offset: number;
+	sources?: string[];
+}
+
+function sectionWhere(read: boolean, sources: string[]): string {
+	const readClause = read ? 'read_at IS NOT NULL' : 'read_at IS NULL';
+	const sourceClause = sources.length > 0 ? ` AND source IN (${sources.map(() => '?').join(', ')})` : '';
+	return `WHERE ${readClause}${sourceClause}`;
+}
+
+export async function listItemsByRead(
+	db: D1Database,
+	{ read, limit, offset, sources = [] }: SectionQuery,
+): Promise<ItemRow[]> {
+	const { results } = await db
+		.prepare(
+			`SELECT id, source, guid, url, title, summary, content_html, published_at, fetched_at, read_at
+			 FROM items
+			 ${sectionWhere(read, sources)}
+			 ORDER BY COALESCE(published_at, fetched_at) DESC, id DESC
+			 LIMIT ? OFFSET ?`,
+		)
+		.bind(...sources, limit, offset)
+		.all<ItemRow>();
+	return results;
+}
+
+// How many items the section holds under the same read state + source filter,
+// so the page can compute total pages and decide whether a "next" link renders.
+export async function countItemsByRead(
+	db: D1Database,
+	{ read, sources = [] }: { read: boolean; sources?: string[] },
+): Promise<number> {
+	// COUNT(*) always returns exactly one row (0 for an empty match), so a
+	// non-null number is guaranteed — no fallback branch needed.
+	const n = await db
+		.prepare(`SELECT COUNT(*) AS n FROM items ${sectionWhere(read, sources)}`)
+		.bind(...sources)
+		.first<number>('n');
+	return n as number;
+}
+
 // The source slugs actually present in the items table — the sources the feed
 // can be filtered by, so empty/unregistered registry entries never show. Ordered
 // by display name (via sourceMeta) for a stable, human-sensible filter bar.

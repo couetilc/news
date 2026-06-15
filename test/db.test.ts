@@ -1,11 +1,13 @@
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+	countItemsByRead,
 	distinctSources,
 	ensureFeedRows,
 	getFeedStates,
 	insertItems,
 	listItems,
+	listItemsByRead,
 	setItemRead,
 	updateFeedState,
 } from '../src/ingest/db';
@@ -204,6 +206,96 @@ describe('distinctSources', () => {
 		await insertItems(db, 'apple', [item({ guid: 'p1' })], 100);
 		// "Apple" sorts before the fallback name "zzz-wire".
 		expect(await distinctSources(db)).toEqual(['apple', 'zzz-wire']);
+	});
+});
+
+describe('listItemsByRead', () => {
+	// Seed N items in one source, alternating unread/read by index parity, with
+	// descending published_at so insertion order == display order (newest-first).
+	async function seed(n: number, source = 's'): Promise<void> {
+		for (let i = 0; i < n; i++) {
+			await insertItems(db, source, [item({ guid: `g${i}`, publishedAt: 100000 - i })], 100);
+		}
+	}
+
+	it('reads only the unread section, newest-first, with LIMIT/OFFSET', async () => {
+		await seed(5);
+		const page1 = await listItemsByRead(db, { read: false, limit: 2, offset: 0 });
+		expect(page1.map((r) => r.guid)).toEqual(['g0', 'g1']);
+		expect(page1.every((r) => r.read_at === null)).toBe(true);
+
+		const page2 = await listItemsByRead(db, { read: false, limit: 2, offset: 2 });
+		expect(page2.map((r) => r.guid)).toEqual(['g2', 'g3']);
+
+		const page3 = await listItemsByRead(db, { read: false, limit: 2, offset: 4 });
+		expect(page3.map((r) => r.guid)).toEqual(['g4']);
+	});
+
+	it('reads only the read section once items are marked read', async () => {
+		await seed(4);
+		// Mark g0 and g2 read.
+		const all = await listItems(db, 10);
+		for (const r of all) {
+			if (r.guid === 'g0' || r.guid === 'g2') await setItemRead(db, r.id, 5000);
+		}
+		const unread = await listItemsByRead(db, { read: false, limit: 10, offset: 0 });
+		expect(unread.map((r) => r.guid)).toEqual(['g1', 'g3']);
+
+		const read = await listItemsByRead(db, { read: true, limit: 10, offset: 0 });
+		expect(read.map((r) => r.guid)).toEqual(['g0', 'g2']);
+		expect(read.every((r) => r.read_at === 5000)).toBe(true);
+	});
+
+	it('breaks ties on equal timestamps by newest id first', async () => {
+		await insertItems(db, 's', [item({ guid: 'first', publishedAt: 1000 })], 100);
+		await insertItems(db, 's', [item({ guid: 'second', publishedAt: 1000 })], 100);
+		const rows = await listItemsByRead(db, { read: false, limit: 10, offset: 0 });
+		expect(rows.map((r) => r.guid)).toEqual(['second', 'first']);
+	});
+
+	it('applies the source filter to the section window', async () => {
+		await insertItems(db, 'a', [item({ guid: 'a1', publishedAt: 3000 })], 100);
+		await insertItems(db, 'b', [item({ guid: 'b1', publishedAt: 2000 })], 100);
+		await insertItems(db, 'a', [item({ guid: 'a2', publishedAt: 1000 })], 100);
+
+		const rows = await listItemsByRead(db, { read: false, limit: 10, offset: 0, sources: ['a'] });
+		expect(rows.map((r) => r.guid)).toEqual(['a1', 'a2']);
+	});
+
+	it('defaults to no source filter when sources is omitted', async () => {
+		await insertItems(db, 'a', [item({ guid: 'a1' })], 100);
+		await insertItems(db, 'b', [item({ guid: 'b1' })], 100);
+		const rows = await listItemsByRead(db, { read: false, limit: 10, offset: 0 });
+		expect(rows.map((r) => r.guid).sort()).toEqual(['a1', 'b1']);
+	});
+
+	it('returns an empty window past the last page', async () => {
+		await seed(3);
+		expect(await listItemsByRead(db, { read: false, limit: 50, offset: 50 })).toEqual([]);
+	});
+});
+
+describe('countItemsByRead', () => {
+	it('counts each section separately', async () => {
+		await insertItems(db, 's', [item({ guid: 'g0', publishedAt: 3000 })], 100);
+		await insertItems(db, 's', [item({ guid: 'g1', publishedAt: 2000 })], 100);
+		await insertItems(db, 's', [item({ guid: 'g2', publishedAt: 1000 })], 100);
+		const [g0] = await listItems(db, 1);
+		await setItemRead(db, g0.id, 5000);
+
+		expect(await countItemsByRead(db, { read: false })).toBe(2);
+		expect(await countItemsByRead(db, { read: true })).toBe(1);
+	});
+
+	it('respects the source filter', async () => {
+		await insertItems(db, 'a', [item({ guid: 'a1' }), item({ guid: 'a2' })], 100);
+		await insertItems(db, 'b', [item({ guid: 'b1' })], 100);
+		expect(await countItemsByRead(db, { read: false, sources: ['a'] })).toBe(2);
+		expect(await countItemsByRead(db, { read: false, sources: ['a', 'b'] })).toBe(3);
+	});
+
+	it('returns 0 for an empty section', async () => {
+		expect(await countItemsByRead(db, { read: true })).toBe(0);
 	});
 });
 

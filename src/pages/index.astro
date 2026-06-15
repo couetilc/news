@@ -1,9 +1,11 @@
 ---
 import { env } from 'cloudflare:workers';
-import { distinctSources, listItems } from '../ingest/db';
+import { countItemsByRead, distinctSources, listItemsByRead } from '../ingest/db';
 import Article from '../components/Article.astro';
 import FilterBar from '../components/FilterBar.astro';
+import Pager from '../components/Pager.astro';
 import Layout from '../layouts/Layout.astro';
+import { PAGE_SIZE, clampPage, offsetFor, parsePage } from '../lib/pagination';
 
 // Sources actually present drive the filter bar. The ?source param (repeatable
 // for multi-select) is intersected with them, so an unknown or absent slug just
@@ -12,13 +14,42 @@ const present = await distinctSources(env.NEWS_DB);
 const presentSet = new Set(present);
 const active = Astro.url.searchParams.getAll('source').filter((s) => presentSet.has(s));
 
-// listItems returns unread first, then read — both newest-first. Split on
-// read_at so the feed reads as one chronological column with the already-read
-// items collected into a quieter section at the bottom. The active filter (if
-// any) narrows both sections to those sources.
-const items = await listItems(env.NEWS_DB, 100, active);
-const unread = items.filter((item) => item.read_at === null);
-const read = items.filter((item) => item.read_at !== null);
+// Two independent cursors: ?unread and ?read each default to page 1, parsed
+// defensively (non-numeric/zero/negative -> 1). Counts drive total pages and
+// clamp a too-far page back onto the last one; the source filter applies to both
+// the count and the page window so paging respects the active selection. Paging
+// one section never touches the other's offset.
+const unreadPage = parsePage(Astro.url.searchParams.get('unread'));
+const readPage = parsePage(Astro.url.searchParams.get('read'));
+
+const unreadTotal = await countItemsByRead(env.NEWS_DB, { read: false, sources: active });
+const readTotal = await countItemsByRead(env.NEWS_DB, { read: true, sources: active });
+
+const unreadClamped = clampPage(unreadPage, unreadTotal);
+const readClamped = clampPage(readPage, readTotal);
+
+const unread = await listItemsByRead(env.NEWS_DB, {
+	read: false,
+	limit: PAGE_SIZE,
+	offset: offsetFor(unreadClamped),
+	sources: active,
+});
+const read = await listItemsByRead(env.NEWS_DB, {
+	read: true,
+	limit: PAGE_SIZE,
+	offset: offsetFor(readClamped),
+	sources: active,
+});
+
+// Each pager preserves the *other* section's cursor (when past page 1) plus the
+// active source filter; changing the source filter drops both page params via
+// FilterBar's source-only hrefs, resetting paging to page 1.
+const unreadSibling = { param: 'read', page: readClamped };
+const readSibling = { param: 'unread', page: unreadClamped };
+
+// "Nothing aggregated yet" is the no-sources-at-all case (handled below via
+// `present`); a filtered selection with zero matches gets its own message.
+const isEmpty = unreadTotal === 0 && readTotal === 0;
 ---
 
 <Layout title="News">
@@ -41,18 +72,28 @@ const read = items.filter((item) => item.read_at !== null);
 		) : (
 			<div class="mx-auto max-w-2xl">
 				<FilterBar sources={present} active={active} />
-				{items.length === 0 ? (
+				{isEmpty ? (
 					<p class="py-16 text-center text-lg italic text-muted">
 						Nothing here from this source yet.
 					</p>
 				) : (
 					<>
 						{unread.length > 0 && (
-							<ol>
-								{unread.map((item) => (
-									<Article item={item} />
-								))}
-							</ol>
+							<>
+								<ol>
+									{unread.map((item) => (
+										<Article item={item} />
+									))}
+								</ol>
+								<Pager
+									param="unread"
+									page={unreadClamped}
+									total={unreadTotal}
+									sources={active}
+									sibling={unreadSibling}
+									label="Unread pages"
+								/>
+							</>
 						)}
 						{read.length > 0 && (
 							<section class="mt-10">
@@ -66,6 +107,14 @@ const read = items.filter((item) => item.read_at !== null);
 										<Article item={item} />
 									))}
 								</ol>
+								<Pager
+									param="read"
+									page={readClamped}
+									total={readTotal}
+									sources={active}
+									sibling={readSibling}
+									label="Read pages"
+								/>
 							</section>
 						)}
 					</>
