@@ -29,12 +29,24 @@ export default getViteConfig(
 				'cloudflare:workers': fileURLToPath(
 					new URL('./test/helpers/cloudflare-workers.ts', import.meta.url),
 				),
+				// src/middleware.ts imports `defineMiddleware` from the astro:middleware
+				// virtual module (just an identity passthrough). configFile:false means
+				// Astro's vite plugin that provides that virtual isn't loaded, so point
+				// the bare specifier at Astro's real re-export.
+				'astro:middleware': fileURLToPath(
+					new URL('./node_modules/astro/dist/virtual-modules/middleware.js', import.meta.url),
+				),
 			},
 		},
 		test: {
 			name: 'node',
 			environment: 'node',
-			include: ['test/index.test.ts', 'test/worker.test.ts'],
+			include: [
+				'test/index.test.ts',
+				'test/worker.test.ts',
+				'test/auth-pages.test.ts',
+				'test/middleware.test.ts',
+			],
 		},
 	},
 	{

@@ -1,0 +1,46 @@
+---
+import { env } from 'cloudflare:workers';
+import Layout from '../layouts/Layout.astro';
+import AuthForm from '../components/AuthForm.astro';
+import { readCredentials, signup } from '../lib/auth-actions';
+import { establishSession, getPepper } from '../lib/session';
+
+// Account creation (issue #40). One .astro page serves both verbs, like a
+// classic no-JS form: GET renders the empty form; POST validates + creates the
+// user, then on success stores the user id in the session and 303-redirects to
+// the (now-unlocked) homepage. On validation/duplicate failure it re-renders
+// this same page with an inline error and a 400 — deliberately NOT a redirect,
+// so the error and the typed email survive without query-string round-trips.
+
+let error: string | null = null;
+let email = '';
+
+if (Astro.request.method === 'POST') {
+	const form = await Astro.request.formData();
+	const credentials = readCredentials(form);
+	email = credentials.email;
+	const result = await signup(
+		env.NEWS_DB,
+		email,
+		credentials.password,
+		getPepper(env),
+		Math.floor(Date.now() / 1000),
+	);
+	if (result.ok) {
+		await establishSession(Astro.session, result.userId);
+		return Astro.redirect('/', 303);
+	}
+	error = result.error;
+	Astro.response.status = 400;
+}
+---
+
+<Layout title="Sign up · News">
+	<AuthForm
+		heading="Create account"
+		submitLabel="Create account"
+		error={error}
+		email={email}
+		alt={{ href: '/login', prompt: 'Already have an account?', label: 'Sign in' }}
+	/>
+</Layout>

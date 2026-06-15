@@ -1,0 +1,38 @@
+---
+import { env } from 'cloudflare:workers';
+import Layout from '../layouts/Layout.astro';
+import AuthForm from '../components/AuthForm.astro';
+import { login, readCredentials } from '../lib/auth-actions';
+import { establishSession, getPepper } from '../lib/session';
+
+// Sign in (issue #40). Same GET-renders / POST-handles shape as signup. A wrong
+// email and a wrong password return the identical generic error (so the form
+// never reveals which emails exist) with a 400; success stores the user id in
+// the session and 303-redirects to the homepage.
+
+let error: string | null = null;
+let email = '';
+
+if (Astro.request.method === 'POST') {
+	const form = await Astro.request.formData();
+	const credentials = readCredentials(form);
+	email = credentials.email;
+	const result = await login(env.NEWS_DB, email, credentials.password, getPepper(env));
+	if (result.ok) {
+		await establishSession(Astro.session, result.userId);
+		return Astro.redirect('/', 303);
+	}
+	error = result.error;
+	Astro.response.status = 400;
+}
+---
+
+<Layout title="Log in · News">
+	<AuthForm
+		heading="Sign in"
+		submitLabel="Sign in"
+		error={error}
+		email={email}
+		alt={{ href: '/signup', prompt: 'Need an account?', label: 'Create one' }}
+	/>
+</Layout>
