@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SOURCES } from '../src/ingest/sources';
+import amdXml from './fixtures/amd.xml?raw';
 import appleXml from './fixtures/apple.xml?raw';
 import cloudflareXml from './fixtures/cloudflare-blog.xml?raw';
 import ieeeXml from './fixtures/ieee-spectrum.xml?raw';
@@ -16,6 +17,7 @@ describe('SOURCES', () => {
 		expect(slugs).toContain('ieee-spectrum');
 		expect(slugs).toContain('apple');
 		expect(slugs).toContain('science-daily');
+		expect(slugs).toContain('amd');
 	});
 
 	it('parses the Cloudflare blog from content:encoded with a separate summary', () => {
@@ -44,5 +46,14 @@ describe('SOURCES', () => {
 		const items = source('science-daily').parse(scienceDailyXml);
 		expect(items[0].summary).toContain('neural circuit');
 		expect(items[0].contentHtml).toBeNull();
+	});
+
+	it('parses AMD title-only IR releases (no content, no summary)', () => {
+		const items = source('amd').parse(amdXml);
+		expect(items[0].title).toBe('AMD Announces Next-Generation EPYC Processors');
+		expect(items[0].contentHtml).toBeNull();
+		expect(items[0].summary).toBeNull();
+		// Two-digit-year pubDate resolves to 2026 (#24).
+		expect(items[0].publishedAt).toBe(Math.floor(Date.UTC(2026, 5, 8, 13, 0, 0) / 1000));
 	});
 });

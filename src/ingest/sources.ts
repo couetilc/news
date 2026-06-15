@@ -42,4 +42,15 @@ export const SOURCES: FeedConfig[] = [
 		pollIntervalSeconds: 3600,
 		parse: (xml) => parseRss20(xml, { content: 'content:encoded' }),
 	},
+	{
+		// #24 — AMD investor-relations press releases (Equisolve RSS 2.0).
+		// Titles only: <description> is empty, so we read the body slot from
+		// `description` (yielding null contentHtml) and link out. ~2–4/month with a
+		// 10-item window, so a 6-hour poll is plenty. pubDates use two-digit years
+		// (`Mon, 08 Jun 26`) — Date.parse handles that (see parse/dates.ts).
+		source: 'amd',
+		feed: 'https://ir.amd.com/news-events/press-releases/rss',
+		pollIntervalSeconds: 21600,
+		parse: (xml) => parseRss20(xml, { content: 'description' }),
+	},
 ];

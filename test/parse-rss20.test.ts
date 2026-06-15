@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseRss20 } from '../src/ingest/parse/rss20';
+import amdXml from './fixtures/amd.xml?raw';
 import cloudflareXml from './fixtures/cloudflare-blog.xml?raw';
 import ieeeXml from './fixtures/ieee-spectrum.xml?raw';
 import scienceDailyXml from './fixtures/science-daily.xml?raw';
@@ -72,6 +73,26 @@ describe('parseRss20 — summaries-only mode (ScienceDaily)', () => {
 			'https://www.sciencedaily.com/releases/2026/06/260612101500.htm',
 		);
 		expect(items[0].publishedAt).toBe(Math.floor(Date.UTC(2026, 5, 12, 14, 15, 0) / 1000));
+	});
+});
+
+describe('parseRss20 — AMD IR press releases (titles only, two-digit-year dates)', () => {
+	const items = parseRss20(amdXml, { content: 'description' });
+
+	it('parses a title-only item: title and url set, content and summary null', () => {
+		expect(items[0]).toEqual({
+			guid: 'https://ir.amd.com/news-events/press-releases/detail/1234/amd-epyc',
+			url: 'https://ir.amd.com/news-events/press-releases/detail/1234/amd-epyc',
+			title: 'AMD Announces Next-Generation EPYC Processors',
+			summary: null,
+			contentHtml: null,
+			publishedAt: Math.floor(Date.UTC(2026, 5, 8, 13, 0, 0) / 1000),
+		});
+	});
+
+	it('parses the two-digit-year pubDate as 2026, not 0026 (acceptance criterion)', () => {
+		// "Tue, 28 Apr 26 20:05:00 GMT" → 2026, the year-window gotcha from #24.
+		expect(items[1].publishedAt).toBe(Math.floor(Date.UTC(2026, 3, 28, 20, 5, 0) / 1000));
 	});
 });
 
