@@ -25,6 +25,7 @@ const REGISTRY: Record<string, SourceMeta> = {
 	elonlit: { name: 'Elon Litman', swatch: 'bg-source-elonlit' },
 	anthropic: { name: 'Anthropic', swatch: 'bg-source-anthropic' },
 	aws: { name: 'AWS', swatch: 'bg-source-aws' },
+	cisco: { name: 'Cisco', swatch: 'bg-source-cisco' },
 };
 
 export function sourceMeta(slug: string): SourceMeta {

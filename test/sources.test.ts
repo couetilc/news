@@ -4,6 +4,8 @@ import amdXml from './fixtures/amd.xml?raw';
 import anthropicXml from './fixtures/anthropic.xml?raw';
 import appleXml from './fixtures/apple.xml?raw';
 import gravitonJson from './fixtures/aws-graviton.json?raw';
+import ciscoXml from './fixtures/cisco.xml?raw';
+import ciscoEdgarXml from './fixtures/cisco-edgar-8k.xml?raw';
 import cloudflareXml from './fixtures/cloudflare-blog.xml?raw';
 import elonlitXml from './fixtures/elonlit.xml?raw';
 import ieeeXml from './fixtures/ieee-spectrum.xml?raw';
@@ -31,6 +33,33 @@ describe('SOURCES', () => {
 		expect(slugs).toContain('elonlit');
 		expect(slugs).toContain('anthropic');
 		expect(slugs).toContain('aws');
+		expect(slugs).toContain('cisco');
+	});
+
+	it('registers both Cisco feeds (IR RSS primary + EDGAR 8-K backstop) under one source', () => {
+		const feeds = SOURCES.filter((s) => s.source === 'cisco').map((s) => s.feed);
+		expect(feeds).toEqual([
+			'https://investor.cisco.com/rss/pressrelease.aspx',
+			'https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0000858877&type=8-K&output=atom&count=10',
+		]);
+	});
+
+	it('parses the Cisco IR feed: title-only earnings PR, no content or summary', () => {
+		const ir = SOURCES.find((s) => s.feed === 'https://investor.cisco.com/rss/pressrelease.aspx')!;
+		const items = ir.parse(ciscoXml);
+		expect(items[0].title).toBe('CISCO REPORTS THIRD QUARTER EARNINGS');
+		expect(items[0].contentHtml).toBeNull();
+		expect(items[0].summary).toBeNull();
+	});
+
+	it('parses the Cisco EDGAR feed: keeps Item 2.02 earnings 8-Ks, accession-number guids', () => {
+		const edgar = SOURCES.find((s) => s.source === 'cisco' && s.feed.includes('sec.gov'))!;
+		const items = edgar.parse(ciscoEdgarXml);
+		expect(items.map((i) => i.guid)).toEqual([
+			'0000858877-26-000075',
+			'0000858877-26-000006',
+		]);
+		expect(items[0].title).toContain('Item 2.02');
 	});
 
 	it('registers all three Anthropic OpenRSS sections under one source', () => {
