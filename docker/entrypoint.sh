@@ -91,10 +91,12 @@ You run as non-root: `apt install` is impossible mid-session. The policy:
    an npm devDependency, or a binary downloaded to `~/.local/bin`. These die
    with the container; never edit the container definition for a tool you
    have needed once.
-2. **Rule of two**: only when a tool is needed *again* (or is plainly
-   load-bearing for the repo's direction) promote it into
-   `docker/Dockerfile` via the normal branch → PR flow. The change benefits
-   future containers after review — it cannot affect your current session.
+2. **Rule of two → raise an issue, don't self-edit the image**: when a tool
+   is needed *again* (or is plainly load-bearing), don't edit
+   `docker/Dockerfile` this session — open an issue requesting it
+   (`gh issue create`). That surfaces it asynchronously while keeping the
+   image change human-gated: note in the issue that implementing it needs an
+   explicit human go-ahead before the Dockerfile PR is merged.
 3. **Justify in place**: every package added to the Dockerfile gets a
    one-line comment naming the workflow that needs it, so a future session
    can safely remove it when that workflow disappears.

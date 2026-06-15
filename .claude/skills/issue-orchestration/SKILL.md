@@ -90,7 +90,8 @@ Two merge tiers:
 - **Low-risk → auto-merge after your review** (additive sources, infra docs, isolated
   features).
 - **Architectural / security / CI → hold for the user** (auth, abstraction changes, any
-  `.github/workflows/*` edit). Present these with your review notes + a recommendation.
+  `.github/workflows/*` edit) — plus anything whose issue/PR body asks for human approval
+  before merge. Present these with your review notes + a recommendation.
 
 ## Merge mechanics (the recipe)
 
