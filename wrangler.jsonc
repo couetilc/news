@@ -16,7 +16,11 @@
 		"crons": ["*/15 * * * *"]
 	},
 	"assets": {
-		"directory": "./dist",
+		// Scoped to dist/client (built static assets only) so an accidental direct
+		// `wrangler deploy` against this root config never exposes dist/server/. The
+		// REAL deploy is governed by the Astro-emitted dist/server/wrangler.json
+		// (assets.directory ../client); this value only matters for a direct deploy.
+		"directory": "./dist/client",
 		"binding": "ASSETS"
 	},
 	"observability": {
