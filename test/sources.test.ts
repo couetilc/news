@@ -6,6 +6,8 @@ import cloudflareXml from './fixtures/cloudflare-blog.xml?raw';
 import elonlitXml from './fixtures/elonlit.xml?raw';
 import ieeeXml from './fixtures/ieee-spectrum.xml?raw';
 import intelXml from './fixtures/intel.xml?raw';
+import nvidiaBlogXml from './fixtures/nvidia-blog.xml?raw';
+import nvidiaNewsroomXml from './fixtures/nvidia-newsroom.xml?raw';
 import qualcommXml from './fixtures/qualcomm.xml?raw';
 import scienceDailyXml from './fixtures/science-daily.xml?raw';
 
@@ -23,6 +25,7 @@ describe('SOURCES', () => {
 		expect(slugs).toContain('amd');
 		expect(slugs).toContain('qualcomm');
 		expect(slugs).toContain('intel');
+		expect(slugs).toContain('nvidia');
 		expect(slugs).toContain('elonlit');
 	});
 
@@ -73,6 +76,25 @@ describe('SOURCES', () => {
 		const items = source('intel').parse(intelXml);
 		expect(items[0].summary).toContain('Intel today announced a pilot network');
 		expect(items[0].contentHtml).toBeNull();
+	});
+
+	it('parses the NVIDIA newsroom feed: full HTML from the bare <content>, description as summary', () => {
+		// #25 — two `nvidia` feeds share the slug; target each by URL.
+		const newsroom = SOURCES.find(
+			(s) => s.feed === 'https://nvidianews.nvidia.com/releases.xml',
+		)!;
+		const items = newsroom.parse(nvidiaNewsroomXml);
+		expect(items[0].contentHtml).toContain('<strong>next-generation</strong>');
+		expect(items[0].summary).toBe(
+			'NVIDIA today unveiled its next-generation GPU architecture.',
+		);
+	});
+
+	it('parses the NVIDIA blog feed: full HTML from content:encoded, excerpt summary', () => {
+		const blog = SOURCES.find((s) => s.feed === 'https://blogs.nvidia.com/feed/')!;
+		const items = blog.parse(nvidiaBlogXml);
+		expect(items[0].contentHtml).toContain('<strong>markup</strong>');
+		expect(items[0].summary).toBe('A short WordPress excerpt of the post.');
 	});
 
 	it('parses the Elon Litman blog Atom feed: full HTML from <content>, excerpt summary', () => {

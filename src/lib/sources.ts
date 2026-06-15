@@ -21,6 +21,7 @@ const REGISTRY: Record<string, SourceMeta> = {
 	amd: { name: 'AMD', swatch: 'bg-source-amd' },
 	qualcomm: { name: 'Qualcomm', swatch: 'bg-source-qualcomm' },
 	intel: { name: 'Intel', swatch: 'bg-source-intel' },
+	nvidia: { name: 'NVIDIA', swatch: 'bg-source-nvidia' },
 	elonlit: { name: 'Elon Litman', swatch: 'bg-source-elonlit' },
 };
 

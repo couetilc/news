@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>NVIDIA Newsroom</title>
+    <link>https://nvidianews.nvidia.com/</link>
+    <description>The latest news and press releases from NVIDIA.</description>
+    <item>
+      <title>NVIDIA Announces Next-Generation GPU Architecture</title>
+      <link>https://nvidianews.nvidia.com/news/nvidia-announces-next-generation-gpu-architecture</link>
+      <guid>https://nvidianews.nvidia.com/news/nvidia-announces-next-generation-gpu-architecture</guid>
+      <pubDate>Fri, 12 Jun 2026 13:00:00 GMT</pubDate>
+      <description>NVIDIA today unveiled its next-generation GPU architecture.</description>
+      <content><![CDATA[<p>NVIDIA today unveiled its <strong>next-generation</strong> GPU architecture, delivering record performance for AI workloads.</p><p>The full press-release HTML body, kilobytes in reality.</p>]]></content>
+    </item>
+    <item>
+      <title>NVIDIA Sets GTC 2026 Keynote Date</title>
+      <link>https://nvidianews.nvidia.com/news/nvidia-sets-gtc-2026-keynote-date</link>
+      <guid>https://nvidianews.nvidia.com/news/nvidia-sets-gtc-2026-keynote-date</guid>
+      <pubDate>Thu, 11 Jun 2026 16:30:00 GMT</pubDate>
+      <description>NVIDIA will host its annual GTC keynote in March 2026.</description>
+      <content><![CDATA[<p>NVIDIA will host its annual GTC keynote in March 2026.</p>]]></content>
+    </item>
+  </channel>
+</rss>

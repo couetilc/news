@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+  xmlns:content="http://purl.org/rss/1.0/modules/content/"
+  xmlns:dc="http://purl.org/dc/elements/1.1/"
+  xmlns:media="http://search.yahoo.com/mrss/">
+  <channel>
+    <title>NVIDIA Blog</title>
+    <link>https://blogs.nvidia.com/</link>
+    <description>Driving the next wave of AI and accelerated computing.</description>
+    <item>
+      <title>How Accelerated Computing Is Reshaping Drug Discovery</title>
+      <link>https://blogs.nvidia.com/blog/accelerated-computing-drug-discovery/</link>
+      <dc:creator>NVIDIA</dc:creator>
+      <pubDate>Fri, 12 Jun 2026 15:00:00 +0000</pubDate>
+      <category><![CDATA[Healthcare]]></category>
+      <guid isPermaLink="false">https://blogs.nvidia.com/?p=78901</guid>
+      <description><![CDATA[A short WordPress excerpt of the post.]]></description>
+      <content:encoded><![CDATA[<p>The full blog post body, with <strong>markup</strong> and several paragraphs.</p>]]></content:encoded>
+    </item>
+    <item>
+      <title>Inside the New NVIDIA Robotics Platform</title>
+      <link>https://blogs.nvidia.com/blog/robotics-platform/</link>
+      <dc:creator>NVIDIA</dc:creator>
+      <pubDate>Wed, 10 Jun 2026 12:00:00 +0000</pubDate>
+      <category><![CDATA[Robotics]]></category>
+      <guid isPermaLink="false">https://blogs.nvidia.com/?p=78850</guid>
+      <description><![CDATA[Another excerpt.]]></description>
+      <content:encoded><![CDATA[<p>Body two.</p>]]></content:encoded>
+    </item>
+  </channel>
+</rss>

@@ -5,8 +5,11 @@ import { parseRfc822 } from './dates';
 export interface Rss20Options {
 	// Where an item's full HTML lives. Feeds with a `content:encoded` element
 	// (Cloudflare blog) keep `description` as a short summary; feeds that put
-	// full HTML directly in `description` (IEEE Spectrum) have no summary.
-	content: 'content:encoded' | 'description';
+	// full HTML directly in `description` (IEEE Spectrum) have no summary. NVIDIA
+	// newsroom (#25) is the same shape as content:encoded but uses a NONSTANDARD
+	// bare `<content>` element instead of `content:encoded`, so `'content'` reads
+	// the full HTML from `<content>` and keeps `description` as the summary.
+	content: 'content:encoded' | 'content' | 'description';
 }
 
 // ignoreAttributes: RSS 2.0 bodies we care about are element text, so dropping
@@ -36,13 +39,28 @@ export function parseRss20(xml: string, opts: Rss20Options): ParsedItem[] {
 		if (!guid) continue;
 
 		const description = textOf(item.description);
-		const fromContentEncoded = opts.content === 'content:encoded';
+		// `content:encoded` and the nonstandard bare `content` (NVIDIA newsroom,
+		// #25) both keep the full HTML in a dedicated element and treat the
+		// description as the summary; only the element name differs. `description`
+		// mode instead routes the description into contentHtml with no summary.
+		let summary: string | null;
+		let contentHtml: string | null;
+		if (opts.content === 'content:encoded') {
+			summary = description;
+			contentHtml = textOf(item['content:encoded']);
+		} else if (opts.content === 'content') {
+			summary = description;
+			contentHtml = textOf(item.content);
+		} else {
+			summary = null;
+			contentHtml = description;
+		}
 		items.push({
 			guid,
 			url: textOf(item.link) ?? guid,
 			title: textOf(item.title) ?? '',
-			summary: fromContentEncoded ? description : null,
-			contentHtml: fromContentEncoded ? textOf(item['content:encoded']) : description,
+			summary,
+			contentHtml,
 			publishedAt: parseRfc822(textOf(item.pubDate)),
 		});
 	}
