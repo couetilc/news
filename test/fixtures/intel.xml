@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+  xmlns:content="http://purl.org/rss/1.0/modules/content/"
+  xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Intel Newsroom</title>
+    <link>https://newsroom.intel.com</link>
+    <description>The latest news and announcements from Intel.</description>
+    <item>
+      <title>New Smart City Pilot Network to Bridge Digital Divide for 50 U.S. Cities</title>
+      <link>https://newsroom.intel.com/5g-wireless/smart-city-pilot-network</link>
+      <dc:creator><![CDATA[Daniela Morescalchi]]></dc:creator>
+      <pubDate>Tue, 09 Jun 2026 15:00:54 +0000</pubDate>
+      <category><![CDATA[5G & Wireless]]></category>
+      <category><![CDATA[Intel Products]]></category>
+      <guid isPermaLink="false">https://newsroom.intel.com/?p=104321</guid>
+      <description><![CDATA[<p>Intel today announced a pilot network spanning 50 U.S. cities, with <a href="https://newsroom.intel.com/5g-wireless/smart-city-pilot-network">more details</a> on the rollout&#8230;</p>]]></description>
+    </item>
+    <item>
+      <title>Intel Foundry Adds Two New Customers to Advanced Packaging Program</title>
+      <link>https://newsroom.intel.com/foundry/two-new-customers</link>
+      <dc:creator><![CDATA[Press Team]]></dc:creator>
+      <pubDate>Mon, 08 Jun 2026 18:30:00 +0000</pubDate>
+      <category><![CDATA[Intel Foundry]]></category>
+      <guid isPermaLink="false">https://newsroom.intel.com/?p=104298</guid>
+      <description><![CDATA[<p>Two additional customers have signed on to Intel Foundry&#8217;s advanced packaging program&#8230;</p>]]></description>
+    </item>
+  </channel>
+</rss>

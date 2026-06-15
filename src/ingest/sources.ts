@@ -63,4 +63,13 @@ export const SOURCES: FeedConfig[] = [
 		pollIntervalSeconds: 21600,
 		parse: (xml) => parseRss20(xml, { content: 'description' }),
 	},
+	{
+		// #27 — WordPress RSS, 10-item window, excerpts only (no content:encoded) so
+		// we link out for full text; ~3–5/week, so poll daily. content:encoded mode
+		// routes the <description> excerpt into `summary` and leaves contentHtml null.
+		source: 'intel',
+		feed: 'https://newsroom.intel.com/feed',
+		pollIntervalSeconds: 86400,
+		parse: (xml) => parseRss20(xml, { content: 'content:encoded' }),
+	},
 ];

@@ -44,6 +44,7 @@
 	--color-source-science-daily: #4a6b52; /* muted forest-green */
 	--color-source-amd: #9a4a3a; /* muted brick-red (#24, AMD) */
 	--color-source-qualcomm: #8a5a2a; /* muted bronze/caramel (#28, Qualcomm) */
+	--color-source-intel: #5a6b7a; /* muted steel gray-blue (#27, Intel) */
 }
 
 @layer base {
