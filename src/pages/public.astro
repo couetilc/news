@@ -1,0 +1,33 @@
+---
+import { env } from 'cloudflare:workers';
+import { listItems } from '../ingest/db';
+import Article from '../components/Article.astro';
+import Layout from '../layouts/Layout.astro';
+
+// Public, read-only window onto the feed (issue #49). Allowlisted in
+// src/middleware.ts so a logged-out visitor can reach it; the homepage stays
+// private. The defining constraint is that this page can't trigger any DB write:
+// each row renders with interactive={false}, so there's no read/unread <form>
+// that POSTs to /api/read, and even a hand-crafted POST is rejected by the auth
+// guard (/api/read is not a public path). The view has no per-visitor session,
+// so there's no personal read/unread state — it's one plain chronological column.
+const items = await listItems(env.NEWS_DB, 100);
+---
+
+<Layout title="News">
+	{
+		items.length === 0 ? (
+			<p class="py-16 text-center text-lg italic text-muted">
+				Nothing aggregated yet — check back soon.
+			</p>
+		) : (
+			<div class="mx-auto max-w-2xl">
+				<ol>
+					{items.map((item) => (
+						<Article item={item} interactive={false} />
+					))}
+				</ol>
+			</div>
+		)
+	}
+</Layout>
