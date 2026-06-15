@@ -3,6 +3,7 @@ import { parseRss20 } from '../src/ingest/parse/rss20';
 import amdXml from './fixtures/amd.xml?raw';
 import cloudflareXml from './fixtures/cloudflare-blog.xml?raw';
 import ieeeXml from './fixtures/ieee-spectrum.xml?raw';
+import intelXml from './fixtures/intel.xml?raw';
 import qualcommXml from './fixtures/qualcomm.xml?raw';
 import scienceDailyXml from './fixtures/science-daily.xml?raw';
 
@@ -122,6 +123,28 @@ describe('parseRss20 — description mode (Qualcomm Q4 Inc IR feed)', () => {
 	it('carries product PRs (e.g. the CES Snapdragon announcement) alongside financial ones', () => {
 		expect(items[1].contentHtml).toContain('CES 2026');
 		expect(items[1].summary).toBeNull();
+	});
+});
+
+describe('parseRss20 — content:encoded mode, excerpt-only WordPress feed (Intel newsroom)', () => {
+	const items = parseRss20(intelXml, { content: 'content:encoded' });
+
+	it('extracts every item in feed order', () => {
+		expect(items.map((i) => i.title)).toEqual([
+			'New Smart City Pilot Network to Bridge Digital Divide for 50 U.S. Cities',
+			'Intel Foundry Adds Two New Customers to Advanced Packaging Program',
+		]);
+	});
+
+	it('routes the description excerpt into summary and leaves contentHtml null (no full text)', () => {
+		expect(items[0].summary).toContain('Intel today announced a pilot network');
+		expect(items[0].contentHtml).toBeNull();
+	});
+
+	it('normalizes guid (isPermaLink="false"), url from link, and the +0000 published date', () => {
+		expect(items[0].guid).toBe('https://newsroom.intel.com/?p=104321');
+		expect(items[0].url).toBe('https://newsroom.intel.com/5g-wireless/smart-city-pilot-network');
+		expect(items[0].publishedAt).toBe(Math.floor(Date.UTC(2026, 5, 9, 15, 0, 54) / 1000));
 	});
 });
 
