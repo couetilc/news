@@ -73,6 +73,26 @@ export const SOURCES: FeedConfig[] = [
 		parse: (xml) => parseRss20(xml, { content: 'content:encoded' }),
 	},
 	{
+		// #25 — NVIDIA newsroom (iPressroom RSS 2.0). FULL release text lives in a
+		// NONSTANDARD bare <content> element (escaped CDATA), NOT content:encoded —
+		// the `'content'` mode reads it and keeps <description> as the summary. The
+		// feed is only 5 items deep and ignores ?count=, so poll hourly to avoid
+		// dropping items during event weeks (GTC/CES).
+		source: 'nvidia',
+		feed: 'https://nvidianews.nvidia.com/releases.xml',
+		pollIntervalSeconds: 3600,
+		parse: (xml) => parseRss20(xml, { content: 'content' }),
+	},
+	{
+		// #25 — NVIDIA corporate blog (WordPress RSS), full text via content:encoded;
+		// several posts/week, so poll daily. Shares the `nvidia` source slug with the
+		// newsroom feed (run.ts polls each feed independently).
+		source: 'nvidia',
+		feed: 'https://blogs.nvidia.com/feed/',
+		pollIntervalSeconds: 86400,
+		parse: (xml) => parseRss20(xml, { content: 'content:encoded' }),
+	},
+	{
 		// #23 — Elon Litman's blog (Pelican-generated Atom). Full HTML is in
 		// <content type="html"> with a separate <summary> excerpt. Low cadence
 		// (a few posts/year), so a daily poll is plenty.

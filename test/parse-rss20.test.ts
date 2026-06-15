@@ -4,6 +4,7 @@ import amdXml from './fixtures/amd.xml?raw';
 import cloudflareXml from './fixtures/cloudflare-blog.xml?raw';
 import ieeeXml from './fixtures/ieee-spectrum.xml?raw';
 import intelXml from './fixtures/intel.xml?raw';
+import nvidiaNewsroomXml from './fixtures/nvidia-newsroom.xml?raw';
 import qualcommXml from './fixtures/qualcomm.xml?raw';
 import scienceDailyXml from './fixtures/science-daily.xml?raw';
 
@@ -148,6 +149,38 @@ describe('parseRss20 — content:encoded mode, excerpt-only WordPress feed (Inte
 	});
 });
 
+describe('parseRss20 — bare <content> mode (NVIDIA newsroom, #25)', () => {
+	// #25 acceptance criterion: NVIDIA's iPressroom feed carries the FULL release
+	// text in a NONSTANDARD bare <content> element (escaped CDATA), not
+	// content:encoded. `'content'` mode reads <content> as the body and keeps the
+	// <description> as the summary.
+	const items = parseRss20(nvidiaNewsroomXml, { content: 'content' });
+
+	it('extracts every item in feed order', () => {
+		expect(items.map((i) => i.title)).toEqual([
+			'NVIDIA Announces Next-Generation GPU Architecture',
+			'NVIDIA Sets GTC 2026 Keynote Date',
+		]);
+	});
+
+	it('takes full HTML from the bare <content> element and the summary from description', () => {
+		expect(items[0].contentHtml).toBe(
+			'<p>NVIDIA today unveiled its <strong>next-generation</strong> GPU architecture, delivering record performance for AI workloads.</p><p>The full press-release HTML body, kilobytes in reality.</p>',
+		);
+		expect(items[0].summary).toBe('NVIDIA today unveiled its next-generation GPU architecture.');
+	});
+
+	it('normalizes guid, url, and published date', () => {
+		expect(items[0].guid).toBe(
+			'https://nvidianews.nvidia.com/news/nvidia-announces-next-generation-gpu-architecture',
+		);
+		expect(items[0].url).toBe(
+			'https://nvidianews.nvidia.com/news/nvidia-announces-next-generation-gpu-architecture',
+		);
+		expect(items[0].publishedAt).toBe(Math.floor(Date.UTC(2026, 5, 12, 13, 0, 0) / 1000));
+	});
+});
+
 describe('parseRss20 — edge cases', () => {
 	const wrap = (inner: string) =>
 		`<?xml version="1.0"?><rss version="2.0"><channel>${inner}</channel></rss>`;
@@ -199,6 +232,13 @@ describe('parseRss20 — edge cases', () => {
 	it('leaves contentHtml null when content:encoded is absent', () => {
 		const [item] = parseRss20(wrap('<item><guid>g</guid></item>'), {
 			content: 'content:encoded',
+		});
+		expect(item.contentHtml).toBeNull();
+	});
+
+	it('leaves contentHtml null when the bare <content> element is absent', () => {
+		const [item] = parseRss20(wrap('<item><guid>g</guid></item>'), {
+			content: 'content',
 		});
 		expect(item.contentHtml).toBeNull();
 	});
