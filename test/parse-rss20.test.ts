@@ -3,6 +3,7 @@ import { parseRss20 } from '../src/ingest/parse/rss20';
 import amdXml from './fixtures/amd.xml?raw';
 import cloudflareXml from './fixtures/cloudflare-blog.xml?raw';
 import ieeeXml from './fixtures/ieee-spectrum.xml?raw';
+import qualcommXml from './fixtures/qualcomm.xml?raw';
 import scienceDailyXml from './fixtures/science-daily.xml?raw';
 
 describe('parseRss20 — content:encoded mode (Cloudflare blog)', () => {
@@ -93,6 +94,34 @@ describe('parseRss20 — AMD IR press releases (titles only, two-digit-year date
 	it('parses the two-digit-year pubDate as 2026, not 0026 (acceptance criterion)', () => {
 		// "Tue, 28 Apr 26 20:05:00 GMT" → 2026, the year-window gotcha from #24.
 		expect(items[1].publishedAt).toBe(Math.floor(Date.UTC(2026, 3, 28, 20, 5, 0) / 1000));
+	});
+});
+
+describe('parseRss20 — description mode (Qualcomm Q4 Inc IR feed)', () => {
+	const items = parseRss20(qualcommXml, { content: 'description' });
+
+	it('extracts every press release in feed order', () => {
+		expect(items.map((i) => i.title)).toEqual([
+			'Qualcomm Announces Fourth Quarter and Fiscal 2026 Results',
+			'Qualcomm Unveils Next-Generation Snapdragon Platform at CES 2026',
+		]);
+	});
+
+	it('takes full Business Wire HTML from the description and leaves summary null', () => {
+		expect(items[0]).toEqual({
+			guid: 'https://investor.qualcomm.com/news-events/press-releases/detail/2026/Qualcomm-Announces-Fourth-Quarter-Results',
+			url: 'https://investor.qualcomm.com/news-events/press-releases/detail/2026/Qualcomm-Announces-Fourth-Quarter-Results',
+			title: 'Qualcomm Announces Fourth Quarter and Fiscal 2026 Results',
+			summary: null,
+			contentHtml:
+				'<p>SAN DIEGO--(BUSINESS WIRE)--Qualcomm Incorporated (NASDAQ: QCOM) today announced <strong>results</strong> for its fourth quarter and fiscal 2026.</p><p>Full Business Wire HTML body, kilobytes in reality.</p>',
+			publishedAt: Math.floor(Date.UTC(2026, 1, 4, 21, 5, 0) / 1000),
+		});
+	});
+
+	it('carries product PRs (e.g. the CES Snapdragon announcement) alongside financial ones', () => {
+		expect(items[1].contentHtml).toContain('CES 2026');
+		expect(items[1].summary).toBeNull();
 	});
 });
 

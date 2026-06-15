@@ -53,4 +53,14 @@ export const SOURCES: FeedConfig[] = [
 		pollIntervalSeconds: 21600,
 		parse: (xml) => parseRss20(xml, { content: 'description' }),
 	},
+	{
+		// #28 — Q4 Inc RSS 2.0 with full Business Wire HTML in the description; only
+		// ~2–4/month, so a six-hour poll is ample. Use EXACTLY this `.aspx` path —
+		// other IR-host paths (e.g. /rss/news-releases.xml) are Cloudflare-challenged,
+		// and qualcomm.com itself has no RSS.
+		source: 'qualcomm',
+		feed: 'https://investor.qualcomm.com/rss/pressrelease.aspx',
+		pollIntervalSeconds: 21600,
+		parse: (xml) => parseRss20(xml, { content: 'description' }),
+	},
 ];

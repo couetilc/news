@@ -4,6 +4,7 @@ import amdXml from './fixtures/amd.xml?raw';
 import appleXml from './fixtures/apple.xml?raw';
 import cloudflareXml from './fixtures/cloudflare-blog.xml?raw';
 import ieeeXml from './fixtures/ieee-spectrum.xml?raw';
+import qualcommXml from './fixtures/qualcomm.xml?raw';
 import scienceDailyXml from './fixtures/science-daily.xml?raw';
 
 const source = (name: string) => SOURCES.find((s) => s.source === name)!;
@@ -18,6 +19,7 @@ describe('SOURCES', () => {
 		expect(slugs).toContain('apple');
 		expect(slugs).toContain('science-daily');
 		expect(slugs).toContain('amd');
+		expect(slugs).toContain('qualcomm');
 	});
 
 	it('parses the Cloudflare blog from content:encoded with a separate summary', () => {
@@ -55,5 +57,11 @@ describe('SOURCES', () => {
 		expect(items[0].summary).toBeNull();
 		// Two-digit-year pubDate resolves to 2026 (#24).
 		expect(items[0].publishedAt).toBe(Math.floor(Date.UTC(2026, 5, 8, 13, 0, 0) / 1000));
+	});
+
+	it('parses Qualcomm full Business Wire HTML from the description, no summary', () => {
+		const items = source('qualcomm').parse(qualcommXml);
+		expect(items[0].contentHtml).toContain('BUSINESS WIRE');
+		expect(items[0].summary).toBeNull();
 	});
 });

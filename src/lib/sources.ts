@@ -19,6 +19,7 @@ const REGISTRY: Record<string, SourceMeta> = {
 	apple: { name: 'Apple', swatch: 'bg-source-apple' },
 	'science-daily': { name: 'ScienceDaily', swatch: 'bg-source-science-daily' },
 	amd: { name: 'AMD', swatch: 'bg-source-amd' },
+	qualcomm: { name: 'Qualcomm', swatch: 'bg-source-qualcomm' },
 };
 
 export function sourceMeta(slug: string): SourceMeta {
