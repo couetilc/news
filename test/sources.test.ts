@@ -3,6 +3,7 @@ import { SOURCES } from '../src/ingest/sources';
 import appleXml from './fixtures/apple.xml?raw';
 import cloudflareXml from './fixtures/cloudflare-blog.xml?raw';
 import ieeeXml from './fixtures/ieee-spectrum.xml?raw';
+import scienceDailyXml from './fixtures/science-daily.xml?raw';
 
 const source = (name: string) => SOURCES.find((s) => s.source === name)!;
 
@@ -14,6 +15,7 @@ describe('SOURCES', () => {
 		expect(slugs).toContain('cloudflare-blog');
 		expect(slugs).toContain('ieee-spectrum');
 		expect(slugs).toContain('apple');
+		expect(slugs).toContain('science-daily');
 	});
 
 	it('parses the Cloudflare blog from content:encoded with a separate summary', () => {
@@ -36,5 +38,11 @@ describe('SOURCES', () => {
 		expect(items[0].url).toBe(
 			'https://www.apple.com/newsroom/2026/06/apple-unveils-innovative-features-across-services/',
 		);
+	});
+
+	it('parses ScienceDaily summaries from the description, no content HTML', () => {
+		const items = source('science-daily').parse(scienceDailyXml);
+		expect(items[0].summary).toContain('neural circuit');
+		expect(items[0].contentHtml).toBeNull();
 	});
 });

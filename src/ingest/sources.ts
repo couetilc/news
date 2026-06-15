@@ -32,4 +32,14 @@ export const SOURCES: FeedConfig[] = [
 		pollIntervalSeconds: 86400,
 		parse: (xml) => parseAtom(xml, { content: 'summary-only' }),
 	},
+	{
+		// #21 — the all.xml firehose: summaries only (233–524 char rewritten press
+		// releases in description; no content:encoded), so description IS the
+		// summary. ttl=60 and Last-Modified support conditional GET; ~10/day in a
+		// 60-item window, so poll hourly.
+		source: 'science-daily',
+		feed: 'https://www.sciencedaily.com/rss/all.xml',
+		pollIntervalSeconds: 3600,
+		parse: (xml) => parseRss20(xml, { content: 'content:encoded' }),
+	},
 ];
