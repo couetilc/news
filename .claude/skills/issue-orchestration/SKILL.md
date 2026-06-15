@@ -89,11 +89,9 @@ Two merge tiers:
 
 - **Low-risk → auto-merge after your review** (additive sources, infra docs, isolated
   features).
-- **Architectural / security / CI / agent-harness → hold for the user** (auth, abstraction
-  changes, any `.github/workflows/*` edit, container/harness changes under `docker/**` or
-  `bin/claude`, and any issue or PR whose body declares a human-approval gate — e.g.
-  agent-raised container-tool requests). Present these with your review notes + a
-  recommendation; open the PR if useful, but don't merge until the user gives the go-ahead.
+- **Architectural / security / CI → hold for the user** (auth, abstraction changes, any
+  `.github/workflows/*` edit) — plus anything whose issue/PR body asks for human approval
+  before merge. Present these with your review notes + a recommendation.
 
 ## Merge mechanics (the recipe)
 
