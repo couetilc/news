@@ -3,6 +3,7 @@ import { SOURCES } from '../src/ingest/sources';
 import amdXml from './fixtures/amd.xml?raw';
 import appleXml from './fixtures/apple.xml?raw';
 import cloudflareXml from './fixtures/cloudflare-blog.xml?raw';
+import elonlitXml from './fixtures/elonlit.xml?raw';
 import ieeeXml from './fixtures/ieee-spectrum.xml?raw';
 import intelXml from './fixtures/intel.xml?raw';
 import qualcommXml from './fixtures/qualcomm.xml?raw';
@@ -22,6 +23,7 @@ describe('SOURCES', () => {
 		expect(slugs).toContain('amd');
 		expect(slugs).toContain('qualcomm');
 		expect(slugs).toContain('intel');
+		expect(slugs).toContain('elonlit');
 	});
 
 	it('parses the Cloudflare blog from content:encoded with a separate summary', () => {
@@ -71,5 +73,11 @@ describe('SOURCES', () => {
 		const items = source('intel').parse(intelXml);
 		expect(items[0].summary).toContain('Intel today announced a pilot network');
 		expect(items[0].contentHtml).toBeNull();
+	});
+
+	it('parses the Elon Litman blog Atom feed: full HTML from <content>, excerpt summary', () => {
+		const items = source('elonlit').parse(elonlitXml);
+		expect(items[0].contentHtml).toContain('<strong>markup</strong>');
+		expect(items[0].summary).toBe('<p>A short excerpt of the post.</p>');
 	});
 });
