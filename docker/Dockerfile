@@ -23,6 +23,23 @@ RUN arch=$(dpkg --print-architecture) && case "$arch" in \
 		| tar -xz -C /usr/local/bin gitleaks \
 	&& gitleaks version
 
+# Playwright + headless Chromium for in-session UI/behavioral verification: the
+# `verify`/`run` skills drive the local dev server in a real browser to watch a
+# change behave (the launch that failed in #42 — Chromium needs system libs apt
+# can't add mid-session as non-root). Remove this whole layer if browser
+# verification is no longer wanted. Run as root (apt needs it) into a
+# world-readable system path so the non-root `node` user finds the baked
+# browser; `--only-shell` installs only the smaller chromium-headless-shell
+# build (not full Chromium) to blunt the image-size tax. Pinned in lockstep with
+# the `@playwright/test` devDependency (package.json) — bump both together, or
+# Playwright errors and re-downloads at runtime. Non-root Chromium in a
+# container needs `--no-sandbox` at launch (see CLAUDE.md / agentic-environments).
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+ARG PLAYWRIGHT_VERSION=1.61.0
+RUN npx -y playwright@${PLAYWRIGHT_VERSION} install --with-deps --only-shell chromium \
+	&& rm -rf /var/lib/apt/lists/* \
+	&& chmod -R a+rX /ms-playwright
+
 COPY entrypoint.sh /usr/local/bin/agent-entrypoint
 RUN chmod +x /usr/local/bin/agent-entrypoint
 

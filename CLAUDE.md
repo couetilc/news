@@ -42,6 +42,17 @@ skeleton; every change should move it toward being a useful news aggregator.
   the host port is randomized per container — see the agentic-environments skill)
 - `npm test` — vitest; **enforces 100% line and branch coverage over `src/**`**
   (the suite fails below that — this is the standing test policy)
+- `npm run test:e2e` — Playwright browser tests (`playwright test`), a
+  **separate** entry point kept out of `npm test` and the coverage gate (it
+  loads the real dev server). The agent container bakes in a headless Chromium
+  shell so this and the `verify`/`run` skills can drive the local app in a real
+  browser. **Launch Chromium with `--no-sandbox`** (`chromium.launch({ args:
+  ['--no-sandbox'] })`) — non-root Chromium in the container can't use the
+  sandbox; it's a throwaway container so that's fine. The baked browser lives at
+  `PLAYWRIGHT_BROWSERS_PATH=/ms-playwright`; its version is pinned in lockstep
+  with the `@playwright/test` devDependency (bump both together). Outside the
+  container (host/cloud) run `npx playwright install chromium` first. See the
+  `agentic-environments` skill.
 - `npm run build` — build worker + assets into `dist/`
 - `npm run preview` — serve the built worker locally in workerd
 - `npm run deploy` — `astro build && wrangler deploy`
@@ -119,6 +130,14 @@ file must be exercised by one project or the other.
 `fetchFn`) and use feed fixtures under `test/fixtures/`. This keeps `npm test`
 hermetic so it passes in CI, in claude.ai cloud sessions under the default
 Trusted network mode, and offline.
+
+**Browser/e2e tests are deliberately outside this contract.** `npm run test:e2e`
+(Playwright) loads the real local dev server, so it lives in its own entry point
+— **not** inside `npm test`, **not** counted toward the 100% `src/**` coverage
+gate. It exists for in-session UI/behavioral verification (the `verify`/`run`
+skills), which the workerd/node vitest pools can't do. A durable CI Playwright
+gate is a possible follow-up (see #46), complementary to — not a replacement for
+— the hermetic `npm test` suite.
 
 ## Backlog
 

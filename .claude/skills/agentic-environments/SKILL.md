@@ -164,6 +164,18 @@ refuses to run as root).
   use user-space installs (`npx`, devDependency, binary in `~/.local/bin`);
   a tool earns a `docker/Dockerfile` entry only on second need (via PR, with
   a one-line justification comment naming its workflow).
+- **Headless browser (Playwright) baked in** (#46): the image installs a
+  headless Chromium shell + its apt deps (`playwright install --with-deps
+  --only-shell chromium`, run as root before the `USER node` drop) into a
+  world-readable `PLAYWRIGHT_BROWSERS_PATH=/ms-playwright`, version-pinned in
+  lockstep with the `@playwright/test` devDependency. This is what lets the
+  `verify`/`run` skills drive the local dev server in a real browser to watch a
+  change behave (the launch that failed in #42). Two must-knows: (1) launch with
+  **`chromium.launch({ args: ['--no-sandbox'] })`** — non-root Chromium can't
+  use the container sandbox (throwaway container, so it's fine); (2) point the
+  browser at `http://$DEV_HOST_4321/` after `npm run dev -- --host`, per the
+  dev-server note above. Browser/e2e tests run via `npm run test:e2e`, kept out
+  of the hermetic `npm test` suite and its coverage gate.
 - **Isolation contract, honestly stated**: protects the host filesystem,
   Keychain, SSH keys, and other repos. It does NOT protect the tokens
   injected from `.env` (readable as env vars by anything in the container)

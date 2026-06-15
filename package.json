@@ -11,6 +11,7 @@
     "preview": "astro preview",
     "deploy": "astro build && wrangler deploy",
     "test": "vitest run --coverage",
+    "test:e2e": "playwright test",
     "astro": "astro",
     "cf-typegen": "wrangler types",
     "db:migrate:local": "wrangler d1 migrations apply NEWS_DB --local",
@@ -29,6 +30,7 @@
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.16.15",
+    "@playwright/test": "1.61.0",
     "@vitest/coverage-istanbul": "^4.1.8",
     "vitest": "^4.1.8"
   }
