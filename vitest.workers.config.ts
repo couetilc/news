@@ -24,7 +24,15 @@ export default defineConfig({
 	test: {
 		name: 'workers',
 		include: ['test/**/*.test.ts'],
-		exclude: ['test/index.test.ts', 'test/worker.test.ts'],
+		// Node-project tests (Astro Container API page renders + the middleware
+		// guard, which imports the astro:middleware virtual module) can't run under
+		// the worker pool — they live in vitest.node.config.ts.
+		exclude: [
+			'test/index.test.ts',
+			'test/worker.test.ts',
+			'test/auth-pages.test.ts',
+			'test/middleware.test.ts',
+		],
 		setupFiles: ['./test/helpers/apply-migrations.ts'],
 	},
 });

@@ -13,6 +13,17 @@ const read = items.filter((item) => item.read_at !== null);
 ---
 
 <Layout title="News">
+	{/* Sign-out control: a plain POST form (no JS) in the newspaper voice, a
+	    small-caps link rather than a SaaS button. The page is gated by the auth
+	    middleware, so anyone seeing it is logged in. */}
+	<form method="POST" action="/logout" class="mb-4 text-right">
+		<button
+			type="submit"
+			class="font-sans text-[0.65rem] uppercase tracking-[0.2em] text-muted hover:text-accent"
+		>
+			Sign out
+		</button>
+	</form>
 	{
 		items.length === 0 ? (
 			<p class="py-16 text-center text-lg italic text-muted">

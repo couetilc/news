@@ -1,0 +1,88 @@
+---
+// The shared signup/login form (issue #40). A plain POST form so it works with
+// JavaScript off, in the newspaper voice: a narrow ruled column, small-caps
+// labels, no SaaS pills. The submit posts to the page's own URL (action="");
+// the page's POST branch handles it and either redirects on success or
+// re-renders this with `error` set and a 400.
+interface Props {
+	// "Sign in" / "Create account" — the heading and the submit button label.
+	heading: string;
+	submitLabel: string;
+	// Validation/auth error to surface inline above the fields; null when none.
+	error: string | null;
+	// The email to pre-fill (empty on first render, the submitted value after a
+	// failed submit) so the reader doesn't retype it. Never the password — that's
+	// never echoed back.
+	email: string;
+	// The complementary page, e.g. { href: '/login', prompt: 'Already have an
+	// account?', label: 'Sign in' }.
+	alt: { href: string; prompt: string; label: string };
+}
+
+const { heading, submitLabel, error, email, alt } = Astro.props;
+---
+
+<section class="mx-auto max-w-sm py-6">
+	<h2 class="mb-5 text-center text-2xl">{heading}</h2>
+
+	{
+		error && (
+			<p
+				role="alert"
+				class="mb-4 border-l-2 border-accent bg-paper-edge px-3 py-2 font-sans text-sm text-accent"
+			>
+				{error}
+			</p>
+		)
+	}
+
+	<form method="POST" class="space-y-4">
+		<div>
+			<label
+				for="email"
+				class="mb-1 block font-sans text-[0.65rem] uppercase tracking-[0.2em] text-muted"
+			>
+				Email
+			</label>
+			<input
+				id="email"
+				name="email"
+				type="email"
+				value={email}
+				required
+				autocomplete="email"
+				class="w-full border border-rule bg-paper px-3 py-2 font-sans text-ink focus:border-ink focus:outline-none"
+			/>
+		</div>
+
+		<div>
+			<label
+				for="password"
+				class="mb-1 block font-sans text-[0.65rem] uppercase tracking-[0.2em] text-muted"
+			>
+				Password
+			</label>
+			<input
+				id="password"
+				name="password"
+				type="password"
+				required
+				minlength="8"
+				autocomplete="current-password"
+				class="w-full border border-rule bg-paper px-3 py-2 font-sans text-ink focus:border-ink focus:outline-none"
+			/>
+		</div>
+
+		<button
+			type="submit"
+			class="w-full border border-ink bg-ink py-2 font-sans text-sm uppercase tracking-[0.2em] text-paper hover:bg-ink-soft"
+		>
+			{submitLabel}
+		</button>
+	</form>
+
+	<p class="mt-5 text-center font-sans text-sm text-muted">
+		{alt.prompt}{' '}
+		<a href={alt.href} class="text-accent underline">{alt.label}</a>
+	</p>
+</section>
