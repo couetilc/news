@@ -141,10 +141,13 @@ gate is a possible follow-up (see #46), complementary to — not a replacement f
 
 ## Backlog
 
-The backlog lives in **GitHub issues** (`gh issue list`, `gh issue view`),
-not in README TODOs or this file. When work is requested or discovered but
-not done now, file an issue (`gh issue create`); close issues from PRs with
-"Fixes #N" in the PR body.
+The backlog lives in **GitHub issues** (`gh issue list`), not in README TODOs or
+this file. File an issue when work is requested or discovered but not done now;
+close it from a PR with "Fixes #N". Issues carry a *type* label
+(bug/enhancement/documentation) and a loose, evolving *area* label you can steer
+work with — e.g. `gh issue list --label testing` (current set: `gh label list`).
+Filing/structure conventions, the area-label taxonomy, and sub-issues-as-epics
+live in the `filing-issues` skill.
 
 ## Memory policy
 
