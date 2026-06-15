@@ -121,6 +121,61 @@ keep it rare so it stays loud.
   underline on hover (`group-hover:underline` + `group-hover:text-accent`), not
   blue web links.
 
+## Asynchronous activity: loading, disabling, and feedback
+
+Any time the UI starts work the reader has to wait on — a form submit, an
+in-flight request — it must say so, in voice. Silence reads as "broken": no
+spinner, no disabled button, no error is exactly how account signup felt
+unusable. Three obligations, layered so the no-JS contract still holds.
+
+**Progressive enhancement is the rule.** Every form works with JavaScript off:
+the server validates and a full-page POST → 303 → reload is the source of truth
+(as the auth forms and the read/unread toggle already are). Loading states,
+disabled controls, and inline in-flight errors are *enhancements layered on top*
+when JS is present — never a prerequisite for the action to succeed. Build the
+no-JS version first, then enhance it; don't ship a control that only works with
+JS.
+
+1. **Loading state on every wait.**
+   - A full-page POST navigation already gets the browser's native page-loading
+     indicator, but the **triggering control** must still show in-flight state
+     once JS is on: the button goes busy (`aria-busy`, label swaps to a
+     present-tense "Creating account…" / "Signing in…", reduced `opacity`) so
+     the reader sees the click registered.
+   - An **in-page** async request (one that does *not* navigate) **must** render
+     an explicit in-voice loading affordance where the result will appear — an
+     italic agate "Working…" line, not a SaaS spinner.
+   - Avoid flicker: it's fine to delay a *visible* loading indicator ~150 ms so
+     instant responses don't flash one, but disable the control immediately on
+     activation.
+
+2. **Disable controls + idempotent writes — double-submit defense, both layers.**
+   - On submit, disable the triggering control (and any input that would change
+     the request) so a second click can't fire a duplicate (the JS layer).
+   - **And** make the write safe to repeat server-side, so a double-POST with JS
+     off is still harmless — lean on a `UNIQUE` constraint / idempotent endpoint
+     rather than trusting the client (the server layer). Neither layer alone is
+     enough.
+
+3. **Surface errors, warnings, and completion — inline, at the point of action.**
+   - Errors render **next to the field or control that caused them**, in the
+     existing ruled `role="alert"` voice (`border-l-2 border-accent
+     bg-paper-edge`; see `AuthForm.astro`). A page-level failure also gets a
+     short summary at the top of the affected region. **No toasts or floating
+     popovers** — un-newspapery and easy to miss.
+   - Distinguish **validation** errors the reader can fix ("Password must be at
+     least 8 characters.") from **system/network** errors they can't ("Couldn't
+     reach the server. Try again."). Never let an async failure pass silently —
+     a swallowed error is the worst outcome.
+   - Confirm **completion** of anything the reader waited on. A redirect to a
+     visibly-changed page is confirmation enough when there is one (signup → the
+     unlocked homepage); an in-page action that leaves the reader on the same
+     screen needs an explicit in-voice acknowledgement.
+
+Keep all of it in the newspaper aesthetic — ruled lines, small-caps agate, the
+accent red reserved for the alert key — never a colored spinner, progress pill,
+or drop-shadowed toast. The accent stays loud by staying rare.
+
 ## Coverage gotcha
 
 `src/**` is under a 100% line/branch coverage gate. `.astro` components and
