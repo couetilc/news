@@ -2,10 +2,12 @@
 import { defineConfig } from 'vitest/config';
 import { cloudflareTest, readD1Migrations } from '@cloudflare/vitest-pool-workers';
 
-// Worker-runtime tests: ingest pipeline, D1 access, parsers, worker entry.
-// Runs inside workerd with a real local D1 so `cloudflare:workers` env and
-// `ON CONFLICT` dedupe behave exactly as in production. The .astro homepage
-// test lives in the node project (vitest.node.config.ts) instead.
+// Worker-runtime tests: ingest pipeline, D1 access, parsers. Runs inside
+// workerd with a real local D1 so `cloudflare:workers` env and `ON CONFLICT`
+// dedupe behave exactly as in production. The .astro homepage test and the
+// trivial worker-entry test live in the node project (vitest.node.config.ts):
+// the homepage needs Astro's Vite plugins, and worker.ts's coverage was flaky
+// under this pool (#37 — the async `scheduled` body wasn't always recorded).
 export default defineConfig({
 	plugins: [
 		cloudflareTest(async () => ({
@@ -22,7 +24,7 @@ export default defineConfig({
 	test: {
 		name: 'workers',
 		include: ['test/**/*.test.ts'],
-		exclude: ['test/index.test.ts'],
+		exclude: ['test/index.test.ts', 'test/worker.test.ts'],
 		setupFiles: ['./test/helpers/apply-migrations.ts'],
 	},
 });
