@@ -3,11 +3,20 @@ import { fileURLToPath } from 'node:url';
 import { getViteConfig } from 'astro/config';
 import tailwindcss from '@tailwindcss/vite';
 
-// Node-environment project for the one thing the worker pool can't host: the
-// Astro Container API rendering src/pages/index.astro. The page imports
-// `cloudflare:workers`, which doesn't exist outside workerd, so it's aliased to
-// a stub here; the page's data access (listItems) is mocked in the test, and
-// its real D1 behavior is covered by the workers project.
+// Node-environment project for the two things better hosted outside the worker
+// pool:
+//   • src/pages/index.astro via the Astro Container API — needs Astro's Vite
+//     plugins, which the worker pool can't load.
+//   • src/worker.ts — the trivial worker entry. Its workerd-specific imports
+//     (the Astro handler and the ingest run) are mocked and the DB is an opaque
+//     pass-through, so it needs no real workerd. Running it here makes Istanbul
+//     coverage for the async `scheduled` handler deterministic; under the worker
+//     pool that coverage was intermittently dropped, red-failing the 100% gate
+//     at random (#37).
+// The page imports `cloudflare:workers`, which doesn't exist outside workerd, so
+// it's aliased to a stub here; the page's data access (listItems) is mocked in
+// the test, and the worker entry's real D1 behavior is covered by the workers
+// project (run.test.ts / db.test.ts).
 export default getViteConfig(
 	{
 		// The page pulls in src/styles/global.css (`@import "tailwindcss"`).
@@ -25,7 +34,7 @@ export default getViteConfig(
 		test: {
 			name: 'node',
 			environment: 'node',
-			include: ['test/index.test.ts'],
+			include: ['test/index.test.ts', 'test/worker.test.ts'],
 		},
 	},
 	{

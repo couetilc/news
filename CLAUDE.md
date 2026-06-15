@@ -92,15 +92,22 @@ skeleton; every change should move it toward being a useful news aggregator.
   `ON CONFLICT` semantics behave exactly as in production. A real local D1 is
   declared inline (`miniflare.d1Databases`) and the committed `migrations/*.sql`
   are applied per test file by `test/helpers/apply-migrations.ts` (the
-  `applyD1Migrations` helper from `cloudflare:test`). All `src/ingest/**` and the
-  worker entry are tested here. `src/worker.ts` imports `@astrojs/cloudflare/handler`
-  (a build-time virtual module), so its test must `vi.mock` that import.
-- **`node`** (`vitest.node.config.ts`) — node environment with Astro's Container
-  API for the one thing the worker pool can't host: rendering `.astro` pages
-  (Astro's Vite plugins pull in `xxhash-wasm`, which the worker pool can't load).
-  Both project configs keep `configFile: false` (the Cloudflare adapter's Vite
-  plugin is incompatible with the test pipeline). Pages import
-  `cloudflare:workers`, which doesn't exist outside workerd, so it's aliased to
+  `applyD1Migrations` helper from `cloudflare:test`). All `src/ingest/**` is
+  tested here. The worker entry's real D1 behavior is covered here too (via
+  `run.test.ts` / `db.test.ts`), but the trivial `src/worker.ts` wiring test
+  lives in the `node` project — see below.
+- **`node`** (`vitest.node.config.ts`) — node environment for the two things
+  better hosted outside the worker pool: rendering `.astro` pages via Astro's
+  Container API (Astro's Vite plugins pull in `xxhash-wasm`, which the worker
+  pool can't load), and the `src/worker.ts` entry test. `worker.ts`'s only
+  workerd-specific imports (`@astrojs/cloudflare/handler` and the ingest run)
+  are `vi.mock`ed and its DB is an opaque pass-through, so it needs no real
+  workerd — and running it under node keeps Istanbul's coverage for the async
+  `scheduled` handler deterministic. Under the worker pool that coverage was
+  intermittently dropped, red-failing the 100% gate at random (#37). Both
+  project configs keep `configFile: false` (the Cloudflare adapter's Vite plugin
+  is incompatible with the test pipeline). Pages import `cloudflare:workers`,
+  which doesn't exist outside workerd, so it's aliased to
   `test/helpers/cloudflare-workers.ts`; a page's data access is mocked and its
   real D1 behavior is covered by the `workers` project.
 
