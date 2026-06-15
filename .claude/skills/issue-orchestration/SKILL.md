@@ -75,6 +75,13 @@ quality manageable. Each brief contains:
 Agents may use WebFetch to *verify* real external shapes (feeds/APIs), but the **tests
 must stay fixture-driven/hermetic**.
 
+**Agents branch fresh from `main` — never hand a background agent an existing branch.**
+Worktrees isolate working files but **share branch refs**, and a branch can be checked out
+in only one worktree at a time. Revising an *existing* PR (e.g. applying review feedback,
+reworking an open PR) is **integration work the orchestrator does itself** on that branch —
+not a job for a concurrent background agent, which collides on the shared checkout (see the
+git-collision hazard below).
+
 ## Reviewing PRs
 
 Read the diff against the acceptance criteria + conventions; judge test *quality*, not the
@@ -137,6 +144,18 @@ hand (merges deploy).
   branch checked out, which blocks re-checkout and branch deletion. `git worktree remove
   --force <path>` the finished ones to free branches before an integration agent (or you)
   operates on them.
+- **Orchestrator/agent git collision in `/workspace`** — running a background worktree
+  agent *while you also hand-edit and commit in `/workspace`* can fuse their work:
+  worktrees share branch refs **and** you both act on the same repo, so the agent's
+  checkout/stage can leak into `/workspace`'s HEAD and index — and a bare `git commit` then
+  sweeps it into your commit, on the wrong branch. (Hit once: a #83 commit swallowed a
+  concurrent agent's PR-revision; caught pre-push, `origin` was intact, redone serially.)
+  **Three independent fixes — apply all:** (1) **don't author in `/workspace` while agents
+  run** — serialize your own pieces (do them before dispatching or after agents finish), or
+  keep `/workspace` review/merge-only; (2) **scope every commit to explicit pathspecs**
+  (`git commit -- <files>`, never a bare index commit) and `git status` right before, so
+  leaked staging can't ride along; (3) **agents get fresh branches off `main`** (above), so
+  there's no shared-branch checkout to collide on.
 
 ## Production awareness
 
