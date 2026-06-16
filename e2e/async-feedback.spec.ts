@@ -110,9 +110,11 @@ test.describe('async-feedback UX in a real browser (#96)', () => {
 		await expect(working).toBeVisible();
 
 		await page.unroute('**/api/read');
-		// Completion: the server write lands and the row re-renders read (the toggle
-		// flips to "Mark as unread"). The /api/read write is idempotent server-side,
+		// Completion: the server write lands and the toggle's returnTo round-trip
+		// (#80) reloads the active (Unread) tab. Under the tabs model (#151) a row
+		// marked read leaves the Unread tab — its sole item gone, the tab now shows
+		// its caught-up empty state. The /api/read write is idempotent server-side,
 		// so the no-JS double-POST path is harmless too.
-		await expect(page.getByRole('button', { name: 'Mark as unread' })).toBeVisible();
+		await expect(page.getByText('All caught up — nothing unread.')).toBeVisible();
 	});
 });

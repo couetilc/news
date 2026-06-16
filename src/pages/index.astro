@@ -2,19 +2,20 @@
 import { env } from 'cloudflare:workers';
 import { countItemsByRead, distinctSources, listItems, listItemsByRead } from '../ingest/db';
 import Article from '../components/Article.astro';
+import FeedPage from '../components/FeedPage.astro';
+import FeedTabs from '../components/FeedTabs.astro';
 import FilterBar from '../components/FilterBar.astro';
-import Pager from '../components/Pager.astro';
 import Layout from '../layouts/Layout.astro';
-import { PAGE_SIZE, clampPage, offsetFor, parsePage } from '../lib/pagination';
+import { PAGE_SIZE, isReadTab, parseTab } from '../lib/pagination';
 
 // The homepage is session-adaptive (issue #87): anonymous visitors get the
 // public read-only feed; logged-in visitors get their personal feed (read/unread
-// toggle, source filter, pagination). The session control (Log in / Sign out)
-// lives in the masthead now (issue #128), not in either branch. The auth middleware sets
-// locals.userId only for an authenticated request and lets an anonymous `/`
-// fall through with it unset, so its presence is the single source of truth for
-// which view to render. Branching here (not on the raw session) keeps the page's
-// auth read in the one typed place #70 established.
+// toggle, source filter, tabs + infinite scroll). The session control (Log in /
+// Sign out) lives in the masthead now (issue #128), not in either branch. The
+// auth middleware sets locals.userId only for an authenticated request and lets
+// an anonymous `/` fall through with it unset, so its presence is the single
+// source of truth for which view to render. Branching here (not on the raw
+// session) keeps the page's auth read in the one typed place #70 established.
 const userId = Astro.locals.userId;
 const isAuthed = userId !== undefined;
 
@@ -23,13 +24,15 @@ const isAuthed = userId !== undefined;
 // listItems() path (no per-user read state) rendered with interactive={false},
 // so no row carries a /api/read <form> the server would reject anyway. We do NOT
 // run the per-user listItemsByRead with a placeholder id — that's a different,
-// personal query; the public view is one plain chronological column.
+// personal query; the public view is one plain chronological column. Unaffected
+// by the tabs/infinite-scroll change (#151): no read state, so a single column.
 const publicItems = isAuthed ? [] : await listItems(env.NEWS_DB, 100);
 
 // ── Authenticated branch ────────────────────────────────────────────────────
-// The personal feed exactly as before (#41 filter, #39 pagination, #70 per-user
-// read state, #80 returnTo). All of this work is skipped for an anonymous
-// request, which never touches the per-user queries.
+// The personal feed: read/unread split into two TABS (#151) — Unread (default)
+// and Read — each an infinite-scroll list loading 50 items at a time. The first
+// 50 render here server-side; /feed serves each subsequent 50-item HTML fragment
+// the client appends. All of this work is skipped for an anonymous request.
 
 // Sources actually present drive the filter bar. The ?source param (repeatable
 // for multi-select) is intersected with them, so an unknown or absent slug just
@@ -38,19 +41,16 @@ const present = isAuthed ? await distinctSources(env.NEWS_DB) : [];
 const presentSet = new Set(present);
 const active = Astro.url.searchParams.getAll('source').filter((s) => presentSet.has(s));
 
-// The current view (path + query: ?source filter + ?unread/?read cursors) each
-// row's read/unread toggle returns to, so flipping an item keeps the active
-// filter/page instead of dropping back to the unfiltered home (#80). It's
-// re-validated server-side (safeReturnPath) before it becomes the redirect.
-const returnTo = `${Astro.url.pathname}${Astro.url.search}`;
+// The active tab (#151): ?tab=unread|read, defaulting to unread, parsed
+// defensively (an unknown value falls back to unread). URL-addressable so it
+// survives reload, the toggle's returnTo round-trip (#80), and sharing.
+const tab = parseTab(Astro.url.searchParams.get('tab'));
 
-// Two independent cursors: ?unread and ?read each default to page 1, parsed
-// defensively (non-numeric/zero/negative -> 1). Counts drive total pages and
-// clamp a too-far page back onto the last one; the source filter applies to both
-// the count and the page window so paging respects the active selection. Paging
-// one section never touches the other's offset.
-const unreadPage = parsePage(Astro.url.searchParams.get('unread'));
-const readPage = parsePage(Astro.url.searchParams.get('read'));
+// The view (path + query: ?tab + ?source filter) each row's read/unread toggle
+// returns to, so flipping an item keeps the active tab + filter instead of
+// dropping back to the unfiltered home (#80). It's re-validated server-side
+// (safeReturnPath, which carries only ?source and ?tab) before the redirect.
+const returnTo = `${Astro.url.pathname}${Astro.url.search}`;
 
 // Read state is per-user (issue #70). On the authenticated branch userId is the
 // logged-in id from the middleware; on the anonymous branch this code path isn't
@@ -58,6 +58,9 @@ const readPage = parsePage(Astro.url.searchParams.get('read'));
 // typed fallback that never produces a real query here.
 const queryUser = userId ?? 0;
 
+// Both counts under the active source filter: they drive the tab tally (how much
+// each tab holds) and bound the active tab's infinite scroll (#151) so an
+// exhausted list never fires a phantom empty fetch. Computed only when authed.
 const unreadTotal = isAuthed
 	? await countItemsByRead(env.NEWS_DB, { userId: queryUser, read: false, sources: active })
 	: 0;
@@ -65,44 +68,39 @@ const readTotal = isAuthed
 	? await countItemsByRead(env.NEWS_DB, { userId: queryUser, read: true, sources: active })
 	: 0;
 
-const unreadClamped = clampPage(unreadPage, unreadTotal);
-const readClamped = clampPage(readPage, readTotal);
-
-const unread = isAuthed
+// The first 50 of the ACTIVE tab only — the inactive tab isn't fetched (its tally
+// comes from the count above). offset 0; /feed pages the rest as the reader
+// scrolls. The source filter narrows the window, same as the count.
+const activeTotal = isReadTab(tab) ? readTotal : unreadTotal;
+const items = isAuthed
 	? await listItemsByRead(env.NEWS_DB, {
 			userId: queryUser,
-			read: false,
+			read: isReadTab(tab),
 			limit: PAGE_SIZE,
-			offset: offsetFor(unreadClamped),
-			sources: active,
-		})
-	: [];
-const read = isAuthed
-	? await listItemsByRead(env.NEWS_DB, {
-			userId: queryUser,
-			read: true,
-			limit: PAGE_SIZE,
-			offset: offsetFor(readClamped),
+			offset: 0,
 			sources: active,
 		})
 	: [];
 
-// Each pager preserves the *other* section's cursor (when past page 1) plus the
-// active source filter; changing the source filter drops both page params via
-// FilterBar's source-only hrefs, resetting paging to page 1.
-const unreadSibling = { param: 'read', page: readClamped };
-const readSibling = { param: 'unread', page: unreadClamped };
-
-// "Nothing aggregated yet" is the no-sources-at-all case (handled below via
-// `present`); a filtered selection with zero matches gets its own message.
-const isEmpty = unreadTotal === 0 && readTotal === 0;
+// Empty-state copy for the active tab. A source filter with no matches gets the
+// "from this source" line (so the reader knows to clear it); otherwise it's the
+// plain per-tab caught-up/none-read message. "Nothing aggregated yet" (no sources
+// at all) is handled separately below via `present`.
+const filtered = active.length > 0;
+const emptyMessage = isReadTab(tab)
+	? filtered
+		? 'Nothing read from this source yet.'
+		: 'Nothing read yet.'
+	: filtered
+		? 'Nothing unread from this source.'
+		: 'All caught up — nothing unread.';
 ---
 
 <Layout title="News">
 	{
 		isAuthed ? (
 			<>
-				{/* The session control (Sign out) now lives in the masthead header
+				{/* The session control (Sign out) lives in the masthead header
 				    (Layout.astro), not here — issue #128 moved it out of the feed body
 				    so the first story sits higher. */}
 				{present.length === 0 ? (
@@ -112,61 +110,38 @@ const isEmpty = unreadTotal === 0 && readTotal === 0;
 				) : (
 					<div class="mx-auto max-w-2xl">
 						<FilterBar sources={present} active={active} />
-						{isEmpty ? (
-							<p class="py-16 text-center text-lg italic text-muted">
-								Nothing here from this source yet.
-							</p>
+						<FeedTabs
+							active={tab}
+							sources={active}
+							unreadCount={unreadTotal}
+							readCount={readTotal}
+						/>
+						{items.length === 0 ? (
+							<p class="py-16 text-center text-lg italic text-muted">{emptyMessage}</p>
 						) : (
-							<>
-								{unread.length > 0 && (
-									<>
-										<ol>
-											{unread.map((item) => (
-												<Article item={item} returnTo={returnTo} />
-											))}
-										</ol>
-										<Pager
-											param="unread"
-											page={unreadClamped}
-											total={unreadTotal}
-											sources={active}
-											sibling={unreadSibling}
-											label="Unread pages"
-										/>
-									</>
-								)}
-								{read.length > 0 && (
-									<section class="mt-10">
-										<h2 class="mb-1 flex items-center gap-3 font-sans text-[0.65rem] uppercase tracking-[0.3em] text-muted">
-											<span class="h-px flex-1 bg-rule" aria-hidden="true" />
-											Read
-											<span class="h-px flex-1 bg-rule" aria-hidden="true" />
-										</h2>
-										<ol>
-											{read.map((item) => (
-												<Article item={item} returnTo={returnTo} />
-											))}
-										</ol>
-										<Pager
-											param="read"
-											page={readClamped}
-											total={readTotal}
-											sources={active}
-											sibling={readSibling}
-											label="Read pages"
-										/>
-									</section>
-								)}
-							</>
+							/* The active tab's list: the first 50 server-rendered, ending in
+							   the infinite-scroll sentinel FeedPage emits when more remain.
+							   data-feed-list is the hook the infinite-scroll script appends
+							   each fetched /feed fragment into. */
+							<ol data-feed-list>
+								<FeedPage
+									items={items}
+									offset={0}
+									total={activeTotal}
+									tab={tab}
+									sources={active}
+									returnTo={returnTo}
+								/>
+							</ol>
 						)}
 					</div>
 				)}
 			</>
 		) : (
 			<>
-				{/* The session control (Log in) now lives in the masthead header
-				    (Layout.astro), not here — issue #128 made the masthead the single home
-				    for the session affordance in both auth states. */}
+				{/* The session control (Log in) lives in the masthead header
+				    (Layout.astro), not here — issue #128 made the masthead the single
+				    home for the session affordance in both auth states. */}
 				{publicItems.length === 0 ? (
 					<p class="py-16 text-center text-lg italic text-muted">
 						Nothing aggregated yet — check back soon.
@@ -184,3 +159,15 @@ const isEmpty = unreadTotal === 0 && readTotal === 0;
 		)
 	}
 </Layout>
+
+{/* Infinite-scroll loader (#151), authenticated feed only. Progressive
+    enhancement: the first 50 always render server-side above, so the feed is
+    never blank without JS; this only appends subsequent pages when JS is on. The
+    module is a no-op when there's no [data-feed-list] (the anonymous feed,
+    /login). Pure DOM logic, unit-tested under happy-dom (test/infinite-scroll.test.ts)
+    inside the 100% src/** gate and covered as a real-browser guard by the
+    Playwright e2e (e2e/infinite-scroll.spec.ts). It re-inits on astro:page-load
+    so a ClientRouter tab switch re-wires the new list (#155). */}
+<script>
+	import '../scripts/infinite-scroll';
+</script>

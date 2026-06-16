@@ -44,6 +44,7 @@ export default getViteConfig(
 			include: [
 				'test/agents-md.test.ts',
 				'test/index.test.ts',
+				'test/feed.test.ts',
 				'test/layout.test.ts',
 				'test/status.test.ts',
 				'test/public.test.ts',
@@ -51,11 +52,13 @@ export default getViteConfig(
 				'test/worker.test.ts',
 				'test/auth-pages.test.ts',
 				'test/middleware.test.ts',
-				// Browser-only client module (src/scripts/enhance-forms.ts) — runs
-				// under a per-file `@vitest-environment happy-dom` override (declared in
-				// the spec) so document/HTMLFormElement/SubmitEvent resolve. Lives here,
-				// not the worker pool, which can't honor a DOM environment override.
+				// Browser-only client modules (src/scripts/*.ts) — run under a per-file
+				// `@vitest-environment happy-dom` override (declared in the spec) so
+				// document/HTMLFormElement/SubmitEvent/IntersectionObserver resolve. They
+				// live here, not the worker pool, which can't honor a DOM environment
+				// override.
 				'test/enhance-forms.test.ts',
+				'test/infinite-scroll.test.ts',
 			],
 		},
 	},

@@ -1,0 +1,60 @@
+---
+import type { ItemRow } from '../ingest/db';
+import { hasMore, nextOffset, type Tab } from '../lib/pagination';
+import Article from './Article.astro';
+
+interface Props {
+	// One window of items for the active tab (already the 50-row page the query
+	// returned), newest-first.
+	items: ItemRow[];
+	// Where in the section this window started (0 for the first page). Combined
+	// with how many rows came back and the section total, it decides whether a
+	// next-page sentinel renders and what cursor it carries.
+	offset: number;
+	// Total rows in the active tab under the current source filter — the count
+	// that bounds infinite scroll so an exhausted list never fires a phantom
+	// empty fetch (#151).
+	total: number;
+	// The active tab, carried into each row's return target and the next-page URL
+	// so an appended page stays in the same tab.
+	tab: Tab;
+	// Active source slugs, carried into the next-page URL so the filter keeps
+	// applying to every appended page (#41).
+	sources: string[];
+	// The view (path + query) each row's read/unread toggle returns to after it
+	// flips, so the active tab + source filter survive the POST → 303 (#80).
+	returnTo: string;
+}
+
+const { items, offset, total, tab, sources, returnTo } = Astro.props;
+
+// Is there another page after this window? When yes, emit a sentinel <li> the
+// client's IntersectionObserver watches; when no, omit it so scrolling to the
+// bottom is a clean end-of-list with no further fetch (#151).
+const more = hasMore(offset, items.length, total);
+
+// The URL the next page is fetched from: the partial /feed endpoint carrying the
+// active tab, the source filter, and the offset of the next unseen row. Built
+// here (server-side) so the client script stays dumb — it just reads the href
+// off the sentinel and fetches it.
+function nextUrl(): string {
+	const params = new URLSearchParams();
+	params.set('tab', tab);
+	for (const s of sources) params.append('source', s);
+	params.set('offset', String(nextOffset(offset, items.length)));
+	return `/feed?${params.toString()}`;
+}
+---
+
+{items.map((item) => <Article item={item} returnTo={returnTo} />)}
+{
+	more && (
+		<li
+			data-feed-sentinel
+			data-next-url={nextUrl()}
+			class="border-b border-rule py-3 text-center font-sans text-[0.6rem] italic uppercase tracking-wider text-muted"
+		>
+			Loading more…
+		</li>
+	)
+}
