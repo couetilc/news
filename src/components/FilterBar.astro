@@ -1,29 +1,48 @@
 ---
 import { sourceMeta } from '../lib/sources';
+import type { Tab } from '../lib/pagination';
 
 interface Props {
 	// Source slugs present in the feed, already ordered (see distinctSources).
 	sources: string[];
 	// The slugs currently filtering the feed; empty means "All".
 	active: string[];
+	// The currently active tab (#217). Carried into every chip href (and "All")
+	// so changing the source filter keeps the reader on the tab they're viewing —
+	// without it a chip click on the Read tab silently dropped back to the default
+	// Unread tab. Unread is the default, so an href omits ?tab on it for clean URLs.
+	tab: Tab;
 }
 
-const { sources, active } = Astro.props;
+const { sources, active, tab } = Astro.props;
 const activeSet = new Set(active);
 const allActive = active.length === 0;
+
+// Build a feed URL for the given source selection, mirroring FeedTabs.hrefFor:
+// the Read tab is URL-addressable as ?tab=read (set first so the chip and tab
+// hrefs share the same param order), then the source filter; the default Unread
+// tab omits ?tab and an empty selection drops to the bare path for clean URLs.
+function hrefForSources(slugs: Iterable<string>): string {
+	const params = new URLSearchParams();
+	if (tab === 'read') params.set('tab', 'read');
+	for (const s of slugs) params.append('source', s);
+	const qs = params.toString();
+	return qs ? `/?${qs}` : '/';
+}
+
+// "All" clears the source filter but keeps the active tab (#217), so a filtered
+// /?tab=read → "All" stays on Read instead of dropping to the Unread default.
+const allHref = hrefForSources([]);
 
 // A chip's href toggles its own source within the current selection: a chip
 // that's off turns on (adds its slug), one that's on turns off (drops it). With
 // JS off these are plain links, so multi-select still works by tapping chips in
-// turn. "All" is just the no-param URL.
+// turn. The active tab rides along so a filter change never switches tabs (#217).
 function hrefFor(slug: string): string {
 	const next = new Set(active);
 	if (next.has(slug)) next.delete(slug);
 	else next.add(slug);
-	const params = new URLSearchParams();
-	for (const s of next) params.append('source', s);
-	const qs = params.toString();
-	return qs ? `/?${qs}` : '/';
+	return hrefForSources(next);
 }
 
 // Shared chip shape: a compact, ruled, small-caps tag in the newspaper voice —
@@ -40,7 +59,7 @@ const off = `${base} border-rule text-ink-soft hover:border-ink hover:text-accen
 ---
 
 <nav aria-label="Filter by source" class="mb-6 flex flex-wrap items-center gap-2">
-	<a href="/" class={allActive ? on : off} aria-current={allActive ? 'true' : undefined}>All</a>
+	<a href={allHref} class={allActive ? on : off} aria-current={allActive ? 'true' : undefined}>All</a>
 	{
 		sources.map((slug) => {
 			const meta = sourceMeta(slug);
