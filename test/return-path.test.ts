@@ -7,9 +7,11 @@ import { safeReturnPath } from '../src/lib/return-path';
 // the toggle into an open redirect. These cases pin both halves: legit views
 // round-trip; anything that could escape the origin falls back to '/'.
 describe('safeReturnPath', () => {
-	it('keeps a filtered + paginated home view', () => {
-		expect(safeReturnPath('/?source=ieee-spectrum&unread=2&read=3')).toBe(
-			'/?source=ieee-spectrum&unread=2&read=3',
+	it('keeps a filtered, tabbed home view', () => {
+		// The toggle returns to the active tab + source filter (#151); the
+		// infinite-scroll offset is deliberately not part of the vocabulary.
+		expect(safeReturnPath('/?tab=read&source=ieee-spectrum')).toBe(
+			'/?tab=read&source=ieee-spectrum',
 		);
 	});
 
@@ -19,9 +21,11 @@ describe('safeReturnPath', () => {
 		);
 	});
 
-	it('strips unknown params, keeping only source/unread/read', () => {
-		// `evil` is not in the allow-list and is dropped; the known params survive.
-		expect(safeReturnPath('/?unread=2&evil=1&source=apple')).toBe('/?unread=2&source=apple');
+	it('strips unknown params, keeping only source/tab', () => {
+		// `evil` and the retired ?offset cursor are dropped; the known params survive.
+		expect(safeReturnPath('/?tab=read&offset=50&evil=1&source=apple')).toBe(
+			'/?tab=read&source=apple',
+		);
 	});
 
 	it('normalizes the bare home path to /', () => {
@@ -34,7 +38,7 @@ describe('safeReturnPath', () => {
 	});
 
 	it('trims surrounding whitespace before validating', () => {
-		expect(safeReturnPath('  /?unread=2  ')).toBe('/?unread=2');
+		expect(safeReturnPath('  /?tab=read  ')).toBe('/?tab=read');
 	});
 
 	describe('falls back to / on anything unsafe', () => {

@@ -53,8 +53,10 @@ test.describe('read-toggle async feedback survives ClientRouter swaps (#155)', (
 
 		await signUp(page);
 
-		// Hold every /api/read POST ~800ms so the in-flight (pre-swap) state is
-		// observable before the client-router re-renders the row.
+		// Hold every /api/read POST ~800ms (one handler for the whole test) so each
+		// toggle's in-flight state is observable before its returnTo round-trip (#80)
+		// reloads the tab. It still continues, so completion lands within the
+		// assertion timeout.
 		await page.route('**/api/read', async (route) => {
 			await new Promise((r) => setTimeout(r, 800));
 			await route.continue();
@@ -62,7 +64,7 @@ test.describe('read-toggle async feedback survives ClientRouter swaps (#155)', (
 
 		const working = page.getByText('Working…');
 
-		// --- First toggle (mark as read): the original binding handles this fine. ---
+		// --- First toggle (mark as read) on the Unread tab. ---
 		const markRead = page.getByRole('button', { name: 'Mark as read' });
 		await expect(markRead).toBeVisible();
 		await expect(working).toBeHidden(); // hidden at rest
@@ -71,26 +73,35 @@ test.describe('read-toggle async feedback survives ClientRouter swaps (#155)', (
 		await expect(markRead).toBeDisabled();
 		await expect(working).toBeVisible();
 
-		// ClientRouter swaps in the fresh, server-rendered READ row: the toggle now
-		// reads "Mark as unread". THIS replacement form is where the old per-form
-		// binding was lost.
+		// Completion: under the tabs model (#151) the now-read row leaves the Unread
+		// tab, which shows its caught-up empty state. The read item lives on the Read
+		// tab now.
+		await expect(page.getByText('All caught up — nothing unread.')).toBeVisible();
+
+		// Switch to the Read tab. The tab link is a normal navigation that
+		// <ClientRouter /> intercepts and swaps <main> for — exactly the DOM swap that
+		// stranded the OLD per-form binding (#155): the "Mark as unread" form below is
+		// freshly server-rendered into the swapped-in panel, never the one present at
+		// module-execution time.
+		await page.getByRole('link', { name: /^Read/ }).click();
+		await expect(page).toHaveURL(/[?&]tab=read/);
+
 		const markUnread = page.getByRole('button', { name: 'Mark as unread' });
 		await expect(markUnread).toBeVisible();
-		// The swapped-in row's "Working…" line is back at rest (hidden) — proving we
-		// are looking at the fresh replacement DOM, not the in-flight first row.
-		await expect(working).toBeHidden();
+		await expect(working).toBeHidden(); // the swapped-in row's line is at rest
 
-		// --- Second toggle (mark as unread) on the REPLACEMENT form. ---
-		// This is the regression assertion: with the old per-form binding the
-		// replacement had no listener, so nothing below would ever become true.
+		// --- Second toggle (mark as unread) on the POST-SWAP form. ---
+		// The regression assertion: with the old per-form binding the swapped-in form
+		// had no listener, so nothing below would ever become true. The single
+		// document-level delegated listener (#155) survives the swap, so it does.
 		await markUnread.click();
 		await expect(markUnread).toBeDisabled();
 		await expect(working).toBeVisible();
 
-		// Release: the unmark write lands and the row re-renders unread again
-		// (completion confirmation). The /api/read write is idempotent server-side,
-		// so the no-JS double-POST path stays harmless too.
-		await page.unroute('**/api/read');
-		await expect(page.getByRole('button', { name: 'Mark as read' })).toBeVisible();
+		// Release: the unmark write lands and the returnTo reload of the Read tab
+		// shows its now-empty state (the item moved back to Unread). The /api/read
+		// write is idempotent server-side, so the no-JS double-POST path stays
+		// harmless too.
+		await expect(page.getByText('Nothing read yet.')).toBeVisible();
 	});
 });

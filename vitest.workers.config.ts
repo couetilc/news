@@ -30,6 +30,7 @@ export default defineConfig({
 		exclude: [
 			'test/agents-md.test.ts',
 			'test/index.test.ts',
+			'test/feed.test.ts',
 			'test/layout.test.ts',
 			'test/status.test.ts',
 			'test/public.test.ts',
@@ -37,9 +38,10 @@ export default defineConfig({
 			'test/worker.test.ts',
 			'test/auth-pages.test.ts',
 			'test/middleware.test.ts',
-			// DOM unit test for a browser-only client module — needs a happy-dom
-			// environment the workerd pool can't provide; runs in the node project.
+			// DOM unit tests for browser-only client modules — need a happy-dom
+			// environment the workerd pool can't provide; they run in the node project.
 			'test/enhance-forms.test.ts',
+			'test/infinite-scroll.test.ts',
 		],
 		setupFiles: ['./test/helpers/apply-migrations.ts'],
 	},

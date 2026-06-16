@@ -118,18 +118,19 @@ describe('POST /api/read', () => {
 		});
 	});
 
-	it('redirects back to the filtered + paginated view it was fired from (#80)', async () => {
+	it('redirects back to the active tab + filtered view it was fired from (#80, #151)', async () => {
 		vi.spyOn(console, 'log').mockImplementation(() => {});
 		const id = await seedItem();
-		// The row on a filtered/paginated page carries that view as `return`; the
-		// toggle must land the reader back there, not on the unfiltered home.
+		// The row on a filtered tab carries that view as `return` (active ?tab +
+		// ?source filter, #151); the toggle must land the reader back there, not on
+		// the unfiltered home.
 		const res = await submit({
 			id: String(id),
 			read: '1',
-			return: '/?source=ieee-spectrum&unread=2&read=3',
+			return: '/?tab=read&source=ieee-spectrum',
 		});
 		expect(res.status).toBe(303);
-		expect(res.headers.get('Location')).toBe('/?source=ieee-spectrum&unread=2&read=3');
+		expect(res.headers.get('Location')).toBe('/?tab=read&source=ieee-spectrum');
 	});
 
 	it('rejects a malicious return target, falling back to / (no open redirect)', async () => {

@@ -1,0 +1,67 @@
+---
+import { env } from 'cloudflare:workers';
+import { countItemsByRead, distinctSources, listItemsByRead } from '../ingest/db';
+import FeedPage from '../components/FeedPage.astro';
+import { PAGE_SIZE, isReadTab, parseOffset, parseTab } from '../lib/pagination';
+
+// Infinite-scroll partial for the authenticated feed (#151). The homepage renders
+// the first 50 items of the active tab server-side; this route serves each
+// subsequent 50-item window as an HTML *fragment* (the <Article> rows plus the
+// next-page sentinel) that the client appends into the existing <ol>. It is an
+// .astro page, not a JSON API route, so it reuses the exact same FeedPage/Article
+// markup the initial render uses — no second client-side renderer to keep in sync
+// (the server-rendered-HTML-partial branch of #151's fetch-mechanism decision;
+// HTMX was the third candidate, deferred to #152 — it'd need a human-gated
+// dependency add per the dependencies skill, and #152 is the issue that evaluates
+// and codifies it).
+//
+// Auth: /feed is neither a PUBLIC nor an ADAPTIVE path, so the middleware gate
+// (src/middleware.ts) redirects an unauthenticated request to /login (303) before
+// this runs and sets locals.userId for an authenticated one — same gate that
+// protects /api/read. So this only ever renders for a logged-in user.
+const userId = Astro.locals.userId;
+
+// The middleware sets locals.userId for every request that reaches an unguarded
+// route like this; a request without it was already redirected to /login. The
+// `?? 0` is a typed fallback that can't match a real user and is never reached in
+// practice, mirroring /api/read.
+const queryUser = userId ?? 0;
+
+// Which tab (unread|read), where in it (?offset), and under which source filter.
+// All three are parsed defensively: an unknown tab falls back to unread, junk
+// offset to 0, and an unknown/absent source drops out (intersected with the
+// sources actually present), exactly as the homepage does — so a hand-crafted
+// /feed request can't 500.
+const tab = parseTab(Astro.url.searchParams.get('tab'));
+const offset = parseOffset(Astro.url.searchParams.get('offset'));
+const present = await distinctSources(env.NEWS_DB);
+const presentSet = new Set(present);
+const sources = Astro.url.searchParams.getAll('source').filter((s) => presentSet.has(s));
+
+const read = isReadTab(tab);
+const total = await countItemsByRead(env.NEWS_DB, { userId: queryUser, read, sources });
+const items = await listItemsByRead(env.NEWS_DB, {
+	userId: queryUser,
+	read,
+	limit: PAGE_SIZE,
+	offset,
+	sources,
+});
+
+// A toggle in an appended row returns to the top of the active tab + source
+// filter (the offset is deliberately dropped — see safeReturnPath), so the
+// reader lands back on the same tab/filter rather than the unfiltered home (#80).
+const returnParams = new URLSearchParams();
+returnParams.set('tab', tab);
+for (const s of sources) returnParams.append('source', s);
+const returnTo = `/?${returnParams.toString()}`;
+---
+
+<FeedPage
+	items={items}
+	offset={offset}
+	total={total}
+	tab={tab}
+	sources={sources}
+	returnTo={returnTo}
+/>

@@ -1,0 +1,60 @@
+---
+import type { Tab } from '../lib/pagination';
+
+interface Props {
+	// The currently active tab. Unread is the default (#151).
+	active: Tab;
+	// Active source slugs, carried in each tab's href so switching tabs keeps the
+	// source filter applied (#41). The infinite-scroll ?offset is intentionally
+	// dropped — switching tabs starts the new tab at its first 50.
+	sources: string[];
+	// Unread/Read item counts under the active source filter, shown as an agate
+	// tally beside each tab label so the reader sees how much each holds.
+	unreadCount: number;
+	readCount: number;
+}
+
+const { active, sources, unreadCount, readCount } = Astro.props;
+
+// A tab's href: the active tab + the source filter, nothing else. Unread is the
+// default, so its href omits ?tab to keep the URL clean (and so the bare `/` is
+// the unread tab). Switching tabs is a normal navigation (a real <a href>), so it
+// works with JS off and is URL-addressable / shareable / reload-stable (#151).
+function hrefFor(tab: Tab): string {
+	const params = new URLSearchParams();
+	if (tab === 'read') params.set('tab', 'read');
+	for (const s of sources) params.append('source', s);
+	const qs = params.toString();
+	return qs ? `/?${qs}` : '/';
+}
+
+// Tabs are navigation, so they're the text-link idiom dressed as a ruled tab
+// strip (design-system: hairline rules, small-caps, no SaaS pills). The active
+// tab carries a drawn ink underline as its resting state; the inactive one is
+// muted with a hover→accent shift. Both carry the focus-visible ink ring and
+// cursor-pointer (the four interactive-affordance obligations, #129/#136).
+const base =
+	'inline-flex items-baseline gap-1.5 border-b-2 px-1 pb-2 font-sans text-[0.7rem] uppercase tracking-[0.2em] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink';
+const on = `${base} border-ink text-ink`;
+const off = `${base} border-transparent text-muted hover:text-accent`;
+const tally = 'font-sans text-[0.6rem] tracking-wider text-muted';
+---
+
+<nav aria-label="Feed tabs" class="mb-6 flex items-center gap-6 border-b border-rule">
+	<a
+		href={hrefFor('unread')}
+		class={active === 'unread' ? on : off}
+		aria-current={active === 'unread' ? 'page' : undefined}
+	>
+		Unread
+		<span class={tally}>{unreadCount}</span>
+	</a>
+	<a
+		href={hrefFor('read')}
+		class={active === 'read' ? on : off}
+		aria-current={active === 'read' ? 'page' : undefined}
+	>
+		Read
+		<span class={tally}>{readCount}</span>
+	</a>
+</nav>
