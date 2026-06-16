@@ -119,10 +119,12 @@ refuses to run as root).
   `/resume` inside to pick up the prior one; `docker cp` to salvage files).
 - **First-run UX + surface identity**: the entrypoint pre-seeds
   `~/.claude.json` (onboarding + bypass-permissions + /workspace trust
-  accepted) so sessions drop straight in authenticated by
-  `CLAUDE_CODE_OAUTH_TOKEN`, and writes a container-scoped
-  `~/.claude/CLAUDE.md` telling each session it's in this container (no
-  mise, PR-only path to prod, backlog = gh issues).
+  accepted) for Claude and `~/.codex/config.toml`
+  (`[projects."/workspace"].trust_level = "trusted"`) for Codex, so sessions
+  drop straight into the coding UI with repo-local guidance loaded. It also
+  writes container-scoped global instructions (`~/.claude/CLAUDE.md` or
+  `~/.codex/AGENTS.md`) telling each session it's in this container (no mise,
+  PR-only path to prod, backlog = gh issues).
 - **Model quirk under setup-token auth**: the session bills the Max
   subscription ("inference-only" limits capability scope, not billing), but
   entitlement metadata under-reports — the /model picker omits Fable and

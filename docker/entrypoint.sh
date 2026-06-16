@@ -43,11 +43,16 @@ if [ "$AGENT_KIND" = "codex" ]; then
 	# defaults to ~/.codex. Seed the model + reasoning effort; bin/codex also
 	# passes both as flags — the reliable source of truth, since config.toml
 	# effort can be ignored on a fresh launch (openai/codex#17436) — but the file
-	# documents the pin and covers any path that reads it. CODEX_MODEL is
-	# forwarded by bin/codex; reseeded each start so an updated pin propagates.
+	# documents the pin and covers any path that reads it. Also mark the fresh
+	# clone at /workspace trusted so Codex loads repo-local guidance immediately
+	# instead of stopping on the first-run trust UI.
 	mkdir -p "$HOME/.codex"
-	printf 'model = "%s"\nmodel_reasoning_effort = "xhigh"\n' "${CODEX_MODEL:-gpt-5.5}" \
-		> "$HOME/.codex/config.toml"
+	{
+		printf 'model = "%s"\n' "${CODEX_MODEL:-gpt-5.5}"
+		printf 'model_reasoning_effort = "xhigh"\n\n'
+		printf '[projects."/workspace"]\n'
+		printf 'trust_level = "trusted"\n'
+	} > "$HOME/.codex/config.toml"
 	# Auth. Primary: the host's `codex login` credential (OAuth against the
 	# ChatGPT plan — billed to the subscription, no per-token API charge),
 	# injected base64-encoded by bin/codex because auth.json is multi-line JSON

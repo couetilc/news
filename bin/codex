@@ -41,6 +41,11 @@ if [ -f "$CODEX_AUTH_FILE" ]; then
 	AGENT_ENV+=(-e CODEX_AUTH_B64)
 fi
 
+agent_append_env_args() {
+	# shellcheck disable=SC2154  # docker_args is local to agent_launch; Bash dynamic scoping makes it visible here.
+	docker_args+=("${AGENT_ENV[@]}")
+}
+
 # A real launch needs a credential: the injected subscription auth above, or an
 # OPENAI_API_KEY fallback in .env. (--shell skips this — see common script.)
 agent_auth_preflight() {
