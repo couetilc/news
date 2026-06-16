@@ -38,9 +38,22 @@ describe('session helpers', () => {
 		expect(SESSION_USER_KEY).toBe('userId');
 	});
 
-	it('reads AUTH_PEPPER from env, defaulting to empty string', () => {
+	it('reads AUTH_PEPPER from env; allows an empty pepper only outside production', () => {
+		// Default isProduction = import.meta.env.PROD, false under the test runner,
+		// so the no-arg calls exercise the dev/test path where an empty pepper is OK.
 		expect(getPepper({ AUTH_PEPPER: 'p' })).toBe('p');
 		expect(getPepper({})).toBe('');
+		// Explicit non-prod: an absent pepper is still fine.
+		expect(getPepper({}, false)).toBe('');
+	});
+
+	it('fails closed in production when AUTH_PEPPER is missing or empty (#189)', () => {
+		// In production the pepper is the compensating control for PBKDF2-100k, so a
+		// deploy without it must refuse rather than store/accept unpeppered hashes.
+		expect(() => getPepper({}, true)).toThrow(/AUTH_PEPPER is required in production/);
+		expect(() => getPepper({ AUTH_PEPPER: '' }, true)).toThrow(/AUTH_PEPPER is required/);
+		// A configured pepper is returned in production as normal.
+		expect(getPepper({ AUTH_PEPPER: 'p' }, true)).toBe('p');
 	});
 
 	it('resolves the signup allowlist from AUTH_ALLOWED_EMAILS (issue #76)', () => {

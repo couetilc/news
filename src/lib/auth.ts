@@ -19,8 +19,10 @@
 // OWASP's 2023 PBKDF2-SHA256 guidance (600k), so the PEPPER is the compensating
 // control: a server-side secret (`AUTH_PEPPER`, a Worker secret, never in the DB)
 // prepended to the password before derivation, so a stolen database ALONE can't
-// be brute-forced offline at any iteration count. Absent a configured pepper it's
-// the empty string. This is exactly #125's design.
+// be brute-forced offline at any iteration count. It is REQUIRED in production:
+// getPepper (src/lib/session.ts) fails signup/login closed when AUTH_PEPPER is
+// absent or empty (#189), so a prod deploy can't silently run unpeppered; only
+// dev/test may use an empty pepper. This is exactly #125's design.
 //
 // VERIFY is CONSTANT-TIME: recompute the digest with the record's own salt and
 // iteration count, then compare the raw bytes with a constant-time equality (no

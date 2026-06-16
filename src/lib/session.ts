@@ -29,12 +29,30 @@ export async function establishSession(
 	session.set(SESSION_USER_KEY, userId);
 }
 
-// The optional password pepper, a Worker secret (never in the DB or .env). Read
-// off the Cloudflare env; absent locally unless set in .dev.vars. Hashing works
-// without it — it's an extra mitigation against offline brute-force of a stolen
-// database. Centralized here so routes don't each reach into env.
-export function getPepper(env: { AUTH_PEPPER?: string }): string {
-	return env.AUTH_PEPPER ?? '';
+// The password pepper, a Worker secret (never in the DB or .env). Read off the
+// Cloudflare env; set via `wrangler secret put AUTH_PEPPER` (`.dev.vars`
+// locally). Centralized here so routes don't each reach into env.
+//
+// FAIL CLOSED IN PRODUCTION (#189). src/lib/auth.ts documents the pepper as the
+// compensating control for PBKDF2-100k (the Workers hard cap, below OWASP
+// guidance). A prod deploy missing the secret would otherwise silently store and
+// accept UNPEPPERED hashes — so when the pepper is absent or empty we refuse,
+// failing signup/login closed rather than running without the control. Dev and
+// test (`import.meta.env.PROD === false`) still allow an empty pepper for
+// ergonomics. `isProduction` is a parameter (defaulting to the build-time flag)
+// so both branches are unit-testable — the suite always runs non-prod.
+export function getPepper(
+	env: { AUTH_PEPPER?: string },
+	isProduction: boolean = import.meta.env.PROD,
+): string {
+	const pepper = env.AUTH_PEPPER ?? '';
+	if (isProduction && pepper === '') {
+		throw new Error(
+			'AUTH_PEPPER is required in production: it is the compensating control for ' +
+				'PBKDF2-100k (see src/lib/auth.ts). Set it with `wrangler secret put AUTH_PEPPER`.',
+		);
+	}
+	return pepper;
 }
 
 // The signup allowlist (issue #76): this is a single-user tool, so only these
