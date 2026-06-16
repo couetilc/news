@@ -32,18 +32,35 @@ const isRead = interactive && item.read_at !== null;
 const row = isRead
 	? 'flex items-baseline gap-3 border-b border-rule py-2.5 opacity-55'
 	: 'flex items-baseline gap-3 border-b border-rule py-2.5';
+// The read/unread square is a binary-state control (#132): it owes the four
+// interactive-affordance obligations (#129). Resting affordance = the ruled
+// square itself (empty border-rule off / filled border-ink bg-ink + ✓ on);
+// hover firms the border; both variants now also carry cursor-pointer and the
+// ink focus-visible ring so a keyboard reader can see which square is focused.
+const squareBase =
+	'mt-0.5 grid size-4 shrink-0 cursor-pointer place-items-center border text-[0.6rem] leading-none transition-opacity duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink disabled:cursor-default disabled:opacity-50';
 const square = isRead
-	? 'mt-0.5 grid size-4 shrink-0 place-items-center border border-ink bg-ink text-[0.6rem] leading-none text-paper'
-	: 'mt-0.5 grid size-4 shrink-0 place-items-center border border-rule text-[0.6rem] leading-none text-transparent hover:border-ink';
+	? `${squareBase} border-ink bg-ink text-paper`
+	: `${squareBase} border-rule text-transparent hover:border-ink`;
 const label = isRead ? 'Mark as unread' : 'Mark as read';
 const nextState = isRead ? '0' : '1';
 ---
 
 <li class={row} transition:name={`item-${item.id}`}>
 	<div class="min-w-0 flex-1">
-		<a href={item.url} class="group block">
+		{/* Headline link — the text-link idiom (#129/#131). Resting affordance: per
+		    the design-system call, a permanent underline reads heavy on a dense
+		    digest, so the underline stays reserved for hover/focus-visible and the
+		    layout carries the resting cue — the row is a single tap target and the
+		    link is its only serif headline. It still owes the four obligations: the
+		    focus-visible ink ring (added here) gives keyboard readers a visible focus
+		    box, hover goes accent + underlined, and <a href> supplies cursor-pointer. */}
+		<a
+			href={item.url}
+			class="group block focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+		>
 			<h2
-				class="text-base font-semibold leading-snug tracking-tight decoration-from-font underline-offset-2 group-hover:text-accent group-hover:underline sm:text-lg"
+				class="text-base font-semibold leading-snug tracking-tight decoration-from-font underline-offset-2 group-hover:text-accent group-hover:underline group-focus-visible:text-accent group-focus-visible:underline sm:text-lg"
 			>
 				{item.title}
 			</h2>
@@ -59,10 +76,28 @@ const nextState = isRead ? '0' : '1';
 	</div>
 	{
 		interactive && (
-			<form method="POST" action="/api/read">
+			/* Read/unread toggle. Progressive enhancement (#96): with JS off this is a
+			   plain POST → 303 → reload (the source of truth); the server write is
+			   idempotent both ways (DELETE-where to unmark, INSERT…ON CONFLICT DO
+			   UPDATE to mark), so a double-POST is harmless even without the client
+			   guard. When JS is on, the inline script below disables the square on
+			   submit (double-submit defense, client layer) and reveals an in-voice
+			   "Working…" agate line where the result lands. */
+			<form method="POST" action="/api/read" class="flex items-baseline gap-2" data-read-form>
 				<input type="hidden" name="id" value={item.id} />
 				<input type="hidden" name="read" value={nextState} />
 				<input type="hidden" name="return" value={returnTo} />
+				{/* In-voice loading affordance (#96): italic agate "Working…", hidden at
+				    rest and revealed by the script while the toggle is in flight — never a
+				    SaaS spinner. aria-hidden until shown so it isn't announced at rest. */}
+				<span
+					data-read-working
+					hidden
+					aria-hidden="true"
+					class="font-sans text-[0.6rem] italic uppercase tracking-wider text-muted"
+				>
+					Working…
+				</span>
 				<button type="submit" class={square} aria-label={label}>
 					✓
 				</button>
@@ -70,3 +105,33 @@ const nextState = isRead ? '0' : '1';
 		)
 	}
 </li>
+
+{/* Read/unread toggle enhancement (#96), progressive: the no-JS POST → 303 →
+   reload is the source of truth (and the /api/read write is idempotent), so this
+   only LAYERS feedback on top when JS runs. On submit it disables the square so a
+   second click can't double-POST (client layer of the double-submit defense),
+   marks it aria-busy, and reveals the in-voice "Working…" agate line. The form
+   then either does a full-page navigation (JS-on-but-no-ClientRouter) or is
+   swapped by <ClientRouter />; either way the toggled row re-renders fresh from
+   the server, which is the completion confirmation. This client script is built
+   by Astro's client pipeline, not the SSR module graph the vitest coverage gate
+   sees, so it is exercised by the Playwright e2e (e2e/async-feedback.spec.ts),
+   not the 100% src/** istanbul gate. */}
+<script>
+	for (const form of document.querySelectorAll<HTMLFormElement>('form[data-read-form]')) {
+		form.addEventListener('submit', () => {
+			const button = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+			const working = form.querySelector<HTMLElement>('[data-read-working]');
+			if (button) {
+				// Disable immediately on activation (no flicker delay needed — the
+				// square has no label to swap, just goes busy + dimmed via :disabled).
+				button.disabled = true;
+				button.setAttribute('aria-busy', 'true');
+			}
+			if (working) {
+				working.hidden = false;
+				working.removeAttribute('aria-hidden');
+			}
+		});
+	}
+</script>

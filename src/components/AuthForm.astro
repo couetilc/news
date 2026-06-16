@@ -8,6 +8,10 @@ interface Props {
 	// "Sign in" / "Create account" — the heading and the submit button label.
 	heading: string;
 	submitLabel: string;
+	// The present-tense in-flight label the submit swaps to once JS disables it on
+	// submit (#96): "Creating account…" / "Signing in…". Server-side this is just
+	// inert markup; the client script below reads it off data-busy-label.
+	busyLabel: string;
 	// Validation/auth error to surface inline above the fields; null when none.
 	error: string | null;
 	// The email to pre-fill (empty on first render, the submitted value after a
@@ -19,7 +23,7 @@ interface Props {
 	alt: { href: string; prompt: string; label: string };
 }
 
-const { heading, submitLabel, error, email, alt } = Astro.props;
+const { heading, submitLabel, busyLabel, error, email, alt } = Astro.props;
 ---
 
 <section class="mx-auto max-w-sm py-6">
@@ -80,9 +84,18 @@ const { heading, submitLabel, error, email, alt } = Astro.props;
 			/>
 		</div>
 
+		{/* Submit — the action-button idiom (#129/#133): solid ink block (resting
+		    affordance), darkening on hover, plus the previously-missing cursor-pointer
+		    and ink focus-visible ring for keyboard a11y. The client script (#96) flips
+		    disabled + aria-busy and swaps the visible label to the present-tense
+		    data-busy-label on submit. With JS off the button stays enabled and reads
+		    {submitLabel}; a failed POST re-renders this form server-side with the
+		    original label intact, so nothing depends on the swap being reversible. */}
 		<button
 			type="submit"
-			class="w-full border border-ink bg-ink py-2 font-sans text-sm uppercase tracking-[0.2em] text-paper hover:bg-ink-soft"
+			data-auth-submit
+			data-busy-label={busyLabel}
+			class="w-full cursor-pointer border border-ink bg-ink py-2 font-sans text-sm uppercase tracking-[0.2em] text-paper hover:bg-ink-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink disabled:cursor-default disabled:opacity-60"
 		>
 			{submitLabel}
 		</button>
@@ -90,6 +103,41 @@ const { heading, submitLabel, error, email, alt } = Astro.props;
 
 	<p class="mt-5 text-center font-sans text-sm text-muted">
 		{alt.prompt}{' '}
-		<a href={alt.href} class="text-accent underline">{alt.label}</a>
+		{/* Alt link — text-link idiom (#129/#133). Reconciled per the convention:
+		    the accent is the INTERACTION color, not a resting decoration, so the link
+		    now rests in ink-soft with a hairline underline (its resting affordance)
+		    and goes accent on hover/focus. The form-level error block above keeps the
+		    accent as its alert key, unchanged. Added the ink focus-visible ring. */}
+		<a
+			href={alt.href}
+			class="text-ink-soft underline underline-offset-2 hover:text-accent focus-visible:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+		>
+			{alt.label}
+		</a>
 	</p>
 </section>
+
+{/* Auth submit enhancement (#96), progressive: the no-JS POST → 303 (success) /
+   re-render-with-error (failure) path is the source of truth, and the server is
+   the double-submit defense (the users.email UNIQUE constraint makes a duplicate
+   signup safe, and a duplicate login is harmless). This LAYERS in-flight feedback
+   on top when JS runs: on submit it disables the button (client layer of the
+   double-submit defense), marks it aria-busy, and swaps the label to the
+   present-tense busy label so the reader sees the click registered. Completion is
+   confirmed by the redirect to the unlocked homepage; a failure re-renders this
+   form server-side with the inline role="alert" error (no toast, no silent
+   failure). Built by Astro's client pipeline, not the SSR module graph the vitest
+   gate sees — covered by the Playwright e2e, not the istanbul gate. */}
+<script>
+	for (const button of document.querySelectorAll<HTMLButtonElement>('button[data-auth-submit]')) {
+		const form = button.closest('form');
+		form?.addEventListener('submit', () => {
+			button.disabled = true;
+			button.setAttribute('aria-busy', 'true');
+			const busy = button.dataset.busyLabel;
+			if (busy) {
+				button.textContent = busy;
+			}
+		});
+	}
+</script>

@@ -34,6 +34,36 @@ describe('Article component', () => {
 		expect(html).toContain('name="return" value="/"');
 	});
 
+	it('headline link carries the interactive-affordance obligations (#131)', async () => {
+		// The headline is a text-link: focus-visible ring (keyboard a11y) on the <a>,
+		// and the hover/focus underline+accent on the <h2>. The resting cue is layout
+		// (single tap target / only serif headline), so no permanent underline.
+		const html = await render({ item: row() });
+		expect(html).toContain('focus-visible:outline-ink');
+		expect(html).toContain('group-hover:underline');
+		expect(html).toContain('group-focus-visible:underline');
+		expect(html).toContain('group-focus-visible:text-accent');
+	});
+
+	it('read/unread square carries focus-visible + cursor-pointer (#132) and the async hooks (#96)', async () => {
+		// The binary-state square owes focus-visible + cursor-pointer (#132). The
+		// disabled:* utilities + the data-read-form / Working… affordance are the
+		// async-feedback enhancement (#96); the client script that drives them is
+		// e2e-tested, but the markup hooks are pinned here.
+		const unread = await render({ item: row() });
+		expect(unread).toContain('cursor-pointer');
+		expect(unread).toContain('focus-visible:outline-ink');
+		expect(unread).toContain('disabled:opacity-50');
+		expect(unread).toContain('data-read-form');
+		expect(unread).toContain('data-read-working');
+		expect(unread).toContain('Working…');
+		// Both square variants (read + unread) get the affordances.
+		const read = await render({ item: row({ read_at: 4000 }) });
+		expect(read).toContain('cursor-pointer');
+		expect(read).toContain('focus-visible:outline-ink');
+		expect(read).toContain('aria-label="Mark as unread"');
+	});
+
 	it('carries the current view as the toggle\'s return target (#80)', async () => {
 		// The homepage passes its current path+query so flipping this item lands
 		// the reader back on the same filtered/paginated view (validated server-side).
