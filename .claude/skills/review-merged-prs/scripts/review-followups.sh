@@ -10,8 +10,8 @@ usage() {
   cat <<'USAGE'
 Usage: review-followups.sh [--repo OWNER/REPO] [--label NAME] [--state STATE] [--json]
 
-List post-merge review finding-issues (label "agent-review" by default) so a
-follow-up agent can pick them up. Defaults to open issues.
+List review finding-issues (label "agent-review" by default) so a follow-up
+agent can pick them up. Defaults to open issues.
 USAGE
 }
 

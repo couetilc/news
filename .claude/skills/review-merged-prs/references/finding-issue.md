@@ -1,15 +1,19 @@
 # Finding-Issue Format
 
-Actionable findings from a post-merge review become **GitHub issues**, not
-entries in a committed file. The backlog is the single source of truth (see the
-`filing-issues` skill). File one issue per actionable finding.
+Actionable findings from any in-context PR review — open or merged — become
+**GitHub issues**, not PR comments, PR reviews, or entries in a committed file.
+The backlog is the single source of truth (see the `filing-issues` skill). File
+one issue per actionable finding.
 
 ## When to file
 
 File an issue only for an **actionable** finding: a concrete bug, regression, or
 operational risk with a file/line and a user-visible or operational impact. Do
-not file for style nits or to restate the PR summary. A clean review files no
-issue — the `agent-reviewed` label on the PR records that the review happened.
+not file for style nits or to restate the PR summary. If an existing issue
+already covers the finding, add the PR-specific context as an **issue comment**
+instead of opening a duplicate. Do not use a PR comment as the finding record. A
+clean merged-PR review files no issue — the `agent-reviewed` label on the PR
+records that the review happened.
 
 ## Issue template
 
@@ -17,9 +21,10 @@ Title: `<Severity>: <short description> (PR #N)`
 
 Body (markdown):
 
-    Found in a post-merge review of PR #N (<pr-url>), merged at `<ISO_TIMESTAMP>`.
+    Found in an in-context review of PR #N (<pr-url>).
 
     - Severity: `High` | `Medium` | `Low`
+    - PR state: `Open as of <ISO_TIMESTAMP>` | `Merged at <ISO_TIMESTAMP>`
     - Location: `path/to/file.ts:line`
     - Reviewer model: `<model type, e.g. GPT-5 Codex / Claude Opus>`
 
@@ -52,12 +57,13 @@ Apply via `gh issue create --label ...`:
 
 ## Marking the PR reviewed
 
-After filing any finding-issues (or none), tag the PR so the detector stops
-surfacing it:
+For merged PRs, after filing any finding-issues (or none), tag the PR so the
+detector stops surfacing it:
 
 ```bash
 gh pr edit <N> --add-label agent-reviewed
 ```
 
 A merged PR counts as reviewed once it carries `agent-reviewed`, independent of
-whether its finding-issues are still open.
+whether its finding-issues are still open. Do not apply `agent-reviewed` to open
+PRs.
