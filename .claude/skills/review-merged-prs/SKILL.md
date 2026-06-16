@@ -61,21 +61,25 @@ reached through the `.codex/skills` symlink, so an agent that reads skills from
    `npm test` and `npm run build` for source changes. For external feed/source
    PRs, also do a live shape spot-check when safe; keep tests hermetic, but
    quantify live shape/backfill risk in the review notes.
-7. **File an issue for each actionable finding**, following
+7. **Evaluate the PR's test quality**, not just that coverage is green (CI
+   already gates that). Read the diff's tests against "Evaluating test quality"
+   below; a thin-coverage gap is an actionable finding, filed as a test-scenario
+   issue in the same pass as correctness findings.
+8. **File an issue for each actionable finding**, following
    `references/finding-issue.md` (a `agent-review` label plus the usual type/area
    labels; reference the source `PR #N` in the body). Search existing issues
    first. If an existing issue already covers the finding, add a comment with
    the PR-specific context to that issue instead of filing a duplicate. Do not
    post the finding as a PR comment or PR review. If there are no actionable
    findings, file nothing.
-8. **Mark the merged PR reviewed** regardless of outcome:
+9. **Mark the merged PR reviewed** regardless of outcome:
 
    ```bash
    gh pr edit <N> --add-label agent-reviewed
    ```
 
-9. Run the detector once. If clean, restart the watch loop. Stop running watch
-   sessions before final responses or workflow changes.
+10. Run the detector once. If clean, restart the watch loop. Stop running watch
+    sessions before final responses or workflow changes.
 
 ## Open PR Reviews
 
@@ -89,12 +93,42 @@ Do not apply `agent-reviewed` to open PRs; that label is only the merged-PR
 detector's marker. For open PRs, report the issue URLs to the user and hold or
 merge according to the normal review tier.
 
+## Evaluating test quality
+
+A PR can sit at 100% coverage and still test nothing — the gate proves lines
+*ran*, not that anything was *asserted*. Judge the diff's tests against the
+`testing` skill's bar ("assert behavior, never just cover"); the gap is the
+finding, not the coverage number. Look for:
+
+- **Cover-without-assert** — `toBeDefined` / `not.toThrow` / `toBeTruthy` on a
+  value with a knowable exact shape; a snapshot that never reads a field; a
+  branch whose asserted value is identical on both sides (invert it and the test
+  still passes). The test is padding the gate, not pinning a contract.
+- **Untested edges** — only the happy path, no empty / zero / off-by-one /
+  `null` / malformed-input case. For an `src/ingest/parse/**` parser of untrusted
+  input, the robustness contract (returns a well-formed `ParsedItem[]` or throws
+  *only* the documented `"not a … feed"` guard — never a raw
+  `TypeError`/`RangeError`, never hangs) must be exercised.
+- **No regression test for the bug the PR fixed** — a bug-fix PR that lands
+  without a test reproducing the bug will silently regress. That missing test is
+  itself the finding.
+
+When you find a gap, **file a test-scenario issue** so it's pick-up-able work,
+not a comment that scrolls away — the same route correctness findings take.
+Name the **file + function**, the **scenario** (the input/edge), and the
+**assertion** that would catch the bug, so an implementer can write it without
+re-deriving the PR. Follow the test-scenario shape in
+`references/finding-issue.md`; label it `agent-review` plus `testing` and
+`bug`/`enhancement` per the `filing-issues` skill. Search first — augment an
+existing covering issue rather than duplicating.
+
 ## What counts as a finding
 
-File issues only for **actionable** findings — a concrete bug, regression, or
-operational risk, with file:line and user-visible or operational impact. Use
-`High` / `Medium` / `Low` severity in the issue body. Don't file issues for style
-nits or to restate the PR summary. For merged PRs, when a review is clean, the
+File issues only for **actionable** findings — a concrete bug, regression,
+operational risk, or **test-quality gap** (above), with file:line and a
+user-visible, operational, or coverage-credibility impact. Use `High` / `Medium`
+/ `Low` severity in the issue body. Don't file issues for style nits or to
+restate the PR summary. For merged PRs, when a review is clean, the
 `agent-reviewed` label alone records that it happened; for open PRs, simply
 report that no actionable findings were found.
 

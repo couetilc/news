@@ -7,13 +7,15 @@ one issue per actionable finding.
 
 ## When to file
 
-File an issue only for an **actionable** finding: a concrete bug, regression, or
-operational risk with a file/line and a user-visible or operational impact. Do
-not file for style nits or to restate the PR summary. If an existing issue
-already covers the finding, add the PR-specific context as an **issue comment**
-instead of opening a duplicate. Do not use a PR comment as the finding record. A
-clean merged-PR review files no issue — the `agent-reviewed` label on the PR
-records that the review happened.
+File an issue only for an **actionable** finding: a concrete bug, regression,
+operational risk, or **test-quality gap** (a thin or missing test the review
+caught — see the skill's "Evaluating test quality") with a file/line and a
+user-visible, operational, or coverage-credibility impact. Do not file for style
+nits or to restate the PR summary. If an existing issue already covers the
+finding, add the PR-specific context as an **issue comment** instead of opening a
+duplicate. Do not use a PR comment as the finding record. A clean merged-PR
+review files no issue — the `agent-reviewed` label on the PR records that the
+review happened.
 
 ## Issue template
 
@@ -39,6 +41,27 @@ Body (markdown):
     ## Validation
     Commands run and their results during review. Note anything relevant that was
     not run (e.g. a live-feed assumption that could not be reproduced).
+
+## Test-scenario issue (test-quality gap)
+
+For a thin or missing test, keep the same title/header block but make the body a
+ready-to-implement test spec, not a bug report:
+
+    ## Gap
+    Why the current test doesn't prove the behavior — cover-without-assert, an
+    untested edge, or no regression test for the bug this PR fixed.
+
+    ## Scenario to add
+    - File + function: `test/…` testing `src/…#fn`
+    - Input / edge: the exact case (empty / zero / off-by-one / `null` /
+      malformed / the bug's reproduction)
+    - Assertion: the exact observable result that would fail today and catch the
+      regression — not `toBeDefined`.
+    - Project: `workers` or `node` (per the `testing` skill).
+
+Label `agent-review` + `testing` + `bug` (a regression-test gap) or
+`enhancement` (a missing edge/scenario). Severity is the blast radius of the
+*untested* behavior, not the test itself.
 
 ## Labels
 
