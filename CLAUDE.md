@@ -3,8 +3,10 @@
 ## What this is
 
 A personal, single-user news aggregator for Connor (GitHub: couetilc), served at
-https://news.cuteteal.com on Cloudflare Workers. Currently a hello-world Astro
-skeleton; every change should move it toward being a useful news aggregator.
+https://news.cuteteal.com on Cloudflare Workers. It ingests feeds into D1 and
+serves a per-user read/unread digest behind email+password auth (public
+read-only feed for anonymous visitors); keep moving it toward a more capable
+aggregator.
 
 ## Stack and architectural decisions
 
