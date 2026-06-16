@@ -19,15 +19,26 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
 	const form = await request.formData();
 	const id = Number(form.get('id'));
 	const readAt = form.get('read') === '1' ? Math.floor(Date.now() / 1000) : null;
+	const target = safeReturnPath(form.get('return'));
 	// Read state is per-user (issue #70): scope the write to the session user the
 	// middleware put on locals, so a toggle only ever mutates the current user's
 	// row. The auth guard gates this route, so locals.userId is set for every
 	// request that gets here; `?? 0` is a typed fallback that can't match a real
 	// user, never reached in practice.
 	const userId = locals.userId ?? 0;
+	// Reject a missing/non-integer id before touching the DB (#140). Real item
+	// ids are positive INTEGER PRIMARY KEYs; a forged or stale POST carrying junk
+	// (empty, NaN, a float, a negative) has nothing legitimate to toggle, so it's
+	// a no-op that just redirects back — never a write. setItemRead also sources
+	// its mark-read INSERT from `items WHERE id = ?` as a second guard, so even a
+	// well-formed id for a nonexistent item inserts no orphan row.
+	if (!Number.isInteger(id) || id <= 0) {
+		log.info('read.reject', { userId, read: readAt !== null });
+		return redirect(target, 303);
+	}
 	await setItemRead(env.NEWS_DB, userId, id, readAt);
 	// The only request-path mutation worth a log line; page views are too
 	// high-volume to log per-hit (see the cloudflare-observability skill).
 	log.info('read.toggle', { userId, id, read: readAt !== null });
-	return redirect(safeReturnPath(form.get('return')), 303);
+	return redirect(target, 303);
 };

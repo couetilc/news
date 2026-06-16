@@ -10,10 +10,11 @@
 -- INSERT ... ON CONFLICT and gives the per-user lookups their index for free.
 --
 -- Backfill decision: START FRESH — do NOT copy the old global items.read_at into
--- any user's rows. Production has zero users today (the users table from #0003 is
--- empty; this work lands before a second account is created, per #70), so there
--- is no "first user" whose history the global column represents — backfilling
--- would be guessing an owner. The legacy items.read_at column is intentionally
+-- any user's rows. This assumed production had zero users — but it was WRONG:
+-- production already had one account with legacy read marks, so this empty-start
+-- silently regressed those items to unread. 0005_backfill_item_reads.sql is the
+-- repair (it copies the legacy marks to the sole user); do NOT rely on the
+-- "zero users" assumption below. The legacy items.read_at column is intentionally
 -- left in place: the public read-only feed (#49) still SELECTs it via listItems()
 -- (and renders everything as unread regardless), so dropping it is out of scope
 -- here; it is simply no longer the source of truth for a logged-in reader.

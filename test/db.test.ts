@@ -356,6 +356,41 @@ describe('setItemRead', () => {
 		const read = await listItemsByRead(db, { userId: USER, read: true, limit: 10, offset: 0 });
 		expect(read.map((r) => r.read_at)).toEqual([2000]);
 	});
+
+	// #140: a forged/stale POST for an item that doesn't exist must NOT persist an
+	// orphan item_reads row. The mark-read INSERT is sourced from `items WHERE
+	// id = ?`, so a nonexistent id selects zero rows and inserts nothing.
+	it('inserts no read row when marking a nonexistent item read', async () => {
+		const NONEXISTENT = 999999;
+		expect(await listItems(db, 100)).toEqual([]); // sanity: no such item
+
+		await setItemRead(db, USER, NONEXISTENT, 5000);
+
+		const orphan = await db
+			.prepare('SELECT COUNT(*) AS n FROM item_reads WHERE item_id = ?')
+			.bind(NONEXISTENT)
+			.first<number>('n');
+		expect(orphan).toBe(0);
+		expect(await countItemsByRead(db, { userId: USER, read: true })).toBe(0);
+	});
+
+	it('a bogus toggle cannot pre-mark a future item that later reuses that id (#140)', async () => {
+		// Mark a never-existing id read, then materialize an item AT that id (a
+		// later feed item reusing it). Pre-#140 the bogus toggle left an orphan row
+		// that would instantly mark the new item read; now it wrote nothing.
+		const futureId = 4242;
+		await setItemRead(db, USER, futureId, 5000);
+		await db
+			.prepare('INSERT INTO items (id, source, guid, url, title, fetched_at) VALUES (?, ?, ?, ?, ?, ?)')
+			.bind(futureId, 's', 'future', 'https://e.com/f', 'Future', 200)
+			.run();
+
+		// The freshly created item reads as unread for USER — no leftover row.
+		const read = await listItemsByRead(db, { userId: USER, read: true, limit: 10, offset: 0 });
+		expect(read.map((r) => r.id)).not.toContain(futureId);
+		const unread = await listItemsByRead(db, { userId: USER, read: false, limit: 50, offset: 0 });
+		expect(unread.map((r) => r.id)).toContain(futureId);
+	});
 });
 
 // The core of issue #70: read state is scoped per-user, so two accounts never
