@@ -15,12 +15,11 @@ The north star is the newspaper **news-in-brief digest** — the *Wall Street
 Journal* "What's News" rail, the *NYT* morning-briefing agate column. Its whole
 job is ours: compress a long chronological list of stories into a **dense,
 scannable, single serif column**, broken into a few labeled sections by hairline
-rules. Two consequences fall out of that and should guide every layout call:
+rules. Two consequences guide every layout call:
 
 - **One column, top-to-bottom = chronological.** Reading order *is* time order.
-  We deliberately dropped the old CSS multi-column flow because it snaked items
-  across columns, so "newest" wasn't "top-left." Don't reintroduce horizontal
-  chronology.
+  No CSS multi-column flow — it snakes items across columns, so "newest" isn't
+  "top-left." Don't introduce horizontal chronology.
 - **Density is the point.** Small headlines, tight leading, an inline agate
   dateline, hairline separators — pack many items per screen without losing the
   newsprint feel. Favor a ruled line over an airy block; favor a compact
@@ -43,20 +42,18 @@ rules. Two consequences fall out of that and should guide every layout call:
    rounded pill buttons, no gradients-as-decoration, no bright accent UI. **But
    this is a paper you *use*, not just read:** controls that *do something* when
    clicked (links, action buttons, toggles) must be visibly distinguishable from
-   static text — newsprint that announces it's interactive, not a flat scan of a
-   printed page where the only way to find a control is to hover and hope. Print
-   fidelity and discoverability are both required; when they tension, resolve it
-   in voice (a ruled treatment, an underline, the accent on interaction — see
-   **Interactive affordances** below), never by hiding the affordance. Functional
-   controls still stay in voice: the read/unread toggle is a small ruled square,
-   not a colored button — but it *reads as* a control at rest, not as a dateline
-   glyph. When in doubt, ask both "would this look at home in print?" *and* "can a
-   reader tell this is clickable without touching it?"
+   static text. Print fidelity and discoverability are both required; when they
+   tension, resolve it in voice (a ruled treatment, an underline, the accent on
+   interaction — see **Interactive affordances** below), never by hiding the
+   affordance. Functional controls still stay in voice: the read/unread toggle is
+   a small ruled square, not a colored button — but it *reads as* a control at
+   rest, not as a dateline glyph. When in doubt, ask both "would this look at home
+   in print?" *and* "can a reader tell this is clickable without touching it?"
 
 ## How Tailwind is wired in
 
-Tailwind CSS **v4** via the Vite plugin (`@tailwindcss/vite`) — there is no
-`@astrojs/tailwind` integration and no `tailwind.config.js`. Everything is
+Tailwind CSS **v4** via the Vite plugin (`@tailwindcss/vite`) — no
+`@astrojs/tailwind` integration, no `tailwind.config.js`. Everything is
 configured in CSS.
 
 - `astro.config.mjs` registers `tailwindcss()` under `vite.plugins`. This is the
@@ -89,11 +86,10 @@ token into utilities automatically — use the utility, don't hardcode the hex.
 | `--font-sans` | system sans stack | `font-sans` | datelines, metadata, UI chrome |
 
 Type is **system fonts only** — no webfont fetch, so the page paints instantly
-and works offline. If a display masthead face (e.g. Playfair Display) is ever
-worth the bytes, swap `--font-headline` and document the trade-off here.
+and works offline.
 
-The accent red is for *emphasis only* (link hover, a future section header) —
-keep it rare so it stays loud.
+The accent red is for *emphasis only* (link hover, section heads) — keep it rare
+so it stays loud.
 
 ## Patterns
 
@@ -119,10 +115,10 @@ keep it rare so it stays loud.
   `opacity-55`, no other restyle). The toggle is a `size-4` ruled square — empty
   `border-rule` when unread, filled `border-ink bg-ink` with a `✓` when read —
   inside a `<form method="POST" action="/api/read">` so it works without JS
-  (POST → 303 → reload). Reuse this square idiom for future binary state; don't
-  reach for a colored pill. As a control it owes the four obligations in
-  **Interactive affordances** — resting ruled square, `hover:border-ink`,
-  `focus-visible` ring, `cursor-pointer`.
+  (POST → 303 → reload). Reuse this square idiom for binary state; don't reach for
+  a colored pill. As a control it owes the four obligations in **Interactive
+  affordances** — resting ruled square, `hover:border-ink`, `focus-visible` ring,
+  `cursor-pointer`.
 - **Datelines/metadata:** `font-sans`, small (`text-[0.65rem]`–`text-xs`),
   `uppercase`, letter-spaced (`tracking-wider`/`tracking-[0.3em]`),
   `text-muted`. This is the "set in small caps under the headline" newspaper
@@ -138,17 +134,17 @@ keep it rare so it stays loud.
 ## Interactive affordances: making controls *look* clickable
 
 This section is the "does it look clickable in the first place" half of
-interaction; **Asynchronous activity** below (#96) is the complementary "what
-happens *after* you click" half. Both stay in newsprint voice.
+interaction; **Asynchronous activity** below is the complementary "what happens
+*after* you click" half. Both stay in newsprint voice.
 
 A modern interactive newspaper (rule #3) has a standing problem a printout
 doesn't: a reader must be able to tell, *without touching anything*, which marks
-on the page are controls. The historical failure mode here is styling a control
-as plain metadata — the sign-out button was small-caps muted text, pixel-identical
-to a dateline, with **no resting affordance at all**; nothing said "button" until
-you happened to hover. That's the gap this convention closes: every actionable or
-navigational element carries a **resting** signal, plus matching `hover` **and**
-`focus-visible` states, all expressed with the existing tokens.
+on the page are controls. The failure mode is styling a control as plain
+metadata — small-caps muted text pixel-identical to a dateline, with no resting
+affordance, nothing saying "button" until you hover. The convention closes that
+gap: every actionable or navigational element carries a **resting** signal, plus
+matching `hover` **and** `focus-visible` states, all expressed with the existing
+tokens.
 
 ### The four obligations of any control
 
@@ -168,10 +164,10 @@ existing utilities — and non-negotiable for accessibility.
 3. **`focus-visible` state — keyboard a11y, non-negotiable.** Every control MUST
    show a clear focus ring when reached by keyboard, via the `focus-visible:`
    variant (not bare `focus:`, which also fires on mouse click and is noisy).
-   Use the existing ink tokens for the ring — `focus-visible:outline-2
+   Use the existing ink tokens — `focus-visible:outline-2
    focus-visible:outline-offset-2 focus-visible:outline-ink` — so it reads as a
    drawn rule, not a browser-default blue glow. A control with hover but no
-   visible focus is **broken for keyboard users**; this is the obligation most
+   visible focus is **broken for keyboard users**; it's the obligation most
    easily forgotten, so check it explicitly.
 4. **`cursor-pointer`.** The pointer becomes a hand over the control. Native
    `<a href>` does this for free; a `<button>` does **not** in Tailwind's reset,
@@ -186,19 +182,18 @@ Pick by *what the control does*, not by what tag is convenient.
   account? Sign in" link. Resting signal: a **hairline underline** in body ink,
   going **accent on hover** — `underline underline-offset-2 hover:text-accent`,
   plus the focus ring. Not blue, not bold-as-link. Headlines are the one place a
-  *resting* underline can feel heavy on a dense digest; if so, keep the underline
-  reserved for `hover`/`focus-visible` but compensate with another standing cue
-  (the row is a single tap target, the link is the row's only serif headline) —
-  the bar is still "a reader can tell the headline is a link," just met by layout
-  rather than a permanent rule.
+  *resting* underline can feel heavy on a dense digest; there it's fine to reserve
+  the underline for `hover`/`focus-visible` and let layout carry the resting cue
+  (the row is a single tap target, the link is the row's only serif headline). The
+  bar stays "a reader can tell the headline is a link," just met by layout rather
+  than a permanent rule.
 - **Action buttons (do something here).** Triggering an action that isn't pure
   navigation — Sign out, Create account, Sign in. Resting signal: a **drawn
   control** — either a solid ink block (`border border-ink bg-ink text-paper`,
   the primary submit) or a ruled outline (`border border-ink`, a secondary
   action). Hover darkens the fill (`hover:bg-ink-soft`); focus draws the ring;
   `cursor-pointer` always. A sign-out / session control is an *action button*,
-  **never** bare metadata text — that's the exact bug #128 fixes by moving Sign
-  out into the masthead as the first adopter of this convention.
+  **never** bare metadata text.
 - **Binary-state controls (toggle).** Flipping one piece of state in place — the
   read/unread square. Resting signal: the **ruled square** idiom — empty
   `border-rule` for the off state, filled `border-ink bg-ink` with a `✓` for on.
@@ -227,7 +222,7 @@ Pick by *what the control does*, not by what tag is convenient.
 ❌  control as metadata   <button class="font-sans text-[0.65rem] uppercase
                               tracking-[0.2em] text-muted hover:text-accent">Sign out</button>
         — no resting affordance, no focus ring, no cursor; identical to a dateline
-          until hovered. This is the anti-pattern (the old sign-out; #128).
+          until hovered. This is the anti-pattern.
 
 ❌  hover-only reveal      relying on group-hover/hover to first announce a control
         — invisible on touch, undiscoverable by scanning, broken for keyboard.
@@ -239,25 +234,23 @@ Pick by *what the control does*, not by what tag is convenient.
           always-on accent fill. The accent appears on interaction and stays rare.
 ```
 
-Keep the accent's role consistent: it's the **interaction** color (link/text
-hover) and the alert key — not a resting decoration. A control at rest is ink and
-rules; the accent arrives when the reader engages it. That restraint is what keeps
-the page reading as newsprint even as it announces every control.
+A control at rest is ink and rules; the accent (the **interaction** color and
+alert key, never a resting decoration) arrives when the reader engages it. That
+restraint keeps the page reading as newsprint even as it announces every control.
 
 ## Asynchronous activity: loading, disabling, and feedback
 
 Any time the UI starts work the reader has to wait on — a form submit, an
 in-flight request — it must say so, in voice. Silence reads as "broken": no
-spinner, no disabled button, no error is exactly how account signup felt
-unusable. Three obligations, layered so the no-JS contract still holds.
+spinner, no disabled button, no error makes the UI feel unusable. Three
+obligations, layered so the no-JS contract still holds.
 
 **Progressive enhancement is the rule.** Every form works with JavaScript off:
 the server validates and a full-page POST → 303 → reload is the source of truth
 (as the auth forms and the read/unread toggle already are). Loading states,
 disabled controls, and inline in-flight errors are *enhancements layered on top*
-when JS is present — never a prerequisite for the action to succeed. Build the
-no-JS version first, then enhance it; don't ship a control that only works with
-JS.
+when JS is present, never a prerequisite. Build the no-JS version first, then
+enhance it.
 
 1. **Loading state on every wait.**
    - A full-page POST navigation already gets the browser's native page-loading
@@ -302,9 +295,9 @@ or drop-shadowed toast. The accent stays loud by staying rare.
 ## Motion & animation
 
 Paper is static. Motion is the earned exception, not the default — the same
-restraint that governs the accent red governs movement. Before you animate
-anything, the bar is "would this look at home in print *coming to life*?", not
-"can I make this feel app-y?".
+restraint that governs the accent red governs movement. The bar before animating
+anything: "would this look at home in print *coming to life*?", not "can I make
+this feel app-y?".
 
 - **When — functional only, and rare.** Animate exactly three things: a **state
   transition** (a row settling into read, a control toggling), **feedback
@@ -315,26 +308,21 @@ anything, the bar is "would this look at home in print *coming to life*?", not
   cut it.
 - **Kind / duration / easing — subtle and fast.** ~150–200 ms, `ease-out`
   (decelerate into rest). Animate `opacity` and small `transform`s; avoid
-  animating layout (width/height/top) — it's both janky and loud. Nothing bouncy,
-  springy, or playful — no `cubic-bezier` overshoot, no `@keyframes` spin. This is
-  the agate/ruled restraint applied to time: a quiet fade, not a performance. The
-  150 ms here is the same threshold as the async section's "delay a visible
-  loading indicator ~150 ms" — instant responses shouldn't flash motion at all.
+  animating layout (width/height/top) — both janky and loud. Nothing bouncy,
+  springy, or playful — no `cubic-bezier` overshoot, no `@keyframes` spin. A quiet
+  fade, not a performance; instant responses shouldn't flash motion at all.
 - **CSS first, JS only as last resort.** Express motion with CSS
-  `transition`/`@keyframes`, consistent with the no-JS ethos and the
-  no-webfont/no-dependency precedent — motion should degrade as gracefully as the
-  rest of the page. Reach for JS only when CSS genuinely can't express it (e.g.
-  FLIP-measuring a reorder), and never make an animation a prerequisite for the
-  action: the no-JS POST → 303 → reload path stays the source of truth.
+  `transition`/`@keyframes` so it degrades as gracefully as the rest of the page.
+  Reach for JS only when CSS genuinely can't express it (e.g. FLIP-measuring a
+  reorder), and never make an animation a prerequisite for the action: the no-JS
+  POST → 303 → reload path stays the source of truth.
 - **Libraries — none.** No Framer Motion, no GSAP, no animation dependency,
-  mirroring the system-fonts/no-dependency stance. The one native candidate worth
-  a look is the **View Transitions API**, which Astro exposes via `<ClientRouter />`
-  (the old `<ViewTransitions />`) — native, zero bytes of library. **Recommendation:
-  don't adopt it yet.** It buys cross-page transitions we don't need (the digest is
-  one page; navigation is rare), it turns full-page POST → 303 reloads into
-  client-side swaps, which complicates the no-JS contract above, and any default
-  cross-fade reads as app-chrome, not newsprint. Revisit only if/when we have
-  genuinely multi-page reading flows — and if adopted, scope it to a deliberate,
+  mirroring the system-fonts/no-dependency stance. Don't adopt Astro's **View
+  Transitions API** (`<ClientRouter />`) either: it turns full-page POST → 303
+  reloads into client-side swaps, complicating the no-JS contract above, and its
+  default cross-fade reads as app-chrome, not newsprint — and the one-page digest
+  doesn't need cross-page transitions. If a multi-page reading flow ever makes it
+  worth revisiting, file an issue and scope it to a deliberate,
   reduced-motion-respecting fade, not the library's defaults.
 - **Reduced motion is non-negotiable.** Every animation MUST honor
   `prefers-reduced-motion: reduce` with an instant, no-motion fallback. The idiom:
@@ -353,11 +341,6 @@ anything, the bar is "would this look at home in print *coming to life*?", not
   effect can also gate itself (`motion-safe:`/`motion-reduce:` Tailwind variants).
   Either way the reduced-motion reader sees the *end state immediately* — same
   information, no movement.
-
-Tie this back to async feedback (#96): a busy control fades to its reduced
-`opacity` over ~150 ms and the "Working…" line eases in — a **gentle fade**, never
-a spinning SaaS spinner. The motion just confirms the click registered; the agate
-voice does the rest.
 
 ## Coverage gotcha
 
