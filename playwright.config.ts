@@ -40,15 +40,25 @@ export default defineConfig({
 			},
 		},
 	],
-	// Apply local D1 migrations and empty the `users` table once, before the run,
-	// so the first-signup path is deterministic (issue #124).
+	// Empty the `users` table once, before the run, so the first-signup path is
+	// deterministic (issue #124). Schema creation does NOT live here — it must
+	// happen before the webServer readiness probe (see the webServer command
+	// below), because Playwright starts the webServer and waits for its `url` to
+	// answer BEFORE globalSetup runs.
 	globalSetup: './e2e/global-setup.ts',
-	// Start the real app (astro dev on workerd) for the run. `astro dev` and
-	// `wrangler d1 execute NEWS_DB --local` share the same .wrangler/state/v3/d1
-	// persistence, so the globalSetup reset and the in-test assertions see the
-	// same database the browser writes to. Bind to 127.0.0.1 to match BASE_URL.
+	// Start the real app (astro dev on workerd) for the run. Apply the committed
+	// local D1 migrations FIRST, in the same command, so the schema exists before
+	// the `url` readiness probe below hits `/`. On a fresh local D1 `/` queries
+	// `items` and would otherwise 500 with "no such table: items", so the probe
+	// would never see a ready server and the whole run would time out before any
+	// spec — or even globalSetup — ran (issue #156). `wrangler d1 migrations apply
+	// --local` (what `db:migrate:local` runs) and `astro dev` (workerd via the
+	// Cloudflare Vite plugin) share the same .wrangler/state/v3/d1 persistence dir,
+	// so the schema this step creates is the same DB the dev server, the
+	// globalSetup reset, and the in-test assertions all see. Bind to 127.0.0.1 to
+	// match BASE_URL.
 	webServer: {
-		command: 'npm run dev -- --host 127.0.0.1',
+		command: 'npm run db:migrate:local && npm run dev -- --host 127.0.0.1',
 		url: BASE_URL,
 		reuseExistingServer: !process.env.CI,
 		timeout: 120_000,
