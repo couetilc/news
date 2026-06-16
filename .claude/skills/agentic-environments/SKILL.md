@@ -25,8 +25,8 @@ Key facts:
 
 - **Dispatch is NOT cloud execution.** It is remote *triggering* of a local
   session. If the Mac is asleep or the desktop app closed, Dispatch tasks
-  cannot run. Dispatch sessions inherit everything local: mise (node 24),
-  `.env` (auto-injected by mise), wrangler OAuth/token, SSH keys, gh keyring.
+  cannot run. Dispatch sessions inherit everything local: the host's node 24,
+  `.env`, wrangler OAuth/token, SSH keys, gh keyring.
 - **Cloud sessions are sandboxed.** The git client holds only a scoped
   credential; a GitHub proxy translates it outside the sandbox and restricts
   pushes to the current working branch. Sessions persist after you close the
@@ -58,15 +58,14 @@ The environment for this repo should be configured as:
 
 No setup script is needed: the VM preinstalls Node 20/21/22 via nvm and stock
 Node 22 satisfies our `engines` requirement (>=22.12.0); `npm ci` is handled by
-the repo's SessionStart hook (below). mise is NOT preinstalled in the VM and is
-not needed there.
+the repo's SessionStart hook (below).
 
 If Node version drift ever breaks the build in cloud sessions, paste this as
 the environment's setup script:
 
 ```bash
 #!/bin/bash
-# Best-effort: align cloud Node with mise.toml's pin; never block the session.
+# Best-effort: align cloud Node with the repo's node 24 pin; never block the session.
 export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" && nvm install 24 || true
 ```
 
@@ -96,7 +95,7 @@ repo-versioned).
 
 Local full-auto surface: runs `claude --dangerously-skip-permissions` inside
 Docker. `docker/Dockerfile` codifies the toolchain (node:24-slim matching
-mise.toml's pin, git, gh, gitleaks version-matched to the host, claude CLI,
+the repo's node pin, git, gh, gitleaks version-matched to the host, claude CLI,
 non-root `node` user — required because `--dangerously-skip-permissions`
 refuses to run as root).
 
@@ -121,7 +120,7 @@ refuses to run as root).
   (`[projects."/workspace"].trust_level = "trusted"`) for Codex, so sessions
   drop straight into the coding UI. It also writes container-scoped global
   instructions (`~/.claude/CLAUDE.md` or `~/.codex/AGENTS.md`) telling each
-  session it's in this container (no mise, PR-only path to prod, backlog = gh
+  session it's in this container (PR-only path to prod, backlog = gh
   issues).
 - **Model quirk under setup-token auth**: the session bills the Max
   subscription ("inference-only" limits capability scope, not billing), but
