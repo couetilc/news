@@ -43,7 +43,7 @@ const rows = [
 								<a
 									href={r.href}
 									title={r.full}
-									class="font-mono text-sm text-ink decoration-from-font underline-offset-2 hover:text-accent hover:underline"
+									class="font-mono text-sm text-ink underline decoration-from-font underline-offset-2 hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
 								>
 									{r.value}
 								</a>
@@ -66,7 +66,7 @@ const rows = [
 		<p class="mt-4 text-center font-sans text-xs">
 			<a
 				href={deploy.observabilityUrl}
-				class="text-muted decoration-from-font underline-offset-2 hover:text-accent hover:underline"
+				class="text-muted underline decoration-from-font underline-offset-2 hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
 				>Observability dashboard →</a
 			>
 		</p>
