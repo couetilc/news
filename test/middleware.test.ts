@@ -65,12 +65,32 @@ describe('auth middleware', () => {
 		expect(redirect).not.toHaveBeenCalled();
 	});
 
-	it('redirects an unauthenticated request to /login', async () => {
-		const { promise, redirect } = run('/', sessionWith(undefined));
+	it('redirects an unauthenticated request for a gated page to /login', async () => {
+		// A private page that is neither allowlisted nor the adaptive homepage.
+		const { promise, redirect } = run('/settings', sessionWith(undefined));
 		const res = await promise;
 		expect(redirect).toHaveBeenCalledWith('/login', 303);
 		expect(res.headers.get('Location')).toBe('/login');
 		expect(next).not.toHaveBeenCalled();
+	});
+
+	it('lets an anonymous request through to the session-adaptive homepage (#87)', async () => {
+		// `/` is no longer redirected to /login: it serves the public read-only
+		// feed to anonymous visitors. The guard passes it through *without* setting
+		// locals.userId, so the page takes its anonymous branch.
+		const { promise, redirect, locals } = run('/', sessionWith(undefined));
+		expect(await promise).toBe(NEXT);
+		expect(redirect).not.toHaveBeenCalled();
+		expect(next).toHaveBeenCalled();
+		expect(locals.userId).toBeUndefined();
+	});
+
+	it('lets an anonymous trailing-slash homepage through too', async () => {
+		// `/` has no slash to strip, but a defensive normalize check: the root is
+		// never reduced to an empty string, so it still matches the adaptive path.
+		const { promise, redirect } = run('/', undefined);
+		expect(await promise).toBe(NEXT);
+		expect(redirect).not.toHaveBeenCalled();
 	});
 
 	it('still guards a private trailing-slash path after normalizing', async () => {
@@ -112,9 +132,10 @@ describe('auth middleware', () => {
 		expect(locals.userId).toBe(42);
 	});
 
-	it('treats a missing session object the same as unauthenticated', async () => {
+	it('treats a missing session object the same as unauthenticated on a gated page', async () => {
 		// session is undefined (e.g. sessions misconfigured): no user → redirect.
-		const { promise, redirect } = run('/', undefined);
+		// Use a gated path; `/` would now pass through to its anonymous view (#87).
+		const { promise, redirect } = run('/settings', undefined);
 		await promise;
 		expect(redirect).toHaveBeenCalledWith('/login', 303);
 	});

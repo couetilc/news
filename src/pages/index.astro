@@ -1,16 +1,39 @@
 ---
 import { env } from 'cloudflare:workers';
-import { countItemsByRead, distinctSources, listItemsByRead } from '../ingest/db';
+import { countItemsByRead, distinctSources, listItems, listItemsByRead } from '../ingest/db';
 import Article from '../components/Article.astro';
 import FilterBar from '../components/FilterBar.astro';
 import Pager from '../components/Pager.astro';
 import Layout from '../layouts/Layout.astro';
 import { PAGE_SIZE, clampPage, offsetFor, parsePage } from '../lib/pagination';
 
+// The homepage is session-adaptive (issue #87): anonymous visitors get the
+// public read-only feed + a Log in link; logged-in visitors get their personal
+// feed (read/unread toggle, source filter, pagination). The auth middleware sets
+// locals.userId only for an authenticated request and lets an anonymous `/`
+// fall through with it unset, so its presence is the single source of truth for
+// which view to render. Branching here (not on the raw session) keeps the page's
+// auth read in the one typed place #70 established.
+const userId = Astro.locals.userId;
+const isAuthed = userId !== undefined;
+
+// ── Anonymous branch ────────────────────────────────────────────────────────
+// Reuse the exact read-only feed shape from /public (issue #49): the global
+// listItems() path (no per-user read state) rendered with interactive={false},
+// so no row carries a /api/read <form> the server would reject anyway. We do NOT
+// run the per-user listItemsByRead with a placeholder id — that's a different,
+// personal query; the public view is one plain chronological column.
+const publicItems = isAuthed ? [] : await listItems(env.NEWS_DB, 100);
+
+// ── Authenticated branch ────────────────────────────────────────────────────
+// The personal feed exactly as before (#41 filter, #39 pagination, #70 per-user
+// read state, #80 returnTo). All of this work is skipped for an anonymous
+// request, which never touches the per-user queries.
+
 // Sources actually present drive the filter bar. The ?source param (repeatable
 // for multi-select) is intersected with them, so an unknown or absent slug just
 // drops out — an empty result means "All", never a 500.
-const present = await distinctSources(env.NEWS_DB);
+const present = isAuthed ? await distinctSources(env.NEWS_DB) : [];
 const presentSet = new Set(present);
 const active = Astro.url.searchParams.getAll('source').filter((s) => presentSet.has(s));
 
@@ -28,33 +51,40 @@ const returnTo = `${Astro.url.pathname}${Astro.url.search}`;
 const unreadPage = parsePage(Astro.url.searchParams.get('unread'));
 const readPage = parsePage(Astro.url.searchParams.get('read'));
 
-// Read state is per-user (issue #70). The auth middleware sets locals.userId for
-// every request that reaches this gated page, so it's always present here; the
-// `?? 0` is a typed fallback that never fires in practice (0 matches no real
-// user, so the page degrades to "everything unread" rather than crashing if the
-// guard were ever bypassed). Every read-state query is scoped to this user.
-const userId = Astro.locals.userId ?? 0;
+// Read state is per-user (issue #70). On the authenticated branch userId is the
+// logged-in id from the middleware; on the anonymous branch this code path isn't
+// taken (the counts/lists below are guarded by isAuthed), so the `?? 0` is only a
+// typed fallback that never produces a real query here.
+const queryUser = userId ?? 0;
 
-const unreadTotal = await countItemsByRead(env.NEWS_DB, { userId, read: false, sources: active });
-const readTotal = await countItemsByRead(env.NEWS_DB, { userId, read: true, sources: active });
+const unreadTotal = isAuthed
+	? await countItemsByRead(env.NEWS_DB, { userId: queryUser, read: false, sources: active })
+	: 0;
+const readTotal = isAuthed
+	? await countItemsByRead(env.NEWS_DB, { userId: queryUser, read: true, sources: active })
+	: 0;
 
 const unreadClamped = clampPage(unreadPage, unreadTotal);
 const readClamped = clampPage(readPage, readTotal);
 
-const unread = await listItemsByRead(env.NEWS_DB, {
-	userId,
-	read: false,
-	limit: PAGE_SIZE,
-	offset: offsetFor(unreadClamped),
-	sources: active,
-});
-const read = await listItemsByRead(env.NEWS_DB, {
-	userId,
-	read: true,
-	limit: PAGE_SIZE,
-	offset: offsetFor(readClamped),
-	sources: active,
-});
+const unread = isAuthed
+	? await listItemsByRead(env.NEWS_DB, {
+			userId: queryUser,
+			read: false,
+			limit: PAGE_SIZE,
+			offset: offsetFor(unreadClamped),
+			sources: active,
+		})
+	: [];
+const read = isAuthed
+	? await listItemsByRead(env.NEWS_DB, {
+			userId: queryUser,
+			read: true,
+			limit: PAGE_SIZE,
+			offset: offsetFor(readClamped),
+			sources: active,
+		})
+	: [];
 
 // Each pager preserves the *other* section's cursor (when past page 1) plus the
 // active source filter; changing the source filter drops both page params via
@@ -68,73 +98,105 @@ const isEmpty = unreadTotal === 0 && readTotal === 0;
 ---
 
 <Layout title="News">
-	{/* Sign-out control: a plain POST form (no JS) in the newspaper voice, a
-	    small-caps link rather than a SaaS button. The page is gated by the auth
-	    middleware, so anyone seeing it is logged in. */}
-	<form method="POST" action="/logout" class="mb-4 text-right">
-		<button
-			type="submit"
-			class="font-sans text-[0.65rem] uppercase tracking-[0.2em] text-muted hover:text-accent"
-		>
-			Sign out
-		</button>
-	</form>
 	{
-		present.length === 0 ? (
-			<p class="py-16 text-center text-lg italic text-muted">
-				Nothing aggregated yet — check back soon.
-			</p>
-		) : (
-			<div class="mx-auto max-w-2xl">
-				<FilterBar sources={present} active={active} />
-				{isEmpty ? (
+		isAuthed ? (
+			<>
+				{/* Sign-out control: a plain POST form (no JS) in the newspaper voice, a
+				    small-caps link rather than a SaaS button. Only the authenticated view
+				    draws it. (Moving it into the masthead is #128, a later PR.) */}
+				<form method="POST" action="/logout" class="mb-4 text-right">
+					<button
+						type="submit"
+						class="font-sans text-[0.65rem] uppercase tracking-[0.2em] text-muted hover:text-accent"
+					>
+						Sign out
+					</button>
+				</form>
+				{present.length === 0 ? (
 					<p class="py-16 text-center text-lg italic text-muted">
-						Nothing here from this source yet.
+						Nothing aggregated yet — check back soon.
 					</p>
 				) : (
-					<>
-						{unread.length > 0 && (
+					<div class="mx-auto max-w-2xl">
+						<FilterBar sources={present} active={active} />
+						{isEmpty ? (
+							<p class="py-16 text-center text-lg italic text-muted">
+								Nothing here from this source yet.
+							</p>
+						) : (
 							<>
-								<ol>
-									{unread.map((item) => (
-										<Article item={item} returnTo={returnTo} />
-									))}
-								</ol>
-								<Pager
-									param="unread"
-									page={unreadClamped}
-									total={unreadTotal}
-									sources={active}
-									sibling={unreadSibling}
-									label="Unread pages"
-								/>
+								{unread.length > 0 && (
+									<>
+										<ol>
+											{unread.map((item) => (
+												<Article item={item} returnTo={returnTo} />
+											))}
+										</ol>
+										<Pager
+											param="unread"
+											page={unreadClamped}
+											total={unreadTotal}
+											sources={active}
+											sibling={unreadSibling}
+											label="Unread pages"
+										/>
+									</>
+								)}
+								{read.length > 0 && (
+									<section class="mt-10">
+										<h2 class="mb-1 flex items-center gap-3 font-sans text-[0.65rem] uppercase tracking-[0.3em] text-muted">
+											<span class="h-px flex-1 bg-rule" aria-hidden="true" />
+											Read
+											<span class="h-px flex-1 bg-rule" aria-hidden="true" />
+										</h2>
+										<ol>
+											{read.map((item) => (
+												<Article item={item} returnTo={returnTo} />
+											))}
+										</ol>
+										<Pager
+											param="read"
+											page={readClamped}
+											total={readTotal}
+											sources={active}
+											sibling={readSibling}
+											label="Read pages"
+										/>
+									</section>
+								)}
 							</>
 						)}
-						{read.length > 0 && (
-							<section class="mt-10">
-								<h2 class="mb-1 flex items-center gap-3 font-sans text-[0.65rem] uppercase tracking-[0.3em] text-muted">
-									<span class="h-px flex-1 bg-rule" aria-hidden="true" />
-									Read
-									<span class="h-px flex-1 bg-rule" aria-hidden="true" />
-								</h2>
-								<ol>
-									{read.map((item) => (
-										<Article item={item} returnTo={returnTo} />
-									))}
-								</ol>
-								<Pager
-									param="read"
-									page={readClamped}
-									total={readTotal}
-									sources={active}
-									sibling={readSibling}
-									label="Read pages"
-								/>
-							</section>
-						)}
-					</>
+					</div>
 				)}
-			</div>
+			</>
+		) : (
+			<>
+				{/* Anonymous view: a top-right Log in link in the newspaper voice. It's
+				    navigation, so it follows the text-link affordance idiom (#129): a
+				    resting hairline underline, accent on hover, a drawn focus-visible
+				    ring for keyboard readers — never hover-only. */}
+				<p class="mb-4 text-right">
+					<a
+						href="/login"
+						class="font-sans text-[0.65rem] uppercase tracking-[0.2em] text-ink-soft underline underline-offset-2 hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+					>
+						Log in
+					</a>
+				</p>
+				{publicItems.length === 0 ? (
+					<p class="py-16 text-center text-lg italic text-muted">
+						Nothing aggregated yet — check back soon.
+					</p>
+				) : (
+					<div class="mx-auto max-w-2xl">
+						<ol>
+							{publicItems.map((item) => (
+								<Article item={item} interactive={false} />
+							))}
+						</ol>
+					</div>
+				)}
+			</>
 		)
 	}
 </Layout>
