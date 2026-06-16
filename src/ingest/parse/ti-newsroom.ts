@@ -67,26 +67,37 @@ function cleanText(value: string | null): string | null {
 }
 
 export function parseTiNewsroom(json: string): ParsedItem[] {
-	const parsed = JSON.parse(json) as unknown;
+	// Un-parseable JSON or a non-array top level is the documented rejection — not
+	// an undocumented SyntaxError/TypeError on untrusted input (#165).
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(json);
+	} catch {
+		throw new Error('not a TI newsroom response: invalid JSON');
+	}
 	if (!Array.isArray(parsed)) {
 		throw new Error('not a TI newsroom response: expected an array');
 	}
 
 	const items: ParsedItem[] = [];
 	// Element 0 is the total-count string; the records start at index 1.
-	for (const record of parsed.slice(1) as TiNewsRecord[]) {
+	for (const record of parsed.slice(1)) {
+		// A null/non-object element (a garbage array like [0, null]) has no `path`
+		// field; skip it rather than dereferencing it and crashing the parse (#165).
+		if (!record || typeof record !== 'object') continue;
+		const rec = record as TiNewsRecord;
 		// `path` is the article URL and our dedupe key — skip a record without one.
-		const path = textOf(record.path);
+		const path = textOf(rec.path);
 		if (!path) continue;
 
-		const title = cleanText(textOf(record.headline) ?? textOf(record.name)) ?? '';
+		const title = cleanText(textOf(rec.headline) ?? textOf(rec.name)) ?? '';
 		items.push({
 			guid: path,
 			url: path,
 			title,
-			summary: cleanText(textOf(record.subheadline)),
+			summary: cleanText(textOf(rec.subheadline)),
 			contentHtml: null,
-			publishedAt: parseRfc822(textOf(record.date)),
+			publishedAt: parseRfc822(textOf(rec.date)),
 		});
 	}
 	return items;

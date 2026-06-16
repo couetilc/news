@@ -38,15 +38,25 @@ function absoluteUrl(path: string): string {
 }
 
 export function parseAwsWhatsNew(json: string): ParsedItem[] {
-	const parsed = JSON.parse(json) as AwsSearchResponse;
-	if (!Array.isArray(parsed.items)) {
+	// Treat un-parseable JSON or a non-object top level (e.g. JSON.parse("null")
+	// yields null, on which `.items` would throw) as the documented rejection,
+	// never an undocumented TypeError/SyntaxError on untrusted input (#165).
+	let parsed: AwsSearchResponse;
+	try {
+		parsed = JSON.parse(json) as AwsSearchResponse;
+	} catch {
+		throw new Error('not an AWS What’s New response: invalid JSON');
+	}
+	if (typeof parsed !== 'object' || parsed === null || !Array.isArray(parsed.items)) {
 		throw new Error('not an AWS What’s New response: missing items array');
 	}
 
 	const items: ParsedItem[] = [];
 	for (const wrapper of parsed.items) {
-		const record = wrapper.item;
-		if (!record) continue;
+		// A null/non-object array element has no `item` field; skip it rather than
+		// dereferencing it (a malformed element must not crash the whole parse).
+		const record = wrapper && typeof wrapper === 'object' ? wrapper.item : undefined;
+		if (!record || typeof record !== 'object') continue;
 
 		// No stable id means nothing to dedupe on across queries — skip it.
 		const guid = textOf(record.id);

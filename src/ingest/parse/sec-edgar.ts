@@ -94,6 +94,23 @@ function textOf(value: unknown): string | null {
 	return typeof value === 'string' && value !== '' ? value : null;
 }
 
+// Parse the JSON payload to a plain object, treating anything that is not a
+// JSON object (a syntax error, or a top-level null/array/string/number — e.g.
+// JSON.parse("null") yields null) as the documented "not an EDGAR…" rejection
+// rather than letting a TypeError/SyntaxError escape on untrusted input (#165).
+function parseObject(json: string): Record<string, unknown> {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(json);
+	} catch {
+		throw new Error('not an EDGAR submissions response: invalid JSON');
+	}
+	if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+		throw new Error('not an EDGAR submissions response: missing filings.recent');
+	}
+	return parsed as Record<string, unknown>;
+}
+
 // Split a comma-joined item string ("2.02,9.01") into trimmed, non-empty codes.
 function itemCodes(items: string | null): string[] {
 	if (!items) return [];
@@ -117,7 +134,7 @@ export function parseSecEdgar(json: string, options: SecEdgarOptions): ParsedIte
 	const itemFilter = options.items;
 	const limit = options.limit ?? DEFAULT_LIMIT;
 
-	const parsed = JSON.parse(json) as EdgarSubmissions;
+	const parsed = parseObject(json) as EdgarSubmissions;
 	const recent = parsed.filings?.recent;
 	if (!recent || !Array.isArray(recent.accessionNumber)) {
 		throw new Error('not an EDGAR submissions response: missing filings.recent');

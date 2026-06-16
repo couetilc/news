@@ -27,7 +27,17 @@ function textOf(node: unknown): string | null {
 }
 
 export function parseRss20(xml: string, opts: Rss20Options): ParsedItem[] {
-	const channel = parser.parse(xml).rss?.channel;
+	// fast-xml-parser throws its own internal errors on truncated/malformed XML
+	// (e.g. "CDATA is not closed", or a TypeError on bad nesting). Treat any such
+	// failure as the documented "not an RSS 2.0 feed" rejection rather than letting
+	// an undocumented runtime error escape on untrusted input (#165).
+	let parsed: { rss?: { channel?: { item?: unknown[] } } };
+	try {
+		parsed = parser.parse(xml);
+	} catch {
+		throw new Error('not an RSS 2.0 feed: malformed XML');
+	}
+	const channel = parsed.rss?.channel;
 	if (!channel) {
 		throw new Error('not an RSS 2.0 feed: missing rss > channel');
 	}
