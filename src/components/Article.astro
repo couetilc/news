@@ -108,30 +108,19 @@ const nextState = isRead ? '0' : '1';
 
 {/* Read/unread toggle enhancement (#96), progressive: the no-JS POST → 303 →
    reload is the source of truth (and the /api/read write is idempotent), so this
-   only LAYERS feedback on top when JS runs. On submit it disables the square so a
-   second click can't double-POST (client layer of the double-submit defense),
-   marks it aria-busy, and reveals the in-voice "Working…" agate line. The form
-   then either does a full-page navigation (JS-on-but-no-ClientRouter) or is
-   swapped by <ClientRouter />; either way the toggled row re-renders fresh from
-   the server, which is the completion confirmation. This client script is built
-   by Astro's client pipeline, not the SSR module graph the vitest coverage gate
-   sees, so it is exercised by the Playwright e2e (e2e/async-feedback.spec.ts),
+   only LAYERS feedback on top when JS runs. On submit the shared initializer
+   disables the square so a second click can't double-POST (client layer of the
+   double-submit defense), marks it aria-busy, and reveals the in-voice "Working…"
+   agate line. The form then either does a full-page navigation
+   (JS-on-but-no-ClientRouter) or is swapped by <ClientRouter />; either way the
+   toggled row re-renders fresh from the server, which is the completion
+   confirmation. The enhancement is a single delegated `submit` listener on
+   `document` (src/scripts/enhance-forms.ts) so it survives ClientRouter's row
+   swap — the replacement form stays enhanced (#155), where the old per-form
+   binding went stale after the first toggle. Built by Astro's client pipeline,
+   not the SSR module graph the vitest coverage gate sees, so it's exercised by
+   the Playwright e2e (e2e/read-toggle-rebind.spec.ts, e2e/async-feedback.spec.ts),
    not the 100% src/** istanbul gate. */}
 <script>
-	for (const form of document.querySelectorAll<HTMLFormElement>('form[data-read-form]')) {
-		form.addEventListener('submit', () => {
-			const button = form.querySelector<HTMLButtonElement>('button[type="submit"]');
-			const working = form.querySelector<HTMLElement>('[data-read-working]');
-			if (button) {
-				// Disable immediately on activation (no flicker delay needed — the
-				// square has no label to swap, just goes busy + dimmed via :disabled).
-				button.disabled = true;
-				button.setAttribute('aria-busy', 'true');
-			}
-			if (working) {
-				working.hidden = false;
-				working.removeAttribute('aria-hidden');
-			}
-		});
-	}
+	import '../scripts/enhance-forms';
 </script>
