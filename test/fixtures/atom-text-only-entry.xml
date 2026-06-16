@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+	<title>Malformed-but-well-formed Atom (#173)</title>
+	<!--
+		fast-xml-parser parses a text-only or empty <entry> to a bare string
+		('text' / ''), not an object. Reading entry.link on a string resolves to
+		String.prototype.link, which the parser used to iterate and crash on
+		(TypeError: links is not iterable). A real entry follows to prove the
+		non-object ones are skipped, not the whole feed dropped.
+	-->
+	<entry>text</entry>
+	<entry></entry>
+	<entry>
+		<id>https://example.com/real</id>
+		<title>A real entry</title>
+		<link href="https://example.com/real" rel="alternate"/>
+		<content type="text">teaser</content>
+		<updated>2026-06-16T00:00:00Z</updated>
+	</entry>
+</feed>

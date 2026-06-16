@@ -50,11 +50,17 @@ interface AtomLink {
 
 // The canonical article URL: the first <link> with no rel or rel="alternate".
 // Skips rel="enclosure" (Apple attaches a hero image that way) and rel="self".
-function articleLink(links: AtomLink[]): string | null {
+// `isArray` forces feed.entry.link to an array when present, but a defensive
+// caller may still hand us a non-array (e.g. an entry that lost its object
+// shape); ignore anything that isn't an array of link objects.
+function articleLink(links: unknown): string | null {
+	if (!Array.isArray(links)) return null;
 	for (const link of links) {
-		const rel = link['@_rel'];
-		if ((rel === undefined || rel === 'alternate') && typeof link['@_href'] === 'string') {
-			return link['@_href'];
+		if (!link || typeof link !== 'object') continue;
+		const rel = (link as AtomLink)['@_rel'];
+		const href = (link as AtomLink)['@_href'];
+		if ((rel === undefined || rel === 'alternate') && typeof href === 'string') {
+			return href;
 		}
 	}
 	return null;
@@ -77,8 +83,17 @@ export function parseAtom(xml: string, opts: AtomOptions): ParsedItem[] {
 	}
 
 	const items: ParsedItem[] = [];
-	for (const entry of feed.entry ?? []) {
-		const url = articleLink(entry.link ?? []);
+	for (const rawEntry of feed.entry ?? []) {
+		// A text-only or empty entry like <entry>text</entry> / <entry></entry>
+		// parses to a bare string ('text' / ''), not an object. Reading
+		// `entry.link` on a string resolves to String.prototype.link — a function,
+		// not nullish — so `articleLink(entry.link ?? [])` got a function and threw a
+		// raw "links is not iterable" TypeError on untrusted input (#173). Skip any
+		// non-object entry so a malformed-but-well-formed payload yields a clean
+		// ParsedItem[] rather than an undocumented runtime error (#165).
+		if (!rawEntry || typeof rawEntry !== 'object') continue;
+		const entry = rawEntry as Record<string, unknown>;
+		const url = articleLink(entry.link);
 		// No <id> and no usable link means nothing stable to dedupe on — skip it.
 		const guid = textOf(entry.id) ?? url;
 		if (!guid) continue;
