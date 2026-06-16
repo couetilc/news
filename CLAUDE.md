@@ -40,7 +40,7 @@ skeleton; every change should move it toward being a useful news aggregator.
 - `npm run dev` — dev server on workerd at http://localhost:4321 (inside the
   agent container run `npm run dev -- --host` and visit `$DEV_HOST_4321`, since
   the host port is randomized per container — see the agentic-environments skill)
-- `npm test` — vitest; **enforces 100% line and branch coverage over `src/**`**
+- `npm test` — vitest; **enforces 100% statements / branches / functions / lines coverage over `src/**`**
   (the suite fails below that — this is the standing test policy)
 - `npm run test:e2e` — Playwright browser tests (`playwright test`), a
   **separate** entry point kept out of `npm test` and the coverage gate (it
@@ -123,8 +123,8 @@ skeleton; every change should move it toward being a useful news aggregator.
   real D1 behavior is covered by the `workers` project.
 
 Coverage is **Istanbul, not V8** (workerd has no `node:inspector`); the 100%
-line/branch gate over `src/**` holds across the merged projects, so every src
-file must be exercised by one project or the other.
+statements / branches / functions / lines gate over `src/**` holds across the
+merged projects, so every src file must be exercised by one project or the other.
 
 **Tests must never hit the network** — inject `fetch` (the ingest runner takes a
 `fetchFn`) and use feed fixtures under `test/fixtures/`. This keeps `npm test`
@@ -181,7 +181,7 @@ Roll durable learnings into this CLAUDE.md or the appropriate skill under
 The convention on every surface (local, Dispatch, agent container, cloud):
 
 1. `git checkout -b <topic>` — never work on `main`.
-2. Implement; keep `npm test` green (100% line/branch coverage gate).
+2. Implement; keep `npm test` green (100% statements / branches / functions / lines coverage gate).
 3. Commit and push frequently, on your own initiative — small commits, never
    wait to be asked (this overrides the harness default of committing only on
    request).
