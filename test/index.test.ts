@@ -1,9 +1,10 @@
 import { experimental_AstroContainer as AstroContainer } from 'astro/container';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { countItemsByRead, distinctSources, listItemsByRead } from '../src/ingest/db';
+import { countItemsByRead, distinctSources, listItems, listItemsByRead } from '../src/ingest/db';
 import type { ItemRow } from '../src/ingest/db';
 
 vi.mock('../src/ingest/db', () => ({
+	listItems: vi.fn(),
 	listItemsByRead: vi.fn(),
 	countItemsByRead: vi.fn(),
 	distinctSources: vi.fn(),
@@ -61,6 +62,7 @@ const render = async (url = 'https://news.test/', userId: number = USER) => {
 
 describe('index page', () => {
 	afterEach(() => {
+		vi.mocked(listItems).mockReset();
 		vi.mocked(listItemsByRead).mockReset();
 		vi.mocked(countItemsByRead).mockReset();
 		vi.mocked(distinctSources).mockReset();
@@ -107,21 +109,53 @@ describe('index page', () => {
 		expect(html).not.toContain('Page 1 of');
 	});
 
-	it('degrades to user 0 (everything unread) if the guard ever leaves locals.userId unset', async () => {
-		// The auth middleware always sets locals.userId before this gated page runs,
-		// so this is belt-and-suspenders: with no user id the page must not crash —
-		// it queries the no-such-user id 0, which owns no reads, so the feed renders
-		// as fully unread. Render with no locals at all to drive that branch.
-		vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog']);
-		feed({ unread: [row({ id: 1, title: 'Still unread', read_at: null })] });
+	describe('anonymous (session-adaptive) view (#87)', () => {
+		// With no locals.userId the page is the public read-only feed: the global
+		// listItems() column rendered with interactive={false}, plus a Log in link,
+		// and never the per-user queries. `renderAnon` mirrors how the middleware
+		// lets an anonymous `/` through with no userId on locals.
+		const renderAnon = async (url = 'https://news.test/') => {
+			const container = await AstroContainer.create();
+			return container.renderToString(Index, { request: new Request(url), locals: {} });
+		};
 
-		const container = await AstroContainer.create();
-		const html = await container.renderToString(Index, {
-			request: new Request('https://news.test/'),
+		it('renders the public read-only feed via listItems, with a Log in link and no write form', async () => {
+			vi.mocked(listItems).mockResolvedValue([
+				row({ id: 2, title: 'Newest', url: 'https://example.com/new', source: 'ieee-spectrum', published_at: 5000 }),
+				row({ id: 1, title: 'Read by Connor', read_at: 4000 }),
+			]);
+
+			const html = await renderAnon();
+			// Items render from the global feed...
+			expect(html).toContain('href="https://example.com/new"');
+			expect(html).toContain('Newest');
+			expect(html).toContain('Read by Connor');
+			// ...with the interactive={false} variant: no write form, no toggle, no
+			// Read section, no private read-state dimming.
+			expect(html).not.toContain('action="/api/read"');
+			expect(html).not.toContain('<form');
+			expect(html).not.toContain('aria-label="Mark as read"');
+			expect(html).not.toContain('aria-label="Mark as unread"');
+			expect(html).not.toMatch(/>\s*Read\s*</);
+			expect(html).not.toContain('opacity-55');
+			// A Log in link is present, pointing at /login.
+			expect(html).toContain('Log in');
+			expect(html).toContain('href="/login"');
+			// The personal feed's controls (filter, sign out) are absent.
+			expect(html).not.toContain('Filter by source');
+			expect(html).not.toContain('Sign out');
+			// The anonymous branch never runs the per-user read-state queries.
+			expect(vi.mocked(listItemsByRead)).not.toHaveBeenCalled();
+			expect(vi.mocked(countItemsByRead)).not.toHaveBeenCalled();
+			expect(vi.mocked(distinctSources)).not.toHaveBeenCalled();
 		});
-		expect(html).toContain('Still unread');
-		// The fallback id flowed into the query.
-		expect(vi.mocked(listItemsByRead).mock.calls[0][1].userId).toBe(0);
+
+		it('shows the empty state (and still the Log in link) when nothing is aggregated', async () => {
+			vi.mocked(listItems).mockResolvedValue([]);
+			const html = await renderAnon();
+			expect(html).toContain('Nothing aggregated yet');
+			expect(html).toContain('Log in');
+		});
 	});
 
 	it('falls back to the raw slug and the neutral flag for an unregistered source', async () => {
