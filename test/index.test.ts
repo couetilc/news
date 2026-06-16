@@ -187,6 +187,9 @@ describe('index page', () => {
 			// Both the row window and the count are narrowed to the active source.
 			expect(vi.mocked(listItemsByRead).mock.calls[0][1].sources).toEqual(['ieee-spectrum']);
 			expect(vi.mocked(countItemsByRead).mock.calls[0][1].sources).toEqual(['ieee-spectrum']);
+			// Each row's read toggle carries the current filtered view as its return
+			// target, so flipping an item keeps the filter rather than dropping to / (#80).
+			expect(html).toContain('name="return" value="/?source=ieee-spectrum"');
 			// The active chip carries aria-current; the inactive chip's href toggles
 			// it on (adds its slug to the selection) for multi-select without JS.
 			expect(html).toMatch(/aria-current="true"/);

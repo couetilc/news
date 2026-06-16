@@ -23,13 +23,19 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
+// Seed one item and return its id, so each test can flip a real row.
+const seedItem = async () => {
+	await insertItems(db, 's', [
+		{ guid: 'g1', url: 'https://e.com/a', title: 'T', summary: null, contentHtml: null, publishedAt: 1000 },
+	], 100);
+	const [{ id }] = await listItems(db, 1);
+	return id;
+};
+
 describe('POST /api/read', () => {
 	it('marks an item read, then back to unread, redirecting each time', async () => {
 		const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-		await insertItems(db, 's', [
-			{ guid: 'g1', url: 'https://e.com/a', title: 'T', summary: null, contentHtml: null, publishedAt: 1000 },
-		], 100);
-		const [{ id }] = await listItems(db, 1);
+		const id = await seedItem();
 
 		const read = await submit({ id: String(id), read: '1' });
 		expect(read.status).toBe(303);
@@ -43,5 +49,37 @@ describe('POST /api/read', () => {
 		expect((await listItems(db, 1))[0].read_at).toBeNull();
 		// Mark-unread logs the other branch with read:false.
 		expect(logSpy).toHaveBeenCalledWith({ level: 'info', event: 'read.toggle', id, read: false });
+	});
+
+	it('redirects back to the filtered + paginated view it was fired from (#80)', async () => {
+		vi.spyOn(console, 'log').mockImplementation(() => {});
+		const id = await seedItem();
+		// The row on a filtered/paginated page carries that view as `return`; the
+		// toggle must land the reader back there, not on the unfiltered home.
+		const res = await submit({
+			id: String(id),
+			read: '1',
+			return: '/?source=ieee-spectrum&unread=2&read=3',
+		});
+		expect(res.status).toBe(303);
+		expect(res.headers.get('Location')).toBe('/?source=ieee-spectrum&unread=2&read=3');
+	});
+
+	it('rejects a malicious return target, falling back to / (no open redirect)', async () => {
+		vi.spyOn(console, 'log').mockImplementation(() => {});
+		const id = await seedItem();
+		// Each of these would escape the origin if trusted; the Location must be /.
+		for (const evil of ['//evil.com', 'https://evil.com', '/\\evil.com']) {
+			const res = await submit({ id: String(id), read: '0', return: evil });
+			expect(res.status).toBe(303);
+			expect(res.headers.get('Location')).toBe('/');
+		}
+	});
+
+	it('falls back to / when no return field is present', async () => {
+		vi.spyOn(console, 'log').mockImplementation(() => {});
+		const id = await seedItem();
+		const res = await submit({ id: String(id), read: '1' });
+		expect(res.headers.get('Location')).toBe('/');
 	});
 });
