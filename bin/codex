@@ -11,17 +11,46 @@
 # Model/effort: gpt-5.5 at xhigh reasoning effort — mirrors bin/claude's
 # opus/xhigh. gpt-5.5 is OpenAI's current flagship; bump CODEX_MODEL when a
 # smarter id ships.
-# Auth (from .env): OPENAI_API_KEY (codex) + GH_TOKEN (clone/push). Codex cannot
-# run the ChatGPT browser login under the no-host-mount contract, so it uses the
-# injected API key (the entrypoint runs `codex login --api-key`).
-# Shared launcher logic lives in bin/_agent-common.sh.
+#
+# Auth — uses your ChatGPT *subscription*, not pay-as-you-go API billing, for
+# parity with bin/claude (which bills the Claude subscription via
+# CLAUDE_CODE_OAUTH_TOKEN). One-time host setup: run `codex login` once on this
+# machine (browser OAuth against your ChatGPT plan). That writes
+# ~/.codex/auth.json; this launcher reads it and injects it into the container
+# (the ChatGPT browser login can't run under the no-host-mount contract). No
+# Codex credential goes in .env. Fallback: set OPENAI_API_KEY in .env to bill
+# pay-as-you-go API usage instead (see .env.example). GH_TOKEN (clone/push)
+# still comes from .env. Shared launcher logic lives in bin/_agent-common.sh.
 set -euo pipefail
 
 AGENT_KIND=codex
-AGENT_AUTH_VAR=OPENAI_API_KEY
 CODEX_MODEL=gpt-5.5
 # Forward the model id so the entrypoint's config.toml fallback matches the flag.
 AGENT_ENV=(-e CODEX_MODEL="$CODEX_MODEL")
+
+# Inject the host's subscription credential when present. auth.json is multi-line
+# JSON (--env-file can't carry it) and secret, so base64 it into an exported var
+# and pass it through with a bare `-e CODEX_AUTH_B64` — keeping it off the
+# `docker run` argv (and out of `ps`). `base64 | tr -d '\n'` is portable across
+# the macOS host and the Linux container; the entrypoint decodes it. Done
+# unconditionally (not gated on --shell) so a --shell session is authed too.
+CODEX_AUTH_FILE="${CODEX_HOME:-$HOME/.codex}/auth.json"
+if [ -f "$CODEX_AUTH_FILE" ]; then
+	CODEX_AUTH_B64="$(base64 < "$CODEX_AUTH_FILE" | tr -d '\n')"
+	export CODEX_AUTH_B64
+	AGENT_ENV+=(-e CODEX_AUTH_B64)
+fi
+
+# A real launch needs a credential: the injected subscription auth above, or an
+# OPENAI_API_KEY fallback in .env. (--shell skips this — see common script.)
+agent_auth_preflight() {
+	if [ -z "${CODEX_AUTH_B64:-}" ] && ! grep -q '^OPENAI_API_KEY=.\+' .env; then
+		echo "error: no Codex credential found." >&2
+		echo "  Recommended: run \`codex login\` on this host once (uses your ChatGPT subscription)." >&2
+		echo "  Or set OPENAI_API_KEY in .env for pay-as-you-go API billing (see .env.example)." >&2
+		exit 1
+	fi
+}
 
 # `--dangerously-bypass-approvals-and-sandbox` (alias --yolo) is the codex analog
 # of claude's --dangerously-skip-permissions: no approvals, no sandbox — the

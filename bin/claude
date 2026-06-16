@@ -12,8 +12,16 @@
 set -euo pipefail
 
 AGENT_KIND=claude
-AGENT_AUTH_VAR=CLAUDE_CODE_OAUTH_TOKEN
 AGENT_ENV=()
+
+# CLAUDE_CODE_OAUTH_TOKEN (host `claude setup-token`, billed to the Claude
+# subscription) authenticates the CLI inside the container, injected via .env.
+agent_auth_preflight() {
+	grep -q '^CLAUDE_CODE_OAUTH_TOKEN=.\+' .env || {
+		echo "error: CLAUDE_CODE_OAUTH_TOKEN is empty in .env — claude authenticates with it inside the container (see .env.example)" >&2
+		exit 1
+	}
+}
 
 # Interactive default and `-p` headless both run `claude`; `-p` is a native
 # claude flag, so the user's args pass straight through. (CMD is consumed by

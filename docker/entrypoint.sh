@@ -48,11 +48,18 @@ if [ "$AGENT_KIND" = "codex" ]; then
 	mkdir -p "$HOME/.codex"
 	printf 'model = "%s"\nmodel_reasoning_effort = "xhigh"\n' "${CODEX_MODEL:-gpt-5.5}" \
 		> "$HOME/.codex/config.toml"
-	# Headless auth: the host injects OPENAI_API_KEY via --env-file (the ChatGPT
-	# browser login is impossible under the no-host-mount contract). `codex exec`
-	# reads the env var directly; `codex login --api-key` materializes auth.json
-	# so the interactive TUI is authenticated too. Best-effort — never block start.
-	if command -v codex >/dev/null 2>&1 && [ -n "${OPENAI_API_KEY:-}" ]; then
+	# Auth. Primary: the host's `codex login` credential (OAuth against the
+	# ChatGPT plan — billed to the subscription, no per-token API charge),
+	# injected base64-encoded by bin/codex because auth.json is multi-line JSON
+	# that --env-file can't carry. This mirrors claude's CLAUDE_CODE_OAUTH_TOKEN
+	# (a host-generated subscription credential). Fallback: OPENAI_API_KEY for
+	# pay-as-you-go API billing. Never block startup.
+	if [ -n "${CODEX_AUTH_B64:-}" ]; then
+		# `if` consumes the decode's exit status, so a bad blob never aborts start.
+		if printf '%s' "$CODEX_AUTH_B64" | base64 -d > "$HOME/.codex/auth.json"; then
+			chmod 600 "$HOME/.codex/auth.json"
+		fi
+	elif command -v codex >/dev/null 2>&1 && [ -n "${OPENAI_API_KEY:-}" ]; then
 		codex login --api-key "$OPENAI_API_KEY" >/dev/null 2>&1 || true
 	fi
 else

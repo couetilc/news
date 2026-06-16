@@ -24,12 +24,15 @@
 # image-build-time latest.
 #
 # Wrapper contract — set these before calling agent_launch:
-#   AGENT_KIND      "claude" | "codex"; names messages, the container, and the
-#                   $AGENT_KIND the entrypoint branches on for agent setup.
-#   AGENT_AUTH_VAR  name of the agent's required auth env var; preflight checks
-#                   it is present and non-empty in .env.
-#   AGENT_ENV       array of extra `-e VAR=value` args to inject (may be empty).
-#   agent_cmd()     given the user's args, sets the CMD array run in-container.
+#   AGENT_KIND            "claude" | "codex"; names messages, the container, and
+#                         the $AGENT_KIND the entrypoint branches on.
+#   AGENT_ENV             array of extra `-e VAR[=value]` args to inject (may be
+#                         empty). A bare `-e VAR` passes VAR through from this
+#                         script's environment, keeping secrets off the argv.
+#   agent_auth_preflight  function; called only when launching the real agent
+#                         (not --shell/--clean); errors+exits if the agent has no
+#                         usable credential. May also append to AGENT_ENV.
+#   agent_cmd()           given the user's args, sets the CMD array run in-container.
 
 IMAGE=news-agent
 
@@ -111,10 +114,6 @@ agent_launch() {
 		echo "error: GH_TOKEN is empty in .env — the container clones and pushes over HTTPS with it (see .env.example)" >&2
 		exit 1
 	fi
-	if ! grep -q "^${AGENT_AUTH_VAR}=.\+" .env; then
-		echo "error: ${AGENT_AUTH_VAR} is empty in .env — ${AGENT_KIND} authenticates with it inside the container (see .env.example)" >&2
-		exit 1
-	fi
 
 	sync_main || true
 
@@ -132,12 +131,15 @@ agent_launch() {
 	docker build -t "$IMAGE" docker/
 	echo "Image ready in $((SECONDS - build_start))s." >&2
 
-	# CMD is set either to a plain shell or by the agent's agent_cmd().
+	# CMD is set either to a plain shell or by the agent's agent_cmd(). The agent
+	# auth check runs only on a real launch — `--shell` just needs .env+GH_TOKEN,
+	# matching the original behavior (poke around without agent credentials).
 	CMD=()
 	if [ "${1:-}" = "--shell" ]; then
 		shift
 		CMD=(bash "$@")
 	else
+		agent_auth_preflight
 		agent_cmd "$@"
 	fi
 
