@@ -176,6 +176,66 @@ Keep all of it in the newspaper aesthetic — ruled lines, small-caps agate, the
 accent red reserved for the alert key — never a colored spinner, progress pill,
 or drop-shadowed toast. The accent stays loud by staying rare.
 
+## Motion & animation
+
+Paper is static. Motion is the earned exception, not the default — the same
+restraint that governs the accent red governs movement. Before you animate
+anything, the bar is "would this look at home in print *coming to life*?", not
+"can I make this feel app-y?".
+
+- **When — functional only, and rare.** Animate exactly three things: a **state
+  transition** (a row settling into read, a control toggling), **feedback
+  acknowledgement** (a busy control, a saved confirmation), and **loading
+  affordances** (an in-flight "Working…" easing in). Nothing else. No decorative
+  parallax, no entrance flourishes on page load, no attention-grabbing pulse,
+  bounce, or shimmer. If the motion isn't *telling the reader something changed*,
+  cut it.
+- **Kind / duration / easing — subtle and fast.** ~150–200 ms, `ease-out`
+  (decelerate into rest). Animate `opacity` and small `transform`s; avoid
+  animating layout (width/height/top) — it's both janky and loud. Nothing bouncy,
+  springy, or playful — no `cubic-bezier` overshoot, no `@keyframes` spin. This is
+  the agate/ruled restraint applied to time: a quiet fade, not a performance. The
+  150 ms here is the same threshold as the async section's "delay a visible
+  loading indicator ~150 ms" — instant responses shouldn't flash motion at all.
+- **CSS first, JS only as last resort.** Express motion with CSS
+  `transition`/`@keyframes`, consistent with the no-JS ethos and the
+  no-webfont/no-dependency precedent — motion should degrade as gracefully as the
+  rest of the page. Reach for JS only when CSS genuinely can't express it (e.g.
+  FLIP-measuring a reorder), and never make an animation a prerequisite for the
+  action: the no-JS POST → 303 → reload path stays the source of truth.
+- **Libraries — none.** No Framer Motion, no GSAP, no animation dependency,
+  mirroring the system-fonts/no-dependency stance. The one native candidate worth
+  a look is the **View Transitions API**, which Astro exposes via `<ClientRouter />`
+  (the old `<ViewTransitions />`) — native, zero bytes of library. **Recommendation:
+  don't adopt it yet.** It buys cross-page transitions we don't need (the digest is
+  one page; navigation is rare), it turns full-page POST → 303 reloads into
+  client-side swaps, which complicates the no-JS contract above, and any default
+  cross-fade reads as app-chrome, not newsprint. Revisit only if/when we have
+  genuinely multi-page reading flows — and if adopted, scope it to a deliberate,
+  reduced-motion-respecting fade, not the library's defaults.
+- **Reduced motion is non-negotiable.** Every animation MUST honor
+  `prefers-reduced-motion: reduce` with an instant, no-motion fallback. The idiom:
+
+  ```css
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+  ```
+
+  A global guard like this in `@layer base` covers the whole app; an individual
+  effect can also gate itself (`motion-safe:`/`motion-reduce:` Tailwind variants).
+  Either way the reduced-motion reader sees the *end state immediately* — same
+  information, no movement.
+
+Tie this back to async feedback (#96): a busy control fades to its reduced
+`opacity` over ~150 ms and the "Working…" line eases in — a **gentle fade**, never
+a spinning SaaS spinner. The motion just confirms the click registered; the agate
+voice does the rest.
+
 ## Coverage gotcha
 
 `src/**` is under a 100% line/branch coverage gate. `.astro` components and
