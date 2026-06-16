@@ -194,6 +194,78 @@ refuses to run as root).
   `main` is skipped (ruleset blocks it). In the clone-per-container model this
   is the data path: an unpushed commit exists only inside that container.
 
+### Session resume across container runs (decision: keep the per-container path)
+
+Both CLIs can reattach to a prior conversation (Claude `/resume`, Codex
+`resume`), but the transcripts they read live on the container's ephemeral
+home — Claude under `~/.claude/projects/**/*.jsonl` (+ `~/.claude.json`), Codex
+under `~/.codex/**`. A *fresh* `./bin/claude` / `./bin/codex` launch builds a
+new container (`news-agent-<kind>-<timestamp>`) that can't see any earlier
+session, so cross-launch resume looks dead. **The same-container path already
+works and is the recommended one:** containers are kept after exit (no `--rm`),
+so `docker start -ai <name>` reopens that workspace — the entrypoint skips the
+re-clone when `/workspace/.git` already exists — and `/resume` (or Codex
+`resume`) inside picks up that container's prior thread. **Recommendation: keep
+the per-container `docker start -ai` path and do not add shared session
+persistence.** The reasoning, against the four options considered (#127):
+
+- **A named session-history volume** (mirroring `news-agent-npm-cache`, which
+  mounts at `/home/node/.npm`) is mechanically trivial — `~/.claude` and
+  `~/.codex` are siblings under the same `/home/node` — and that's exactly the
+  problem. It would persist transcripts for *all* concurrent containers into
+  one shared store, breaking the "parallel containers share nothing" property:
+  cross-task/cross-branch session bleed, and concurrent appends corrupting the
+  append-only `.jsonl` transcripts. It also durably persists secret-laden
+  output (transcripts capture command results; the home already holds the
+  injected `CLOUDFLARE_API_TOKEN`/`GH_TOKEN` and Codex's `~/.codex/auth.json`),
+  widening the blast radius beyond the throwaway container — which the isolation
+  contract above explicitly does *not* cover. And it needs a pruning story it
+  doesn't have; the volume would grow unbounded. Net: highest cost, worst fit.
+- **A host bind-mount of a session dir** persists across runs but reintroduces
+  the host coupling the container model deliberately avoids ("nothing from the
+  host is mounted; the host filesystem is unreachable"), plus every isolation
+  and secret concern above. Rejected on the same grounds, harder.
+- **Export/import transcripts as an artifact** (snapshot out via `docker cp`,
+  re-seed on the next launch) avoids a *standing* shared store but is the most
+  fragile: it commits us to the on-disk transcript formats, which differ
+  between the two tools and drift across CLI versions, and it deliberately
+  carries secret-bearing transcripts out of the container by hand. Only worth
+  it for a deliberate, scrubbed hand-off — which `docker cp` of specific files
+  already covers ad hoc.
+- **Improving the per-container path** is the low-risk answer and preserves
+  isolation completely (no shared state — each session's history stays in its
+  own kept container). The friction today is purely ergonomic: you must find
+  the container name (`docker ps -a --filter label=news-agent`) and remember
+  `docker start -ai`. A thin `./bin/claude --resume [name]` that lists kept
+  containers and `docker start -ai`s the chosen/most-recent one (defaulting to
+  the latest by the timestamped name) would make resume a first-class gesture
+  without persisting anything new. Filed as a follow-up (below).
+
+Cross-cutting caveats that hold regardless of option:
+
+- **Resume ≠ workspace restore.** A transcript holds the *conversation*, not
+  the git working tree. A resumed container still starts from whatever its
+  clone had; if the session's branch has since merged or moved upstream,
+  resuming can mislead unless you `git fetch` and check out the right branch
+  first. (The same-container path sidesteps this — the workspace is exactly as
+  left.) Hand in-progress work the durable way: commit (auto-push publishes the
+  branch), then check it out in the new session.
+- **Two tools, two formats.** Any scheme that reads/moves transcripts must not
+  assume a stable layout — Claude's `projects/**/*.jsonl` + `~/.claude.json`
+  and Codex's `~/.codex/**` differ and change under us. The `docker start`
+  path is format-agnostic (it just reopens the container), which is another
+  reason to prefer it.
+- **`--clean` deletes resumability.** It `docker rm`s every exited
+  `news-agent` container, so any kept session — and the only copy of its
+  transcript — is gone. Resume before you `--clean`; a shared volume would have
+  survived `--clean` but only by trading that for the isolation/secret costs
+  above. Either way: unpushed *code* must be committed (auto-push) before the
+  container is removed; resume only ever recovered the conversation.
+
+Implementation of the ergonomic `--resume` helper touches `bin/**` and so is
+human-gated per the container-tool policy — filed as its own follow-up issue,
+not done here.
+
 ## Network access (cloud sessions)
 
 Modes: **None** / **Trusted** (allowlisted package registries, GitHub, some
