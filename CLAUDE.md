@@ -188,11 +188,8 @@ The convention on every surface (local, Dispatch, agent container, cloud):
    request).
 4. `gh pr create --fill`
 5. `gh pr merge --auto --squash <num>` — merges itself once the required
-   `test` check passes. **Ordinary PRs only.** Human-gated PRs are *not*
-   auto-merged — present them for the human to review and merge: skill updates
-   (Skills & memory policy), dependency adds (the `dependencies` skill), README
-   changes (README policy), and `.github/workflows/*` / `docker/**` changes
-   (explicit human go-ahead).
+   `test` check passes. **Ordinary PRs only** — human-gated PRs are presented
+   for the human to merge, not auto-merged (see Deploy flow for which classes).
 6. Watch CI: `gh run list --branch <topic>` then `gh run watch <run-id>`
    (`gh run view <run-id> --log` for failure logs). On a red check, fix and
    commit again — the push updates the same PR. (`gh pr checks` needs an
