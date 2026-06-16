@@ -21,8 +21,18 @@ import { SESSION_USER_KEY } from './lib/session';
 // rather than redirect, check the session inside that route instead.
 const PUBLIC_PATHS = new Set(['/login', '/signup', '/logout', '/public']);
 
+// Astro's default `trailingSlash: "ignore"` serves both `/public` and `/public/`
+// (and `/signup` vs `/signup/`, etc.) as the same route, but leaves the trailing
+// slash on `context.url.pathname` before user middleware runs. The allowlist is
+// exact-match, so without normalizing here `/public/` would miss it and — worse —
+// a POST to `/signup/` would be 303-redirected to /login with its form data
+// silently dropped (issues #81, #95). Strip a single trailing slash before the
+// lookup, but never reduce the root `/` to an empty string (which matches nothing).
+const normalizePath = (pathname: string) =>
+	pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
+
 export const onRequest = defineMiddleware(async (context, next) => {
-	const { pathname } = context.url;
+	const pathname = normalizePath(context.url.pathname);
 	if (PUBLIC_PATHS.has(pathname)) return next();
 
 	const userId = await context.session?.get(SESSION_USER_KEY);
