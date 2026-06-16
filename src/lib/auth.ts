@@ -222,6 +222,14 @@ async function verifyPbkdf2(
 // coexist with no migration. Returns false for any malformed record (wrong
 // field count, unknown tag, bad params) rather than throwing, so a corrupt row
 // can't crash login.
+//
+// FAIL CLOSED: the scheme helpers can still THROW on a corrupt record even past
+// their explicit field checks — `atob()` raises on invalid base64, and argon2id()
+// raises on positive-but-out-of-range params (e.g. m=1, below 8*p) or on an
+// invalid dkLen driven by an empty/too-short decoded hash. A stored record is
+// never the candidate password, so any such throw means a malformed row, not a
+// caller bug: catch it and report verification failure, so one corrupt row can't
+// 500 a login instead of returning the generic invalid-credentials result.
 export async function verifyPassword(
 	password: string,
 	stored: string,
@@ -230,11 +238,15 @@ export async function verifyPassword(
 	const parts = stored.split('$');
 	if (parts.length !== 4) return false;
 	const [tag, costText, saltB64, hashB64] = parts;
-	if (tag === ARGON2ID_TAG) {
-		return verifyArgon2id(password, costText, saltB64, hashB64, pepper);
-	}
-	if (tag === PBKDF2_TAG) {
-		return verifyPbkdf2(password, costText, saltB64, hashB64, pepper);
+	try {
+		if (tag === ARGON2ID_TAG) {
+			return await verifyArgon2id(password, costText, saltB64, hashB64, pepper);
+		}
+		if (tag === PBKDF2_TAG) {
+			return await verifyPbkdf2(password, costText, saltB64, hashB64, pepper);
+		}
+	} catch {
+		return false;
 	}
 	return false;
 }
