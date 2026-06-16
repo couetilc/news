@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { parseSecEdgar } from '../src/ingest/parse/sec-edgar';
+import ciscoJson from './fixtures/cisco-sec-edgar.json?raw';
 import edgarJson from './fixtures/ti-sec-edgar.json?raw';
 
-describe('parseSecEdgar — TI EDGAR submissions fixture', () => {
-	const items = parseSecEdgar(edgarJson);
+// TI's registry call site: all 8-Ks, no item filter.
+const TI = { cik: '97476', issuer: 'Texas Instruments' } as const;
+// Cisco's backstop call site: 8-Ks narrowed to Item 2.02 earnings only.
+const CISCO = { cik: '858877', issuer: 'Cisco', items: ['2.02'] } as const;
+
+describe('parseSecEdgar — TI EDGAR submissions fixture (all 8-Ks)', () => {
+	const items = parseSecEdgar(edgarJson, TI);
 
 	it('keeps only 8-K / 8-K/A current reports, dropping 10-Q and Form 4', () => {
 		// Fixture has 8-K, 8-K (multi-item), 10-Q, 8-K/A, Form 4 → 3 kept.
@@ -32,7 +38,7 @@ describe('parseSecEdgar — TI EDGAR submissions fixture', () => {
 		expect(items[1].contentHtml).toBeNull();
 	});
 
-	it('builds the primary-document URL from the accession number and filename', () => {
+	it('builds the primary-document URL from the CIK, accession number, and filename', () => {
 		expect(items[1].url).toBe(
 			'https://www.sec.gov/Archives/edgar/data/97476/000009747626000097/txn-20260422.htm',
 		);
@@ -45,6 +51,39 @@ describe('parseSecEdgar — TI EDGAR submissions fixture', () => {
 
 	it('parses acceptanceDateTime to unix seconds', () => {
 		expect(items[0].publishedAt).toBe(Math.floor(Date.UTC(2026, 5, 2, 20, 16, 52) / 1000));
+	});
+});
+
+describe('parseSecEdgar — Cisco backstop fixture (Item 2.02 earnings only)', () => {
+	const items = parseSecEdgar(ciscoJson, CISCO);
+
+	it('keeps only the Item 2.02 earnings 8-Ks, dropping the 10-Q and Item 5.02 8-K', () => {
+		// Fixture: 10-Q, 8-K (2.02,2.05,9.01), 8-K (5.02), 8-K (2.02,9.01) → 2 kept.
+		expect(items.map((i) => i.guid)).toEqual([
+			'0000858877-26-000075',
+			'0000858877-26-000006',
+		]);
+	});
+
+	it('uses the accession number as the stable dedupe guid', () => {
+		expect(items[0].guid).toBe('0000858877-26-000075');
+	});
+
+	it('synthesizes a Cisco-prefixed title from all the filing item codes', () => {
+		expect(items[0].title).toBe(
+			'Cisco 8-K — Results of Operations and Financial Condition; Costs Associated with Exit or Disposal Activities; Financial Statements and Exhibits',
+		);
+	});
+
+	it('builds the document URL under the Cisco CIK', () => {
+		expect(items[0].url).toBe(
+			'https://www.sec.gov/Archives/edgar/data/858877/000085887726000075/csco-20260513.htm',
+		);
+	});
+
+	it('keeps the item description as summary and leaves contentHtml null', () => {
+		expect(items[0].summary).toContain('Results of Operations and Financial Condition');
+		expect(items[0].contentHtml).toBeNull();
 	});
 });
 
@@ -65,24 +104,44 @@ describe('parseSecEdgar — edge cases', () => {
 	};
 
 	it('throws when filings.recent is missing', () => {
-		expect(() => parseSecEdgar('{}')).toThrow(/not an EDGAR/);
+		expect(() => parseSecEdgar('{}', TI)).toThrow(/not an EDGAR/);
 	});
 
 	it('throws when accessionNumber is not an array', () => {
-		expect(() => parseSecEdgar(JSON.stringify({ filings: { recent: {} } }))).toThrow(
+		expect(() => parseSecEdgar(JSON.stringify({ filings: { recent: {} } }), TI)).toThrow(
 			/not an EDGAR/,
 		);
 	});
 
 	it('skips an 8-K with no accession number (nothing to dedupe on)', () => {
 		expect(
-			parseSecEdgar(wrap([{ accessionNumber: '', form: '8-K', items: '8.01' }])),
+			parseSecEdgar(wrap([{ accessionNumber: '', form: '8-K', items: '8.01' }]), TI),
+		).toEqual([]);
+	});
+
+	it('drops a filing whose form is not in the kept set', () => {
+		// A 10-K periodic report is not in the default 8-K family.
+		expect(
+			parseSecEdgar(
+				wrap([{ accessionNumber: '0000097476-26-000099', form: '10-K', items: '' }]),
+				TI,
+			),
+		).toEqual([]);
+	});
+
+	it('skips a row with no form at all', () => {
+		expect(
+			parseSecEdgar(
+				wrap([{ accessionNumber: '0000097476-26-000098', form: '', items: '8.01' }]),
+				TI,
+			),
 		).toEqual([]);
 	});
 
 	it('falls back to the folder index URL when there is no primary document', () => {
 		const [item] = parseSecEdgar(
 			wrap([{ accessionNumber: '0000097476-26-000001', form: '8-K', items: '8.01' }]),
+			TI,
 		);
 		expect(item.url).toBe(
 			'https://www.sec.gov/Archives/edgar/data/97476/000009747626000001/',
@@ -92,6 +151,7 @@ describe('parseSecEdgar — edge cases', () => {
 	it('titles an 8-K with no items without the dash, and keeps summary null', () => {
 		const [item] = parseSecEdgar(
 			wrap([{ accessionNumber: '0000097476-26-000002', form: '8-K', items: '' }]),
+			TI,
 		);
 		expect(item.title).toBe('Texas Instruments 8-K');
 		expect(item.summary).toBeNull();
@@ -108,6 +168,7 @@ describe('parseSecEdgar — edge cases', () => {
 					acceptanceDateTime: '',
 				},
 			]),
+			TI,
 		);
 		expect(item.publishedAt).toBe(Math.floor(Date.parse('2026-02-10') / 1000));
 	});
@@ -115,6 +176,7 @@ describe('parseSecEdgar — edge cases', () => {
 	it('labels an unmapped item code as "Item N.NN"', () => {
 		const [item] = parseSecEdgar(
 			wrap([{ accessionNumber: '0000097476-26-000004', form: '8-K', items: '6.05' }]),
+			TI,
 		);
 		expect(item.title).toBe('Texas Instruments 8-K — Item 6.05');
 	});
@@ -122,6 +184,7 @@ describe('parseSecEdgar — edge cases', () => {
 	it('ignores stray empty/whitespace item codes in the comma list', () => {
 		const [item] = parseSecEdgar(
 			wrap([{ accessionNumber: '0000097476-26-000005', form: '8-K', items: '8.01, ,' }]),
+			TI,
 		);
 		expect(item.title).toBe('Texas Instruments 8-K — Other Events');
 	});
@@ -130,12 +193,49 @@ describe('parseSecEdgar — edge cases', () => {
 		// Non-empty (passes the `if (!items)` guard) but yields zero labels.
 		const [item] = parseSecEdgar(
 			wrap([{ accessionNumber: '0000097476-26-000006', form: '8-K', items: ', ,' }]),
+			TI,
 		);
 		expect(item.title).toBe('Texas Instruments 8-K');
 		expect(item.summary).toBeNull();
 	});
 
 	it('returns no items for an empty recent list', () => {
-		expect(parseSecEdgar(wrap([]))).toEqual([]);
+		expect(parseSecEdgar(wrap([]), TI)).toEqual([]);
+	});
+
+	it('drops an 8-K lacking the requested item code when an item filter is set', () => {
+		// Item 5.02 only — not 2.02 — so the Cisco-style filter rejects it.
+		expect(
+			parseSecEdgar(
+				wrap([{ accessionNumber: '0000858877-26-000057', form: '8-K', items: '5.02' }]),
+				CISCO,
+			),
+		).toEqual([]);
+	});
+
+	it('drops an items-less 8-K when an item filter is set', () => {
+		// No item codes can satisfy the filter, so the filing is rejected.
+		expect(
+			parseSecEdgar(
+				wrap([{ accessionNumber: '0000858877-26-000058', form: '8-K', items: '' }]),
+				CISCO,
+			),
+		).toEqual([]);
+	});
+
+	it('keeps an 8-K reporting the requested item among several codes', () => {
+		const [item] = parseSecEdgar(
+			wrap([{ accessionNumber: '0000858877-26-000059', form: '8-K', items: '2.02,9.01' }]),
+			CISCO,
+		);
+		expect(item.guid).toBe('0000858877-26-000059');
+	});
+
+	it('honors a custom forms override (e.g. periodic 10-Q reports)', () => {
+		const [item] = parseSecEdgar(
+			wrap([{ accessionNumber: '0000097476-26-000100', form: '10-Q', items: '' }]),
+			{ cik: '97476', issuer: 'Texas Instruments', forms: ['10-Q'] },
+		);
+		expect(item.title).toBe('Texas Instruments 10-Q');
 	});
 });

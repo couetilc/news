@@ -1,6 +1,5 @@
 import { parseAtom } from './parse/atom';
 import { parseAwsWhatsNew } from './parse/aws-whats-new';
-import { parseEdgar8k } from './parse/edgar-8k';
 import { parseRss20 } from './parse/rss20';
 import { parseSecEdgar } from './parse/sec-edgar';
 import { parseTiNewsroom } from './parse/ti-newsroom';
@@ -175,17 +174,20 @@ export const SOURCES: FeedConfig[] = [
 	{
 		// #31 — SEC EDGAR 8-K BACKSTOP for Cisco (CIK 0000858877). The earnings 8-K
 		// lands within minutes of the IR PR, so it's a safety net if the IR feed is
-		// Cloudflare-challenged or lags. browse-edgar's Atom output carries every
-		// 8-K (director changes, bylaws, …); parseEdgar8k keeps only the earnings
-		// ones (SEC Item 2.02, "Results of Operations") and dedupes on the
-		// accession number. EDGAR requires the contact-bearing User-Agent run.ts
+		// Cloudflare-challenged or lags. #71 moved this off the robots-disallowed
+		// /cgi-bin browse-edgar Atom feed onto data.sec.gov (the documented JSON
+		// submissions API, same one TI uses). The submissions JSON carries every
+		// 8-K (director changes, bylaws, …); the `items: ['2.02']` filter keeps only
+		// the earnings ones (SEC Item 2.02, "Results of Operations") and dedupes on
+		// the accession number. EDGAR requires the contact-bearing User-Agent run.ts
 		// already sends, and asks for ≤10 req/s — hourly is far under that. Shares
 		// the `cisco` slug with the IR feed; the two use disjoint guid schemes
 		// (UUID vs accession), so an earnings event surfaces as two rows by design.
 		source: 'cisco',
-		feed: 'https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0000858877&type=8-K&output=atom&count=10',
+		feed: 'https://data.sec.gov/submissions/CIK0000858877.json',
 		pollIntervalSeconds: 3600,
-		parse: parseEdgar8k,
+		parse: (json) =>
+			parseSecEdgar(json, { cik: '858877', issuer: 'Cisco', items: ['2.02'] }),
 	},
 	// #26 — one entry per silicon term, all source 'aws' (see awsFeed above).
 	...AWS_TERMS.map(awsFeed),
@@ -230,6 +232,6 @@ export const SOURCES: FeedConfig[] = [
 		source: 'ti',
 		feed: 'https://data.sec.gov/submissions/CIK0000097476.json',
 		pollIntervalSeconds: 43200,
-		parse: parseSecEdgar,
+		parse: (json) => parseSecEdgar(json, { cik: '97476', issuer: 'Texas Instruments' }),
 	},
 ];
