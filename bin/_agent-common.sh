@@ -26,15 +26,20 @@
 # Wrapper contract — set these before calling agent_launch:
 #   AGENT_KIND            "claude" | "codex"; names messages, the container, and
 #                         the $AGENT_KIND the entrypoint branches on.
-#   AGENT_ENV             array of extra `-e VAR[=value]` args to inject (may be
-#                         empty). A bare `-e VAR` passes VAR through from this
-#                         script's environment, keeping secrets off the argv.
 #   agent_auth_preflight  function; called only when launching the real agent
 #                         (not --shell/--clean); errors+exits if the agent has no
-#                         usable credential. May also append to AGENT_ENV.
+#                         usable credential.
 #   agent_cmd()           given the user's args, sets the CMD array run in-container.
+#   agent_append_env_args optional function; may append extra docker args to the
+#                         docker_args array in agent_launch. A bare `-e VAR`
+#                         passes VAR through from this script's environment,
+#                         keeping secrets off the argv.
 
 IMAGE=news-agent
+
+if ! declare -F agent_append_env_args >/dev/null; then
+	agent_append_env_args() { :; }
+fi
 
 # Keep the host's main current with origin before building. The container clones
 # app code fresh at launch, but the agent image is built from the local docker/
@@ -155,19 +160,26 @@ agent_launch() {
 	echo "  astro     http://127.0.0.1:$PORT_ASTRO/    (\$DEV_HOST_4321)" >&2
 	echo "  wrangler  http://127.0.0.1:$PORT_WRANGLER/    (\$DEV_HOST_8787)" >&2
 
-	docker run -it \
-		--name "$NAME" \
-		--label news-agent \
-		-v news-agent-npm-cache:/home/node/.npm \
-		--env-file .env \
-		-e AGENT_KIND="$AGENT_KIND" \
-		"${AGENT_ENV[@]}" \
-		-e GIT_USER_NAME="$(git config user.name 2>/dev/null || true)" \
-		-e GIT_USER_EMAIL="$(git config user.email 2>/dev/null || true)" \
-		-e TERM=xterm-256color \
-		-e COLORTERM="${COLORTERM:-}" \
-		-e DEV_HOST_4321="127.0.0.1:$PORT_ASTRO" \
-		-e DEV_HOST_8787="127.0.0.1:$PORT_WRANGLER" \
-		-p "127.0.0.1:$PORT_ASTRO:4321" -p "127.0.0.1:$PORT_WRANGLER:8787" \
-		"$IMAGE" "${CMD[@]}"
+	local docker_args=(
+		-it
+		--name "$NAME"
+		--label news-agent
+		-v news-agent-npm-cache:/home/node/.npm
+		--env-file .env
+		-e AGENT_KIND="$AGENT_KIND"
+	)
+	agent_append_env_args
+	docker_args+=(
+		-e GIT_USER_NAME="$(git config user.name 2>/dev/null || true)"
+		-e GIT_USER_EMAIL="$(git config user.email 2>/dev/null || true)"
+		-e TERM=xterm-256color
+		-e COLORTERM="${COLORTERM:-}"
+		-e DEV_HOST_4321="127.0.0.1:$PORT_ASTRO"
+		-e DEV_HOST_8787="127.0.0.1:$PORT_WRANGLER"
+		-p "127.0.0.1:$PORT_ASTRO:4321"
+		-p "127.0.0.1:$PORT_WRANGLER:8787"
+		"$IMAGE"
+		"${CMD[@]}"
+	)
+	docker run "${docker_args[@]}"
 }

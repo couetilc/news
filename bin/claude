@@ -12,7 +12,6 @@
 set -euo pipefail
 
 AGENT_KIND=claude
-AGENT_ENV=()
 
 # CLAUDE_CODE_OAUTH_TOKEN (host `claude setup-token`, billed to the Claude
 # subscription) authenticates the CLI inside the container, injected via .env.
