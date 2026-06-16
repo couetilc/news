@@ -47,10 +47,16 @@ function feed(opts: {
 }
 
 // `url` drives Astro.url.searchParams (?source, ?unread, ?read); the container
-// reads it off the Request it's handed.
-const render = async (url = 'https://news.test/') => {
+// reads it off the Request it's handed. `userId` is what the auth middleware
+// puts on Astro.locals (#70) — the page scopes every read-state query to it; the
+// Container API injects it via `locals` (it has no middleware/session of its own).
+const USER = 7;
+const render = async (url = 'https://news.test/', userId: number = USER) => {
 	const container = await AstroContainer.create();
-	return container.renderToString(Index, { request: new Request(url) });
+	return container.renderToString(Index, {
+		request: new Request(url),
+		locals: { userId },
+	});
 };
 
 describe('index page', () => {
@@ -101,6 +107,23 @@ describe('index page', () => {
 		expect(html).not.toContain('Page 1 of');
 	});
 
+	it('degrades to user 0 (everything unread) if the guard ever leaves locals.userId unset', async () => {
+		// The auth middleware always sets locals.userId before this gated page runs,
+		// so this is belt-and-suspenders: with no user id the page must not crash —
+		// it queries the no-such-user id 0, which owns no reads, so the feed renders
+		// as fully unread. Render with no locals at all to drive that branch.
+		vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog']);
+		feed({ unread: [row({ id: 1, title: 'Still unread', read_at: null })] });
+
+		const container = await AstroContainer.create();
+		const html = await container.renderToString(Index, {
+			request: new Request('https://news.test/'),
+		});
+		expect(html).toContain('Still unread');
+		// The fallback id flowed into the query.
+		expect(vi.mocked(listItemsByRead).mock.calls[0][1].userId).toBe(0);
+	});
+
 	it('falls back to the raw slug and the neutral flag for an unregistered source', async () => {
 		vi.mocked(distinctSources).mockResolvedValue(['mystery-wire']);
 		feed({ unread: [row({ source: 'mystery-wire', title: 'Unknown source' })] });
@@ -128,6 +151,33 @@ describe('index page', () => {
 		// Each control posts the item id to the toggle endpoint.
 		expect(html).toContain('action="/api/read"');
 		expect(html).toContain('name="id"');
+	});
+
+	it('scopes the read/unread split to the logged-in user (#70)', async () => {
+		vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog']);
+		// Two different users would see different splits; the page must query for
+		// the one on locals and render exactly that user's sections.
+		vi.mocked(listItemsByRead).mockImplementation(async (_db, { read: isRead }) =>
+			isRead
+				? [row({ id: 1, title: 'User 7 read item', read_at: 4000 })]
+				: [row({ id: 2, title: 'User 7 unread item', read_at: null })],
+		);
+		vi.mocked(countItemsByRead).mockResolvedValue(1);
+
+		const html = await render('https://news.test/', 7);
+		// The page rendered this user's split: their unread item in the feed, their
+		// read item under the Read header.
+		expect(html).toContain('User 7 unread item');
+		expect(html).toContain('User 7 read item');
+		expect(html).toMatch(/>\s*Read\s*</);
+		// Every read-state query carried this user's id (the per-user scoping #70
+		// hinges on), for both the row windows and the counts.
+		for (const call of vi.mocked(listItemsByRead).mock.calls) {
+			expect(call[1].userId).toBe(7);
+		}
+		for (const call of vi.mocked(countItemsByRead).mock.calls) {
+			expect(call[1].userId).toBe(7);
+		}
 	});
 
 	it('wires up the read/unread move animation: client router + per-item morph targets', async () => {

@@ -17,12 +17,16 @@ const run = (
 		(location: string, status: number) =>
 			new Response(null, { status, headers: { Location: location } }),
 	);
+	// `locals` mirrors the request-scoped object Astro injects; the guard writes
+	// the authenticated user id onto it (#70), so tests can read it back.
+	const locals: { userId?: number } = {};
 	const context = {
 		url: new URL(`http://news.test${path}`),
 		session,
 		redirect,
+		locals,
 	};
-	return { promise: onRequest(context as never, next), redirect };
+	return { promise: onRequest(context as never, next), redirect, locals };
 };
 
 const sessionWith = (userId: number | undefined) => ({
@@ -98,6 +102,14 @@ describe('auth middleware', () => {
 		const { promise } = run('/', sessionWith(42));
 		expect(await promise).toBe(NEXT);
 		expect(next).toHaveBeenCalled();
+	});
+
+	it('exposes the authenticated user id on locals for per-user read state (#70)', async () => {
+		// Downstream pages/routes scope read state to locals.userId; the guard is
+		// the one place that copies it off the session after the auth check.
+		const { promise, locals } = run('/', sessionWith(42));
+		await promise;
+		expect(locals.userId).toBe(42);
 	});
 
 	it('treats a missing session object the same as unauthenticated', async () => {

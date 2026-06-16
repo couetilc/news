@@ -120,55 +120,73 @@ export async function listItems(
 	return results;
 }
 
-// One paginated section of the homepage digest. `read` picks the section —
-// false reads the still-unread feed (read_at IS NULL), true reads the "Read"
-// section (read_at IS NOT NULL) — so each section paginates on its own cursor
-// and walking deep into one never disturbs the other. Within a section the
-// order matches the old single query (newest-first, id breaking ties), since
-// the read/unread split is now in the WHERE clause instead of a sort key.
-// `limit`/`offset` are the page window (50 per page; offset = (page-1)*50).
-// The optional `sources` filter narrows by source slug, same shape as listItems.
+// One paginated section of the homepage digest, for one logged-in user. `read`
+// picks the section — false reads the still-unread feed, true reads the "Read"
+// section — so each section paginates on its own cursor and walking deep into one
+// never disturbs the other. `userId` scopes read state per-user (issue #70): the
+// query LEFT JOINs item_reads for that user, so an item is "read" only if THIS
+// user has a row there. Within a section the order matches the old single query
+// (newest-first, id breaking ties), since the read/unread split is in the WHERE
+// clause instead of a sort key. `limit`/`offset` are the page window (50 per
+// page; offset = (page-1)*50). The optional `sources` filter narrows by source
+// slug, same shape as listItems.
 export interface SectionQuery {
+	userId: number;
 	read: boolean;
 	limit: number;
 	offset: number;
 	sources?: string[];
 }
 
+// The per-user read state lives in item_reads keyed by (user_id, item_id), so a
+// row's read-ness is "does this user have a join row?" — not the legacy global
+// items.read_at column. We LEFT JOIN that user's rows (the join's ON clause binds
+// the user id) and read the section off the joined read_at: IS NOT NULL = read
+// for this user, IS NULL = unread. The bind order is therefore [userId, ...].
 function sectionWhere(read: boolean, sources: string[]): string {
-	const readClause = read ? 'read_at IS NOT NULL' : 'read_at IS NULL';
-	const sourceClause = sources.length > 0 ? ` AND source IN (${sources.map(() => '?').join(', ')})` : '';
+	const readClause = read ? 'r.read_at IS NOT NULL' : 'r.read_at IS NULL';
+	const sourceClause = sources.length > 0 ? ` AND i.source IN (${sources.map(() => '?').join(', ')})` : '';
 	return `WHERE ${readClause}${sourceClause}`;
 }
 
 export async function listItemsByRead(
 	db: D1Database,
-	{ read, limit, offset, sources = [] }: SectionQuery,
+	{ userId, read, limit, offset, sources = [] }: SectionQuery,
 ): Promise<ItemRow[]> {
+	// r.read_at (this user's timestamp, or NULL) is selected as read_at so the
+	// returned ItemRow reflects per-user state, not the global column.
 	const { results } = await db
 		.prepare(
-			`SELECT id, source, guid, url, title, summary, content_html, published_at, fetched_at, read_at
-			 FROM items
+			`SELECT i.id, i.source, i.guid, i.url, i.title, i.summary, i.content_html,
+			        i.published_at, i.fetched_at, r.read_at AS read_at
+			 FROM items i
+			 LEFT JOIN item_reads r ON r.item_id = i.id AND r.user_id = ?
 			 ${sectionWhere(read, sources)}
-			 ORDER BY COALESCE(published_at, fetched_at) DESC, id DESC
+			 ORDER BY COALESCE(i.published_at, i.fetched_at) DESC, i.id DESC
 			 LIMIT ? OFFSET ?`,
 		)
-		.bind(...sources, limit, offset)
+		.bind(userId, ...sources, limit, offset)
 		.all<ItemRow>();
 	return results;
 }
 
-// How many items the section holds under the same read state + source filter,
-// so the page can compute total pages and decide whether a "next" link renders.
+// How many items the section holds for this user under the same read state +
+// source filter, so the page can compute total pages and decide whether a "next"
+// link renders. Same per-user LEFT JOIN as listItemsByRead.
 export async function countItemsByRead(
 	db: D1Database,
-	{ read, sources = [] }: { read: boolean; sources?: string[] },
+	{ userId, read, sources = [] }: { userId: number; read: boolean; sources?: string[] },
 ): Promise<number> {
 	// COUNT(*) always returns exactly one row (0 for an empty match), so a
 	// non-null number is guaranteed — no fallback branch needed.
 	const n = await db
-		.prepare(`SELECT COUNT(*) AS n FROM items ${sectionWhere(read, sources)}`)
-		.bind(...sources)
+		.prepare(
+			`SELECT COUNT(*) AS n
+			 FROM items i
+			 LEFT JOIN item_reads r ON r.item_id = i.id AND r.user_id = ?
+			 ${sectionWhere(read, sources)}`,
+		)
+		.bind(userId, ...sources)
 		.first<number>('n');
 	return n as number;
 }
@@ -185,13 +203,33 @@ export async function distinctSources(db: D1Database): Promise<string[]> {
 		.sort((a, b) => sourceMeta(a).name.localeCompare(sourceMeta(b).name));
 }
 
-// Flip one item's read state: readAt = unix seconds marks it read, null marks
-// it unread. The homepage's read/unread toggle posts to /api/read, which calls
-// this and redirects back so the feature works without JavaScript.
+// Flip one item's read state for ONE user (issue #70): readAt = unix seconds
+// marks it read, null marks it unread. State is per-user, so this writes the
+// (userId, id) row in item_reads rather than the global items column — leaving
+// every other user's state untouched. Marking read upserts the timestamp (ON
+// CONFLICT keeps "mark read" idempotent if double-submitted); marking unread
+// deletes the user's row (absence = unread). The homepage's read/unread toggle
+// posts to /api/read, which calls this and redirects back so the feature works
+// without JavaScript.
 export async function setItemRead(
 	db: D1Database,
+	userId: number,
 	id: number,
 	readAt: number | null,
 ): Promise<void> {
-	await db.prepare('UPDATE items SET read_at = ? WHERE id = ?').bind(readAt, id).run();
+	if (readAt === null) {
+		await db
+			.prepare('DELETE FROM item_reads WHERE user_id = ? AND item_id = ?')
+			.bind(userId, id)
+			.run();
+		return;
+	}
+	await db
+		.prepare(
+			`INSERT INTO item_reads (user_id, item_id, read_at)
+			 VALUES (?, ?, ?)
+			 ON CONFLICT(user_id, item_id) DO UPDATE SET read_at = excluded.read_at`,
+		)
+		.bind(userId, id, readAt)
+		.run();
 }
