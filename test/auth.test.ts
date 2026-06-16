@@ -122,6 +122,48 @@ describe('password hashing (argon2id)', () => {
 		const tampered = `${tag}$${params}$${salt}$${flipped}`;
 		expect(await verifyPassword('length-edge-case', tampered)).toBe(false);
 	}, 30_000);
+
+	// FAIL CLOSED: past the explicit param checks, the argon2id path can still
+	// THROW on a corrupt record — `atob()` on invalid base64, and argon2id() on
+	// positive-but-out-of-range params or an invalid dkLen from a too-short
+	// decoded hash. verifyPassword must catch these and verify as failed so one
+	// bad row returns invalid-credentials instead of 500ing login (issue #178).
+	it('fails closed on invalid base64 in an argon2id record instead of throwing', async () => {
+		const salt = toBase64(new Uint8Array(16));
+		const hash = toBase64(new Uint8Array(32));
+		// Invalid base64 in the salt — atob() raises DOMException before derive.
+		await expect(
+			verifyPassword('x', `argon2id$m=19456,t=3,p=1$not-base64!!!!$${hash}`),
+		).resolves.toBe(false);
+		// Invalid base64 in the hash field — same fail-closed result.
+		await expect(
+			verifyPassword('x', `argon2id$m=19456,t=3,p=1$${salt}$not-base64!!!!`),
+		).resolves.toBe(false);
+	});
+
+	it('fails closed on positive-but-out-of-range argon2id params (m=1) instead of throwing', async () => {
+		const salt = toBase64(new Uint8Array(16));
+		const hash = toBase64(new Uint8Array(32));
+		// m=1 passes the >0 integer check but argon2id() rejects it ("m" must be
+		// at least 8*p bytes), which would throw without the fail-closed catch.
+		await expect(
+			verifyPassword('x', `argon2id$m=1,t=3,p=1$${salt}$${hash}`),
+		).resolves.toBe(false);
+	}, 30_000);
+
+	it('fails closed on an invalid decoded argon2id hash length (drives a bad dkLen) instead of throwing', async () => {
+		const salt = toBase64(new Uint8Array(16));
+		// Valid base64 whose hash decodes to too few bytes, so dkLen = hash.length
+		// is out of argon2id's allowed range (must be 4..) and argon2id() throws.
+		const emptyHash = toBase64(new Uint8Array(0)); // 0 bytes -> dkLen 0
+		const oneByteHash = toBase64(new Uint8Array(1)); // 1 byte -> dkLen 1
+		await expect(
+			verifyPassword('x', `argon2id$m=19456,t=3,p=1$${salt}$${emptyHash}`),
+		).resolves.toBe(false);
+		await expect(
+			verifyPassword('x', `argon2id$m=19456,t=3,p=1$${salt}$${oneByteHash}`),
+		).resolves.toBe(false);
+	}, 30_000);
 });
 
 describe('legacy PBKDF2 back-compat (records still verify, no migration)', () => {
