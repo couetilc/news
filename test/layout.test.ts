@@ -36,6 +36,12 @@ describe('Layout masthead session control (#128)', () => {
 		expect(html).toContain('hover:bg-ink');
 		expect(html).toContain('focus-visible:outline-ink');
 		expect(html).toContain('cursor-pointer');
+		// The disable-on-submit async enhancement (#96): the button carries the
+		// data hooks + disabled:* utilities the client script reads. The script's
+		// behavior is e2e-tested; here we pin that the markup hooks are present.
+		expect(html).toContain('data-logout-submit');
+		expect(html).toContain('data-busy-label="Signing out…"');
+		expect(html).toContain('disabled:opacity-60');
 		// The logged-in masthead never shows the anonymous Log in link.
 		expect(html).not.toContain('Log in');
 		expect(html).not.toContain('href="/login"');

@@ -46,6 +46,23 @@ describe('signup page', () => {
 		expect(signup).not.toHaveBeenCalled();
 	});
 
+	it('submit + alt link carry the interactive-affordance + async hooks (#133/#96)', async () => {
+		// Submit button (action-button idiom): cursor-pointer + focus-visible ring
+		// (#133) plus the busy-label hooks for the disable-on-submit enhancement (#96
+		// — the client script swap is e2e-tested; the markup hooks are pinned here).
+		const html = await (await render(Signup)).text();
+		expect(html).toContain('data-auth-submit');
+		expect(html).toContain('data-busy-label="Creating account…"');
+		expect(html).toContain('cursor-pointer');
+		expect(html).toContain('focus-visible:outline-ink');
+		// Alt link reconciled to the text-link idiom (#133): rests in ink-soft with a
+		// hairline underline (accent is interaction-only now), with the focus ring.
+		expect(html).toContain('text-ink-soft underline');
+		expect(html).toContain('hover:text-accent');
+		// The alt link no longer rests in the accent color (accent is hover/focus).
+		expect(html).not.toContain('class="text-accent underline"');
+	});
+
 	it('successful POST stores the session and 303-redirects to the homepage', async () => {
 		vi.mocked(signup).mockResolvedValue({ ok: true, userId: 7 });
 		const res = await render(Signup, post({ email: 'a@b.co', password: 'long-enough-pw' }));
@@ -85,6 +102,8 @@ describe('login page', () => {
 		expect(res.status).toBe(200);
 		expect(html).toContain('Sign in');
 		expect(html).toContain('href="/signup"');
+		// The login submit carries the present-tense busy label for the #96 swap.
+		expect(html).toContain('data-busy-label="Signing in…"');
 		expect(login).not.toHaveBeenCalled();
 	});
 

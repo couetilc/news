@@ -40,6 +40,7 @@ if (Astro.request.method === 'POST') {
 	<AuthForm
 		heading="Create account"
 		submitLabel="Create account"
+		busyLabel="Creating account…"
 		error={error}
 		email={email}
 		alt={{ href: '/login', prompt: 'Already have an account?', label: 'Sign in' }}

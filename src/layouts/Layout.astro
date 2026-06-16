@@ -62,7 +62,9 @@ const isAuthed = Astro.locals.userId !== undefined;
 							<form method="POST" action="/logout" data-astro-reload>
 								<button
 									type="submit"
-									class="cursor-pointer border border-ink px-2 py-1 font-sans text-[0.6rem] uppercase tracking-[0.2em] text-ink hover:bg-ink hover:text-paper focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink sm:text-xs"
+									data-logout-submit
+									data-busy-label="Signing out…"
+									class="cursor-pointer border border-ink px-2 py-1 font-sans text-[0.6rem] uppercase tracking-[0.2em] text-ink hover:bg-ink hover:text-paper focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink disabled:cursor-default disabled:opacity-60 sm:text-xs"
 								>
 									Sign out
 								</button>
@@ -100,5 +102,27 @@ const isAuthed = Astro.locals.userId !== undefined;
 				<p>A personal news aggregator · news.cuteteal.com</p>
 			</footer>
 		</div>
+		{/* Sign-out enhancement (#96), progressive: the no-JS POST /logout → 303 →
+		    /login is the source of truth (and POST-only, so a prefetch can't fire
+		    it). This LAYERS in-flight feedback when JS runs — on submit it disables
+		    the button so a second click can't double-POST, marks it aria-busy, and
+		    swaps the label to the present-tense busy label. Completion is confirmed
+		    by the navigation to /login. Built by Astro's client pipeline, not the SSR
+		    module graph the vitest coverage gate sees. */}
+		<script>
+			for (const button of document.querySelectorAll<HTMLButtonElement>(
+				'button[data-logout-submit]',
+			)) {
+				const form = button.closest('form');
+				form?.addEventListener('submit', () => {
+					button.disabled = true;
+					button.setAttribute('aria-busy', 'true');
+					const busy = button.dataset.busyLabel;
+					if (busy) {
+						button.textContent = busy;
+					}
+				});
+			}
+		</script>
 	</body>
 </html>
