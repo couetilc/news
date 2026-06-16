@@ -16,12 +16,15 @@
 # image) and auto-pushed (.git-hooks/post-commit). Tokens are injected as
 # environment variables from .env (see .env.example).
 #
-# Containers are kept after exit (not --rm) so unpushed work is recoverable:
-# resume with `docker start -ai <name>` (this begins a NEW agent session in the
-# same workspace — use the agent's resume command inside to pick up the previous
-# one), salvage files with `docker cp`. `--clean` removes exited containers and
-# rebuilds the image from scratch so the baked CLIs don't freeze at
-# image-build-time latest.
+# Containers are kept after exit (not --rm) so unpushed work is recoverable.
+# `docker start -ai <name>` RERUNS the container's original command: for one
+# first launched interactively it reopens the session (use the agent's resume
+# command inside to pick up the prior thread), but for a headless `-p` launch it
+# reruns that one-shot prompt — repeating its autonomous edits/commits/pushes.
+# Do NOT `docker start` a headless container to recover work: recover from the
+# already-pushed branch, or salvage files with `docker cp`. `--clean` removes
+# exited containers and rebuilds the image from scratch so the baked CLIs don't
+# freeze at image-build-time latest.
 #
 # Wrapper contract — set these before calling agent_launch:
 #   AGENT_KIND            "claude" | "codex"; names messages, the container, and
