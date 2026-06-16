@@ -15,9 +15,13 @@ declare namespace App {
 // plain Worker var (the addresses aren't secret), defaulting in code to
 // connor@couetil.com when unset. Set it locally in `.dev.vars`; in production
 // either add a `vars` entry to wrangler.jsonc or `wrangler secret put`.
+// RESEND_API_KEY is the Resend transactional-email key (issue #88), a Worker
+// secret (`wrangler secret put RESEND_API_KEY`, `.dev.vars` locally) — never in
+// .env. Consumed by src/lib/email.ts's sendEmail.
 declare namespace Cloudflare {
 	interface Env {
 		AUTH_PEPPER?: string;
 		AUTH_ALLOWED_EMAILS?: string;
+		RESEND_API_KEY?: string;
 	}
 }
