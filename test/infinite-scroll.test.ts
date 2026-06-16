@@ -74,6 +74,13 @@ function fragment(opts: { ids: number[]; nextUrl?: string }): string {
 
 const okText = (body: string): Response => ({ ok: true, text: async () => body }) as Response;
 
+// A 200 response whose final URL differs from the requested /feed — what browser
+// fetch returns after transparently following the auth middleware's 303 to
+// /login when the session has lapsed (#216). `redirected` is true and `url` is
+// the post-redirect URL; the body, if read, would be the login page HTML.
+const redirectedTo = (finalUrl: string, body = '<form>login</form>'): Response =>
+	({ ok: true, redirected: true, url: finalUrl, text: async () => body }) as Response;
+
 beforeEach(() => {
 	document.body.innerHTML = '';
 	FakeIntersectionObserver.instances = [];
@@ -234,6 +241,61 @@ describe('infinite-scroll loader (#151)', () => {
 		// The append is skipped (no parent), no throw, and nothing is observed anew.
 		await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
 		expect(document.body.textContent).not.toContain('Item 2');
+	});
+
+	it('navigates to the login flow instead of appending an auth-redirect response (#216)', async () => {
+		// Session lapsed: fetch follows the middleware's 303 and resolves a 200 whose
+		// final URL is /login carrying the login page HTML. The loader must NOT parse
+		// it as a feed fragment — it should send the browser to that final URL.
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValue(redirectedTo('https://news.cuteteal.com/login'));
+		vi.stubGlobal('fetch', fetchMock);
+		const assign = vi.fn();
+		vi.spyOn(window.location, 'assign').mockImplementation(assign);
+
+		document.body.append(listWithSentinel());
+		initInfiniteScroll();
+		const obs = FakeIntersectionObserver.instances.at(-1)!;
+		const sentinel = obs.elements[0] as HTMLElement;
+
+		obs.trigger(sentinel);
+		await vi.waitFor(() => expect(assign).toHaveBeenCalledWith('https://news.cuteteal.com/login'));
+
+		// The login page HTML was never appended: the feed list is untouched (still
+		// just the original Item 1 + its sentinel), no <form> leaked in.
+		const list = document.querySelector('[data-feed-list]')!;
+		expect(list.textContent).not.toContain('login');
+		expect(list.contains(sentinel)).toBe(true);
+		const texts = [...list.children].map((c) => c.textContent?.trim());
+		expect(texts).toEqual(['Item 1', 'Loading more…']);
+	});
+
+	it('still appends a redirect that lands back on /feed (e.g. trailing-slash normalization)', async () => {
+		// A redirect whose final URL is still /feed (not an auth bounce) is a genuine
+		// fragment — parse and append it as usual rather than navigating away.
+		const fetchMock = vi.fn().mockResolvedValue({
+			ok: true,
+			redirected: true,
+			url: 'https://news.cuteteal.com/feed?tab=unread&offset=50',
+			text: async () => fragment({ ids: [2, 3] }),
+		} as Response);
+		vi.stubGlobal('fetch', fetchMock);
+		const assign = vi.fn();
+		vi.spyOn(window.location, 'assign').mockImplementation(assign);
+
+		document.body.append(listWithSentinel());
+		initInfiniteScroll();
+		const obs = FakeIntersectionObserver.instances.at(-1)!;
+
+		obs.trigger(obs.elements[0]);
+		await vi.waitFor(() => expect(document.body.textContent).toContain('Item 3'));
+
+		// No navigation; the rows were appended as a normal fragment.
+		expect(assign).not.toHaveBeenCalled();
+		const list = document.querySelector('[data-feed-list]')!;
+		const texts = [...list.children].map((c) => c.textContent?.trim());
+		expect(texts.slice(0, 3)).toEqual(['Item 1', 'Item 2', 'Item 3']);
 	});
 
 	it('re-initializes on astro:page-load (ClientRouter swap) without double-observing', () => {
