@@ -211,6 +211,15 @@ export async function distinctSources(db: D1Database): Promise<string[]> {
 // deletes the user's row (absence = unread). The homepage's read/unread toggle
 // posts to /api/read, which calls this and redirects back so the feature works
 // without JavaScript.
+//
+// item_reads has no foreign key to items (D1/SQLite migrations can't add one
+// after the fact, and the table predates this guard), so the mark-read INSERT is
+// sourced from `SELECT ... FROM items WHERE id = ?`: a nonexistent id selects
+// zero rows and inserts nothing, instead of persisting an orphan read for an item
+// that doesn't exist. Without this, a forged or stale POST for a bogus id would
+// leave a row that silently marks a *future* item read once that id is reused
+// (#140). Marking unread is already a no-op for an absent row, so it needs no
+// such guard.
 export async function setItemRead(
 	db: D1Database,
 	userId: number,
@@ -227,9 +236,9 @@ export async function setItemRead(
 	await db
 		.prepare(
 			`INSERT INTO item_reads (user_id, item_id, read_at)
-			 VALUES (?, ?, ?)
+			 SELECT ?, id, ? FROM items WHERE id = ?
 			 ON CONFLICT(user_id, item_id) DO UPDATE SET read_at = excluded.read_at`,
 		)
-		.bind(userId, id, readAt)
+		.bind(userId, readAt, id)
 		.run();
 }

@@ -149,4 +149,27 @@ describe('POST /api/read', () => {
 		const res = await submit({ id: String(id), read: '1' });
 		expect(res.headers.get('Location')).toBe('/');
 	});
+
+	// #140: a missing/non-integer/non-positive id is rejected before any DB write —
+	// it redirects back (honoring `return`) as a no-op and logs read.reject, never
+	// touching item_reads. Real item ids are positive INTEGER PRIMARY KEYs.
+	it('rejects a missing or malformed id as a no-op, writing nothing', async () => {
+		const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+		const id = await seedItem();
+		// A valid row exists; a bogus toggle must not flip it or create any row.
+		for (const bad of ['', 'abc', '1.5', '0', '-3', String(NaN)]) {
+			const res = await submit({ id: bad, read: '1', return: '/?source=apple' });
+			expect(res.status).toBe(303);
+			expect(res.headers.get('Location')).toBe('/?source=apple'); // still redirects back
+			expect(await isReadFor(USER, id)).toBe(false);
+		}
+		const total = await env.NEWS_DB.prepare('SELECT COUNT(*) AS n FROM item_reads').first<number>('n');
+		expect(total).toBe(0);
+		expect(logSpy).toHaveBeenCalledWith({
+			level: 'info',
+			event: 'read.reject',
+			userId: USER,
+			read: true,
+		});
+	});
 });
