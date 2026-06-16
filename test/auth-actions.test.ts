@@ -4,6 +4,13 @@ import { login, readCredentials, signup } from '../src/lib/auth-actions';
 import { getAllowedEmails } from '../src/lib/session';
 import * as users from '../src/lib/users';
 
+// signup()/login() now hash with argon2id (issue #125), which costs ~1.6s per
+// hash in this workerd pool. Several tests here do 2-3 hashes back-to-back, so
+// raise the per-test timeout for the whole file above vitest's 5s default. The
+// pure-validation tests (empty fields, bad email) finish in milliseconds and are
+// unaffected — the timeout is only a ceiling.
+vi.setConfig({ testTimeout: 30_000 });
+
 const db = env.NEWS_DB;
 const PEPPER = 'test-pepper';
 // Most signup tests use an open allowlist so they exercise the OTHER branches
