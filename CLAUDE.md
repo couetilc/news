@@ -172,12 +172,27 @@ alongside the developer one. Two standing rules:
   feature moving. The README work then runs its own draft → sign-off cycle,
   asynchronously, so the human gate never blocks the delivery pipeline.
 
-## Memory policy
+## Skills & memory policy
+
+Skills (`.claude/skills/`) are **action-guidance**: present-tense advice an agent
+acts on *now* — not a changelog, not a roadmap. Keep history out unless it's
+consequential rationale (state it as fact, not story); keep future/aspirational
+work in GitHub issues, not the skill.
+
+- **Propose a skill update when you learn something durable and consequential** —
+  a confirmed constraint, a gotcha, a better pattern future agents would miss — or
+  when a skill has gone stale or its roadmap item has shipped. Not for trivia or
+  what the repo already records.
+- **Human-gated**: a skill steers every future agent, so surface the change (a PR
+  to edit; an issue for a bigger rethink) for review — never a silent rewrite.
+- **A new capability lands in its skill when it's implemented**: the issue that
+  implements it carries the guidance to add; until then the advice lives in the
+  issue, not the skill.
 
 Don't use the harness's file-based memory feature (`~/.claude/projects/.../memory/`)
 — it doesn't survive the agent container and is invisible to other surfaces.
-Roll durable learnings into this CLAUDE.md or the appropriate skill under
-`.claude/skills/`, shipped in your PR like any other change.
+Durable learnings ship as a CLAUDE.md or skill PR like any other change (per the
+above).
 
 ## Standard dev loop
 
