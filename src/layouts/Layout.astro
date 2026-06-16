@@ -12,6 +12,15 @@ const { title } = Astro.props;
 // The masthead carries today's date like a printed edition. Built in UTC so the
 // dateline is stable wherever the worker runs.
 const dateline = longDate(new Date());
+
+// The session control lives in the masthead (issue #128) so it stops taking a
+// standalone line above the feed. Layout is shared by every page (/, /login,
+// /signup…), so it reads the auth state off Astro.locals.userId — the one typed
+// place the middleware sets it (#70) — and renders the matching affordance:
+// the POST-to-/logout Sign out form when a user is logged in, a Log in link
+// when not. Both follow the interactive-affordance convention (#129): Sign out
+// is the action-button idiom, Log in is the text-link idiom.
+const isAuthed = Astro.locals.userId !== undefined;
 ---
 
 <html lang="en">
@@ -32,7 +41,40 @@ const dateline = longDate(new Date());
 	</head>
 	<body class="min-h-screen antialiased">
 		<div class="mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8">
-			<header class="border-y-4 border-double border-ink py-3 text-center sm:py-4">
+			{/* The nameplate stays centered: the session control is taken out of flow
+			    (absolute, top-right corner) so it never offsets the centered dateline /
+			    "News" / tagline. Mobile-first — it's pinned to the corner at an agate
+			    scale that doesn't crowd the narrow masthead, growing only at sm:. */}
+			<header
+				class="relative border-y-4 border-double border-ink py-3 text-center sm:py-4"
+			>
+				<div class="absolute right-3 top-2 sm:right-4 sm:top-3">
+					{
+						isAuthed ? (
+							/* Sign out — the action-button idiom (#129): a drawn ink-outline
+							   control (resting affordance), accent-filling on hover, a
+							   focus-visible ring, cursor-pointer. A plain POST form so it
+							   logs out with JS off (POST /logout → 303). */
+							<form method="POST" action="/logout">
+								<button
+									type="submit"
+									class="cursor-pointer border border-ink px-2 py-1 font-sans text-[0.6rem] uppercase tracking-[0.2em] text-ink hover:bg-ink hover:text-paper focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink sm:text-xs"
+								>
+									Sign out
+								</button>
+							</form>
+						) : (
+							/* Log in — the text-link idiom (#129): a resting hairline
+							   underline, accent on hover, a focus-visible ring. */
+							<a
+								href="/login"
+								class="font-sans text-[0.6rem] uppercase tracking-[0.2em] text-ink-soft underline underline-offset-2 hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink sm:text-xs"
+							>
+								Log in
+							</a>
+						)
+					}
+				</div>
 				<p
 					class="font-sans text-[0.6rem] uppercase tracking-[0.3em] text-muted sm:text-xs"
 				>

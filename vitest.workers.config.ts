@@ -30,6 +30,7 @@ export default defineConfig({
 		exclude: [
 			'test/agents-md.test.ts',
 			'test/index.test.ts',
+			'test/layout.test.ts',
 			'test/status.test.ts',
 			'test/public.test.ts',
 			'test/article.test.ts',

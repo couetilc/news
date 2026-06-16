@@ -8,8 +8,9 @@ import Layout from '../layouts/Layout.astro';
 import { PAGE_SIZE, clampPage, offsetFor, parsePage } from '../lib/pagination';
 
 // The homepage is session-adaptive (issue #87): anonymous visitors get the
-// public read-only feed + a Log in link; logged-in visitors get their personal
-// feed (read/unread toggle, source filter, pagination). The auth middleware sets
+// public read-only feed; logged-in visitors get their personal feed (read/unread
+// toggle, source filter, pagination). The session control (Log in / Sign out)
+// lives in the masthead now (issue #128), not in either branch. The auth middleware sets
 // locals.userId only for an authenticated request and lets an anonymous `/`
 // fall through with it unset, so its presence is the single source of truth for
 // which view to render. Branching here (not on the raw session) keeps the page's
@@ -101,17 +102,9 @@ const isEmpty = unreadTotal === 0 && readTotal === 0;
 	{
 		isAuthed ? (
 			<>
-				{/* Sign-out control: a plain POST form (no JS) in the newspaper voice, a
-				    small-caps link rather than a SaaS button. Only the authenticated view
-				    draws it. (Moving it into the masthead is #128, a later PR.) */}
-				<form method="POST" action="/logout" class="mb-4 text-right">
-					<button
-						type="submit"
-						class="font-sans text-[0.65rem] uppercase tracking-[0.2em] text-muted hover:text-accent"
-					>
-						Sign out
-					</button>
-				</form>
+				{/* The session control (Sign out) now lives in the masthead header
+				    (Layout.astro), not here — issue #128 moved it out of the feed body
+				    so the first story sits higher. */}
 				{present.length === 0 ? (
 					<p class="py-16 text-center text-lg italic text-muted">
 						Nothing aggregated yet — check back soon.
@@ -171,18 +164,9 @@ const isEmpty = unreadTotal === 0 && readTotal === 0;
 			</>
 		) : (
 			<>
-				{/* Anonymous view: a top-right Log in link in the newspaper voice. It's
-				    navigation, so it follows the text-link affordance idiom (#129): a
-				    resting hairline underline, accent on hover, a drawn focus-visible
-				    ring for keyboard readers — never hover-only. */}
-				<p class="mb-4 text-right">
-					<a
-						href="/login"
-						class="font-sans text-[0.65rem] uppercase tracking-[0.2em] text-ink-soft underline underline-offset-2 hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
-					>
-						Log in
-					</a>
-				</p>
+				{/* The session control (Log in) now lives in the masthead header
+				    (Layout.astro), not here — issue #128 made the masthead the single home
+				    for the session affordance in both auth states. */}
 				{publicItems.length === 0 ? (
 					<p class="py-16 text-center text-lg italic text-muted">
 						Nothing aggregated yet — check back soon.
