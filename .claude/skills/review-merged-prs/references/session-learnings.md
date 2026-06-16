@@ -34,3 +34,6 @@ These lessons came from the initial in-context monitoring session for this repo.
 - Apply the `agent-reviewed` label to every PR you finish reviewing, even a clean
   one. That label — not a committed log — is how later runs tell reviewed PRs
   apart from new merges.
+- Route actionable findings from **open PR reviews** into GitHub issues too.
+  PR comments can get lost outside the backlog; the issue, or an existing issue
+  comment when it is already covered, is the durable review record.

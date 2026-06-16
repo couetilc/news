@@ -1,7 +1,6 @@
 ---
 name: review-merged-prs
-description: Detect newly merged GitHub pull requests, perform in-context post-merge code reviews, file actionable findings as GitHub issues, and mark each reviewed PR with a label. Use when asked to watch PR merges, review merged PRs, turn review findings into the issue backlog, distinguish already-reviewed merged PRs from new ones, or help another agent pick up open review findings.
-when_to_use: Watching a GitHub repo for merged PRs and reviewing them post-merge; turning review findings into tracked issues; telling which merged PRs still need review; handing actionable findings to another coding agent via the backlog. Pairs with the issue-orchestration skill (Claude lands PRs; this reviews them).
+description: Detect newly merged GitHub pull requests, perform in-context PR reviews, file actionable findings from open or merged PRs as GitHub issues, and mark each reviewed merged PR with a label. Use when asked to watch PR merges, review merged or open PRs, route findings into the issue backlog, distinguish already-reviewed merged PRs from new ones, or help another agent pick up open review findings. Pairs with issue orchestration.
 ---
 
 # Review Merged PRs
@@ -10,10 +9,14 @@ when_to_use: Watching a GitHub repo for merged PRs and reviewing them post-merge
 
 Watch a GitHub repo for merged PRs, review each merged change in the current
 agent context, and route the result into the project's **issue backlog**:
-actionable findings become GitHub issues; every reviewed PR is tagged with the
-`agent-reviewed` label. Reviews are **post-merge**. Findings are **not** written
-to a committed file and **not** posted as PR comments — they live as issues, the
-backlog's single source of truth.
+actionable findings become GitHub issues; every reviewed merged PR is tagged
+with the `agent-reviewed` label.
+
+The issue-backlog rule also applies to **open PR reviews**. Findings are **not**
+written to a committed file and **not** posted as PR comments or PR reviews —
+they live as issues, the backlog's single source of truth. If an existing issue
+already covers the finding, add the PR-specific context as an issue comment
+instead of filing a duplicate. Do not use a PR comment as the finding record.
 
 This skill is shared by both agents: it lives in `.claude/skills/` and is
 reached through the `.codex/skills` symlink, so an agent that reads skills from
@@ -62,9 +65,10 @@ reached through the `.codex/skills` symlink, so an agent that reads skills from
    `references/finding-issue.md` (a `agent-review` label plus the usual type/area
    labels; reference the source `PR #N` in the body). Search existing issues
    first. If an existing issue already covers the finding, add a comment with
-   the PR-specific context instead of filing a duplicate. If there are no
-   actionable findings, file nothing.
-8. **Mark the PR reviewed** regardless of outcome:
+   the PR-specific context to that issue instead of filing a duplicate. Do not
+   post the finding as a PR comment or PR review. If there are no actionable
+   findings, file nothing.
+8. **Mark the merged PR reviewed** regardless of outcome:
 
    ```bash
    gh pr edit <N> --add-label agent-reviewed
@@ -73,13 +77,26 @@ reached through the `.codex/skills` symlink, so an agent that reads skills from
 9. Run the detector once. If clean, restart the watch loop. Stop running watch
    sessions before final responses or workflow changes.
 
+## Open PR Reviews
+
+When reviewing an open PR under this workflow or while orchestrating issue work,
+use the same finding route: actionable findings become `agent-review` issues, or
+issue comments on an existing covering issue. Do **not** submit findings as PR
+comments. Mention the PR number and URL in the issue body so GitHub cross-links
+the PR and the backlog item.
+
+Do not apply `agent-reviewed` to open PRs; that label is only the merged-PR
+detector's marker. For open PRs, report the issue URLs to the user and hold or
+merge according to the normal review tier.
+
 ## What counts as a finding
 
 File issues only for **actionable** findings — a concrete bug, regression, or
 operational risk, with file:line and user-visible or operational impact. Use
 `High` / `Medium` / `Low` severity in the issue body. Don't file issues for style
-nits or to restate the PR summary; when a review is clean, the `agent-reviewed`
-label alone records that it happened.
+nits or to restate the PR summary. For merged PRs, when a review is clean, the
+`agent-reviewed` label alone records that it happened; for open PRs, simply
+report that no actionable findings were found.
 
 ## Finding-issue format
 
