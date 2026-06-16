@@ -238,7 +238,7 @@ voice does the rest.
 
 ## Coverage gotcha
 
-`src/**` is under a 100% line/branch coverage gate. `.astro` components and
+`src/**` is under a 100% statements/branches/functions/lines coverage gate. `.astro` components and
 `src/lib/**` count. Keep presentational helpers branch-free (see
 `src/lib/format.ts` — fixed name tables, no conditionals) and make sure any new
 component is actually rendered by a test, or the gate fails.

@@ -65,7 +65,7 @@ quality manageable. Each brief contains:
 - Conventions: `CLAUDE.md` + the relevant skill(s) (e.g. design-system for UI).
 - The pattern to mirror: point at the **canonical example file** for this kind of change.
 - Constraints: branch off main (never commit main), `npm ci` first, `npm test` must pass
-  at 100% line/branch across **both** vitest projects, tests hermetic (no network — inject
+  at 100% statements/branches/functions/lines across **both** vitest projects, tests hermetic (no network — inject
   `fetch`, use fixtures).
 - **Pre-assigned shared resources** (see hazards) so parallel agents don't collide.
 - Deliverable: `gh pr create --fill` with `Fixes #N`; **do NOT merge**; report PR #/URL,
