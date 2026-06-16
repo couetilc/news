@@ -1,0 +1,45 @@
+#!/bin/bash
+# Run OpenAI Codex in an isolated agent container, full-auto — parity with
+# ./bin/claude: same isolation contract, flags, and lifecycle; it just runs
+# `codex` instead of `claude`.
+#
+#   ./bin/codex                   interactive session, approvals+sandbox bypassed
+#   ./bin/codex -p "fix tests"    headless one-shot (codex exec)
+#   ./bin/codex --shell           bash inside the container instead of codex
+#   ./bin/codex --clean           remove exited agent containers + rebuild image
+#
+# Model/effort: gpt-5.5 at xhigh reasoning effort — mirrors bin/claude's
+# opus/xhigh. gpt-5.5 is OpenAI's current flagship; bump CODEX_MODEL when a
+# smarter id ships.
+# Auth (from .env): OPENAI_API_KEY (codex) + GH_TOKEN (clone/push). Codex cannot
+# run the ChatGPT browser login under the no-host-mount contract, so it uses the
+# injected API key (the entrypoint runs `codex login --api-key`).
+# Shared launcher logic lives in bin/_agent-common.sh.
+set -euo pipefail
+
+AGENT_KIND=codex
+AGENT_AUTH_VAR=OPENAI_API_KEY
+CODEX_MODEL=gpt-5.5
+# Forward the model id so the entrypoint's config.toml fallback matches the flag.
+AGENT_ENV=(-e CODEX_MODEL="$CODEX_MODEL")
+
+# `--dangerously-bypass-approvals-and-sandbox` (alias --yolo) is the codex analog
+# of claude's --dangerously-skip-permissions: no approvals, no sandbox — the
+# container *is* the sandbox. Reasoning effort is a config override quoted as a
+# TOML string; passing it as a flag is the reliable source of truth (config.toml
+# effort can be ignored on a fresh launch — openai/codex#17436). `-p` maps to the
+# `codex exec` non-interactive subcommand (codex has no `-p` flag).
+# shellcheck disable=SC2034  # CMD is read by agent_launch (bin/_agent-common.sh)
+agent_cmd() {
+	local flags=(--dangerously-bypass-approvals-and-sandbox --model "$CODEX_MODEL" --config 'model_reasoning_effort="xhigh"')
+	if [ "${1:-}" = "-p" ]; then
+		shift
+		CMD=(codex exec "${flags[@]}" "$@")
+	else
+		CMD=(codex "${flags[@]}" "$@")
+	fi
+}
+
+# shellcheck source=bin/_agent-common.sh
+source "$(dirname "$0")/_agent-common.sh"
+agent_launch "$@"

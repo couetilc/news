@@ -72,6 +72,16 @@ WORKDIR /workspace
 ENV PATH="/home/node/.local/bin:${PATH}"
 RUN curl -fsSL https://claude.ai/install.sh | bash
 ENV DISABLE_AUTOUPDATER=1
+
+# codex CLI (OpenAI Codex) — the second coding-agent surface, launched by
+# bin/codex at parity with bin/claude (the parallel implement/review workflow;
+# see README "Two agents, side by side" and issue #107). Installed into the
+# same node-owned ~/.local prefix as claude (already on PATH) via npm, so it's
+# refreshed by `--clean` rebuilds just like claude. Latest at build time,
+# mirroring claude's unpinned native install. Remove this layer if the Codex
+# execution surface is dropped.
+RUN npm install -g --prefix /home/node/.local @openai/codex \
+	&& codex --version
 # Marks this as a sandboxed environment for claude (kept as verified
 # working config). The --dangerously-skip-permissions acceptance dialog is
 # pre-accepted via skipDangerousModePermissionPrompt in the seeded user
