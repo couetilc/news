@@ -3,7 +3,7 @@ import { env } from 'cloudflare:workers';
 import Layout from '../layouts/Layout.astro';
 import AuthForm from '../components/AuthForm.astro';
 import { readCredentials, signup } from '../lib/auth-actions';
-import { establishSession, getPepper } from '../lib/session';
+import { establishSession, getAllowedEmails, getPepper } from '../lib/session';
 
 // Account creation (issue #40). One .astro page serves both verbs, like a
 // classic no-JS form: GET renders the empty form; POST validates + creates the
@@ -25,6 +25,7 @@ if (Astro.request.method === 'POST') {
 		credentials.password,
 		getPepper(env),
 		Math.floor(Date.now() / 1000),
+		getAllowedEmails(env),
 	);
 	if (result.ok) {
 		await establishSession(Astro.session, result.userId);

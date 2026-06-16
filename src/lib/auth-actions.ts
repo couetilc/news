@@ -24,20 +24,34 @@ export function readCredentials(form: FormData): { email: string; password: stri
 	};
 }
 
-// Create an account. Validates input, rejects an already-registered email, and
-// stores only a salted PBKDF2 hash. The duplicate-email check is best-effort
-// before the insert; the UNIQUE constraint is the real guard, so a race that
-// slips past the SELECT still surfaces here as a "taken" error rather than a 500.
+// Create an account. Validates input, enforces the signup allowlist, rejects an
+// already-registered email, and stores only a salted PBKDF2 hash. The
+// duplicate-email check is best-effort before the insert; the UNIQUE constraint
+// is the real guard, so a race that slips past the SELECT still surfaces here as
+// a "taken" error rather than a 500.
+//
+// `allowedEmails` is the normalized allowlist (issue #76): this is a single-user
+// tool, so only those addresses may sign up. A non-allowlisted address is
+// rejected with the SAME generic "valid email" error as a malformed one, so the
+// form never reveals that the allowlist exists or who is on it. The caller
+// supplies the list (src/lib/session.ts getAllowedEmails) already normalized,
+// and `email` is normalized by readCredentials, so this is a plain membership
+// test. Login is intentionally NOT gated — existing accounts always work.
 export async function signup(
 	db: D1Database,
 	email: string,
 	password: string,
 	pepper: string,
 	now: number,
+	allowedEmails: string[],
 ): Promise<AuthResult> {
 	if (!isValidEmail(email)) return { ok: false, error: 'Enter a valid email address.' };
 	if (!isValidPassword(password)) {
 		return { ok: false, error: 'Password must be at least 8 characters.' };
+	}
+	// Allowlist gate. Generic error on purpose — does not leak allowlist membership.
+	if (!allowedEmails.includes(email)) {
+		return { ok: false, error: 'Enter a valid email address.' };
 	}
 	if (await findUserByEmail(db, email)) {
 		return { ok: false, error: 'That email is already registered.' };

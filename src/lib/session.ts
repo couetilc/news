@@ -1,3 +1,5 @@
+import { normalizeEmail } from './auth';
+
 // Session conventions shared by the auth routes and the middleware guard.
 // Astro Sessions are backed by the Cloudflare KV namespace the adapter binds as
 // SESSION (see CLAUDE.md); we store just the authenticated user's id under one
@@ -33,4 +35,22 @@ export async function establishSession(
 // database. Centralized here so routes don't each reach into env.
 export function getPepper(env: { AUTH_PEPPER?: string }): string {
 	return env.AUTH_PEPPER ?? '';
+}
+
+// The signup allowlist (issue #76): this is a single-user tool, so only these
+// addresses may create an account. Sourced from the comma-separated
+// AUTH_ALLOWED_EMAILS Worker var so it can expand later without a code change;
+// defaults to just connor@couetil.com when unset. Each entry is run through the
+// same normalizeEmail (trim + lowercase) used for stored emails, so the
+// membership test matches however an account email was normalized at signup.
+// An empty/whitespace-only var falls back to the default rather than locking
+// everyone out. Centralized here so the route doesn't reach into env directly.
+const DEFAULT_ALLOWED_EMAILS = ['connor@couetil.com'];
+
+export function getAllowedEmails(env: { AUTH_ALLOWED_EMAILS?: string }): string[] {
+	const configured = (env.AUTH_ALLOWED_EMAILS ?? '')
+		.split(',')
+		.map(normalizeEmail)
+		.filter((email) => email.length > 0);
+	return configured.length > 0 ? configured : [...DEFAULT_ALLOWED_EMAILS];
 }

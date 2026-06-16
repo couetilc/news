@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { POST } from '../src/pages/logout';
-import { establishSession, getPepper, SESSION_USER_KEY } from '../src/lib/session';
+import {
+	establishSession,
+	getAllowedEmails,
+	getPepper,
+	SESSION_USER_KEY,
+} from '../src/lib/session';
 
 // Drive /logout the way the homepage form does: a POST with a stub `session` and
 // `redirect`. No D1 or crypto, but it lives in the workers project alongside the
@@ -36,6 +41,18 @@ describe('session helpers', () => {
 	it('reads AUTH_PEPPER from env, defaulting to empty string', () => {
 		expect(getPepper({ AUTH_PEPPER: 'p' })).toBe('p');
 		expect(getPepper({})).toBe('');
+	});
+
+	it('resolves the signup allowlist from AUTH_ALLOWED_EMAILS (issue #76)', () => {
+		// Unset → the single-user default.
+		expect(getAllowedEmails({})).toEqual(['connor@couetil.com']);
+		// Comma-separated, normalized (trim + lowercase), empties dropped.
+		expect(
+			getAllowedEmails({ AUTH_ALLOWED_EMAILS: ' One@Example.com ,, two@example.COM ,' }),
+		).toEqual(['one@example.com', 'two@example.com']);
+		// Whitespace/empty-only var falls back to the default rather than locking
+		// everyone out.
+		expect(getAllowedEmails({ AUTH_ALLOWED_EMAILS: '  ,  ' })).toEqual(['connor@couetil.com']);
 	});
 
 	it('establishSession regenerates the id then stores the user id', async () => {
