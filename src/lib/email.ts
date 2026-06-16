@@ -15,6 +15,12 @@
 
 const RESEND_ENDPOINT = 'https://api.resend.com/emails';
 
+// Resend's direct-HTTP API (no SDK) requires a `User-Agent` on every request;
+// omitting it can 403 an otherwise-valid send. We send a stable, descriptive
+// value identifying this worker + its repo so Resend attributes requests to us.
+// (https://resend.com/docs/api-reference/introduction#user-agent)
+const USER_AGENT = 'news-cuteteal-worker (+https://github.com/couetilc/news)';
+
 export interface SendEmailParams {
 	// Recipient address. Resend also accepts an array; a single string covers the
 	// single-user transactional case and keeps the contract small.
@@ -57,6 +63,7 @@ export async function sendEmail(
 		headers: {
 			Authorization: `Bearer ${apiKey}`,
 			'Content-Type': 'application/json',
+			'User-Agent': USER_AGENT,
 		},
 		body: JSON.stringify({ from, to, subject, text, html }),
 	});
