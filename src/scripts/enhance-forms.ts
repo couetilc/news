@@ -21,10 +21,11 @@
 // is present. Each enhanced markup is opt-in via data-* hooks, so an unenhanced
 // form on the page is simply ignored.
 //
-// This module is built by Astro's client pipeline, not the SSR module graph the
-// vitest coverage gate sees, so it is exercised by the Playwright e2e
-// (e2e/async-feedback.spec.ts, e2e/read-toggle-rebind.spec.ts), not the 100%
-// src/** istanbul gate.
+// Astro's client pipeline builds this for the browser, but it's pure DOM logic,
+// so it's unit-tested in the node project under a per-file happy-dom environment
+// (test/enhance-forms.test.ts) and stays inside the 100% src/** istanbul gate.
+// The Playwright e2e (e2e/async-feedback.spec.ts, e2e/read-toggle-rebind.spec.ts)
+// additionally covers it as a real-browser behavioral guard.
 
 // Mark a triggering button busy in voice (#96): disabled (client layer of the
 // double-submit defense), aria-busy for assistive tech, and — when it carries a

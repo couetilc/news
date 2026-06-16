@@ -32,6 +32,7 @@
     "@cloudflare/vitest-pool-workers": "^0.16.15",
     "@playwright/test": "1.61.0",
     "@vitest/coverage-istanbul": "^4.1.8",
+    "happy-dom": "^20.10.4",
     "vitest": "^4.1.8"
   }
 }

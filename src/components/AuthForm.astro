@@ -129,9 +129,9 @@ const { heading, submitLabel, busyLabel, error, email, alt } = Astro.props;
    toast, no silent failure). The enhancement is a single delegated `submit`
    listener on `document` (src/scripts/enhance-forms.ts), shared with the
    read-toggle and sign-out — it survives ClientRouter DOM swaps rather than going
-   stale on freshly-rendered markup (#155). Built by Astro's client pipeline, not
-   the SSR module graph the vitest gate sees — covered by the Playwright e2e, not
-   the istanbul gate. */}
+   stale on freshly-rendered markup (#155). Pure DOM logic, unit-tested under
+   happy-dom (test/enhance-forms.test.ts) inside the 100% src/** gate and covered
+   by the Playwright e2e as a behavioral guard. */}
 <script>
 	import '../scripts/enhance-forms';
 </script>

@@ -117,10 +117,10 @@ const nextState = isRead ? '0' : '1';
    confirmation. The enhancement is a single delegated `submit` listener on
    `document` (src/scripts/enhance-forms.ts) so it survives ClientRouter's row
    swap — the replacement form stays enhanced (#155), where the old per-form
-   binding went stale after the first toggle. Built by Astro's client pipeline,
-   not the SSR module graph the vitest coverage gate sees, so it's exercised by
-   the Playwright e2e (e2e/read-toggle-rebind.spec.ts, e2e/async-feedback.spec.ts),
-   not the 100% src/** istanbul gate. */}
+   binding went stale after the first toggle. The module is pure DOM logic, so
+   it's unit-tested under happy-dom (test/enhance-forms.test.ts) inside the 100%
+   src/** gate and additionally covered as a real-browser behavioral guard by the
+   Playwright e2e (e2e/read-toggle-rebind.spec.ts, e2e/async-feedback.spec.ts). */}
 <script>
 	import '../scripts/enhance-forms';
 </script>

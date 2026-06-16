@@ -17,18 +17,11 @@ export default defineConfig({
 		coverage: {
 			provider: 'istanbul',
 			include: ['src/**'],
-			// src/scripts/** are browser-only client enhancement modules pulled in via
-			// Astro `<script>` imports (e.g. enhance-forms.ts, the ClientRouter-safe
-			// async-feedback initializer, #155). Astro's client pipeline runs them in
-			// the browser; the SSR/vitest module graph never imports or executes them
-			// (the Container API emits the script tag without running its body), so
-			// they can't be covered by the workerd/node pools. They are exercised by
-			// the Playwright e2e (e2e/*.spec.ts) instead — exactly as the inline
-			// <script> blocks they replace already were, per CLAUDE.md's testing
-			// policy. Excluding them keeps the 100% gate honest for code the vitest
-			// pools can actually execute; were they included, istanbul would report
-			// them 0% (never imported) and red-fail the gate.
-			exclude: ['src/scripts/**'],
+			// No src/** carve-outs: every source file is exercised by one of the
+			// projects. Browser-only client modules under src/scripts/** (e.g.
+			// enhance-forms.ts) are unit-tested in the node project under a per-file
+			// happy-dom environment (test/enhance-forms.test.ts) so they stay inside
+			// the 100% gate, and are additionally covered by the Playwright e2e.
 			thresholds: {
 				statements: 100,
 				branches: 100,
