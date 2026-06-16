@@ -4,143 +4,33 @@
 #   ./bin/claude                  interactive session, permissions skipped
 #   ./bin/claude -p "fix tests"   headless one-shot, permissions skipped
 #   ./bin/claude --shell          bash inside the container instead of claude
-#   ./bin/claude --clean          remove exited agent containers
+#   ./bin/claude --clean          remove exited agent containers + rebuild image
 #
-# Isolation contract: NOTHING from the host is mounted. The container clones
-# the repo fresh from GitHub at launch (so hand it in-progress work by
-# committing first — the post-commit hook auto-pushes the branch). Parallel
-# containers share nothing but an npm cache. Work leaves the container only
-# via git: commits are gitleaks-gated (.git-hooks/pre-commit, binary baked
-# into the image) and auto-pushed (.git-hooks/post-commit). Tokens are
-# injected as environment variables from .env:
-#   CLAUDE_CODE_OAUTH_TOKEN  from `claude setup-token`  (claude auth)
-#   GH_TOKEN                 fine-grained PAT            (clone, push, gh)
-#   CLOUDFLARE_API_TOKEN     wrangler, if ever needed
-#
-# Containers are kept after exit (not --rm) so unpushed work is recoverable:
-# resume with `docker start -ai <name>` (this begins a NEW claude session in
-# the same workspace — use /resume inside to pick up the previous one),
-# salvage files with `docker cp`. `./bin/claude --clean` removes exited
-# containers and rebuilds the image from scratch so the claude CLI doesn't
-# freeze at image-build-time latest.
+# Auth (from .env): CLAUDE_CODE_OAUTH_TOKEN (claude CLI) + GH_TOKEN (clone/push).
+# The shared launcher logic — isolation contract, preflight, sync_main, image
+# build, dev-server port mapping, docker run — lives in bin/_agent-common.sh.
 set -euo pipefail
-cd "$(dirname "$0")/.."
 
-if [ "${1:-}" = "--clean" ]; then
-	exited=$(docker ps -aq --filter label=news-agent --filter status=exited)
-	if [ -n "$exited" ]; then
-		docker rm $exited
-	else
-		echo "no exited agent containers"
-	fi
-	echo "Rebuilding image from scratch (fresh claude/gh/node)..."
-	docker build --pull --no-cache -t news-agent docker/
-	exit 0
-fi
+AGENT_KIND=claude
+AGENT_ENV=()
 
-if [ ! -f .env ]; then
-	echo "error: .env not found — copy .env.example and fill in tokens" >&2
-	exit 1
-fi
-if ! grep -q '^GH_TOKEN=.\+' .env; then
-	echo "error: GH_TOKEN is empty in .env — the container clones and pushes over HTTPS with it (see .env.example)" >&2
-	exit 1
-fi
-
-# Keep the host's main current with origin before building. The container
-# clones app code fresh at launch, but the agent image is built from the local
-# docker/ context and we invoke the local bin/claude — both read from the host
-# working tree, so a stale main means a stale agent setup. Fast-forward when we
-# can; otherwise warn. This never blocks the launch: calling sync_main via
-# `|| true` suspends `set -e` for the whole function body.
-sync_main() {
-	git rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 0
-	echo "Syncing main with origin..." >&2
-	if ! git fetch --quiet origin main 2>/dev/null; then
-		echo "  warning: couldn't reach origin (offline?); using local checkout as-is" >&2
-		return 0
-	fi
-	local branch
-	branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
-	if [ "$branch" = "main" ]; then
-		if git merge --ff-only origin/main >/dev/null 2>&1; then
-			echo "  main fast-forwarded to origin/main" >&2
-		else
-			echo "  warning: local main won't fast-forward (diverged or dirty tree); continuing as-is" >&2
-		fi
-	elif git merge-base --is-ancestor main origin/main 2>/dev/null; then
-		# On a feature branch: move the local main ref up to origin/main
-		# without touching the current branch or working tree.
-		git update-ref refs/heads/main origin/main
-		echo "  main fast-forwarded to origin/main (on branch '$branch'; working tree untouched)" >&2
-	else
-		echo "  warning: local main has diverged from origin/main; leaving it unchanged" >&2
-	fi
+# CLAUDE_CODE_OAUTH_TOKEN (host `claude setup-token`, billed to the Claude
+# subscription) authenticates the CLI inside the container, injected via .env.
+agent_auth_preflight() {
+	grep -q '^CLAUDE_CODE_OAUTH_TOKEN=.\+' .env || {
+		echo "error: CLAUDE_CODE_OAUTH_TOKEN is empty in .env — claude authenticates with it inside the container (see .env.example)" >&2
+		exit 1
+	}
 }
-sync_main || true
 
-IMAGE=news-agent
-# Build (or refresh) the agent image. The first build — and any after
-# `--clean` — downloads the toolchain plus a headless Chromium shell, so it
-# takes a few minutes; cached rebuilds finish in seconds. Either way, show
-# BuildKit's progress so a cold build reads as work-in-progress, not a hang.
-# (The old silent `-q … >/dev/null` build was the ~3-minute "is it stuck?"
-# block that motivated this.)
-if docker image inspect "$IMAGE" >/dev/null 2>&1; then
-	echo "Refreshing $IMAGE image (cached layers reused; usually seconds)..." >&2
-else
-	echo "Building $IMAGE image for the first time: node/gh/gitleaks/claude + headless Chromium (~150MB)." >&2
-	echo "This is a one-time cost of a few minutes; later runs reuse the Docker cache." >&2
-fi
-build_start=$SECONDS
-docker build -t "$IMAGE" docker/
-echo "Image ready in $((SECONDS - build_start))s." >&2
-
-CMD=(claude --dangerously-skip-permissions --model opus --effort xhigh)
-if [ "${1:-}" = "--shell" ]; then
-	shift
-	CMD=(bash)
-fi
-
-NAME="news-agent-$(date +%m%d-%H%M%S)"
-echo "Starting $NAME (kept after exit; ./bin/claude --clean to prune)" >&2
-
-# Host port mapping. We pick the random host ports ourselves instead of using the
-# bare `-p 127.0.0.1::4321` form (which lets Docker choose) so we can inject the
-# resulting addresses into the container as $DEV_HOST_4321 / $DEV_HOST_8787. The
-# agent runs as non-root with no Docker socket — by the isolation contract it
-# cannot query the mapping itself — so it reads those vars and tells you which
-# URL to open. Still a fresh random port per launch, so parallel containers
-# never collide. (Bind only: the dev server must also bind 0.0.0.0 inside the
-# container — run `npm run dev -- --host` — or forwarded traffic never reaches a
-# container-loopback listener.)
-port_free() {
-	( exec 3<>"/dev/tcp/127.0.0.1/$1" ) 2>/dev/null && return 1 || return 0
+# Interactive default and `-p` headless both run `claude`; `-p` is a native
+# claude flag, so the user's args pass straight through. (CMD is consumed by
+# agent_launch in the sourced common script.)
+# shellcheck disable=SC2034  # CMD is read by agent_launch (bin/_agent-common.sh)
+agent_cmd() {
+	CMD=(claude --dangerously-skip-permissions --model opus --effort xhigh "$@")
 }
-pick_port() {
-	local p
-	while :; do
-		p=$(( (RANDOM % 16384) + 49152 )) # ephemeral range 49152-65535
-		if port_free "$p"; then echo "$p"; return; fi
-	done
-}
-PORT_ASTRO=$(pick_port)
-PORT_WRANGLER=$(pick_port)
-while [ "$PORT_WRANGLER" = "$PORT_ASTRO" ]; do PORT_WRANGLER=$(pick_port); done
-echo "Dev servers, once started inside with --host:" >&2
-echo "  astro     http://127.0.0.1:$PORT_ASTRO/    (\$DEV_HOST_4321)" >&2
-echo "  wrangler  http://127.0.0.1:$PORT_WRANGLER/    (\$DEV_HOST_8787)" >&2
 
-docker run -it \
-	--name "$NAME" \
-	--label news-agent \
-	-v news-agent-npm-cache:/home/node/.npm \
-	--env-file .env \
-	-e GIT_USER_NAME="$(git config user.name 2>/dev/null || true)" \
-	-e GIT_USER_EMAIL="$(git config user.email 2>/dev/null || true)" \
-	-e TERM=xterm-256color \
-	-e COLORTERM="${COLORTERM:-}" \
-	-e DEV_HOST_4321="127.0.0.1:$PORT_ASTRO" \
-	-e DEV_HOST_8787="127.0.0.1:$PORT_WRANGLER" \
-	-p "127.0.0.1:$PORT_ASTRO:4321" -p "127.0.0.1:$PORT_WRANGLER:8787" \
-	"$IMAGE" "${CMD[@]}" "$@"
+# shellcheck source=bin/_agent-common.sh
+source "$(dirname "$0")/_agent-common.sh"
+agent_launch "$@"

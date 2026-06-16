@@ -1,9 +1,16 @@
 #!/bin/bash
-# Bootstrap the agent container, then exec the requested command (default:
-# claude --dangerously-skip-permissions, see Dockerfile CMD / bin/claude).
+# Bootstrap the agent container, then exec the requested command. Default:
+# claude --dangerously-skip-permissions (see Dockerfile CMD / bin/claude); the
+# bin/codex launcher sets AGENT_KIND=codex and runs `codex` instead. Setup that
+# is identical for both agents (git, clone, npm) is shared; the agent-specific
+# CLI config + auth is branched on $AGENT_KIND below.
 set -e
 
-# Git identity comes from the host via bin/claude; fall back to repo owner.
+# Which agent this container runs (bin/claude / bin/codex inject it; default
+# claude so a bare `docker run news-agent` and `--shell` behave as before).
+AGENT_KIND="${AGENT_KIND:-claude}"
+
+# Git identity comes from the host via bin/<agent>; fall back to repo owner.
 git config --global user.name "${GIT_USER_NAME:-Connor Couetil}"
 git config --global user.email "${GIT_USER_EMAIL:-connor@couetil.com}"
 
@@ -16,10 +23,6 @@ git config --global core.hooksPath /workspace/.git-hooks
 if [ -n "${GH_TOKEN:-}" ]; then
 	gh auth setup-git 2>/dev/null || true
 fi
-
-# Refresh the claude CLI before the session starts (native install under
-# ~/.local is node-owned, so this works without root). Never block startup.
-claude update 2>&1 | tail -1 || true
 
 # Each container clones its own working tree from the remote — no host
 # mounts, so parallel containers share nothing and the host filesystem is
@@ -34,44 +37,83 @@ if [ ! -e /workspace/.git ]; then
 	git clone "https://github.com/${NEWS_REPO}.git" /workspace
 fi
 
-# First-run state for claude: mark onboarding, the bypass-permissions
-# warning, and /workspace trust as completed so a fresh container drops
-# straight into an authenticated session (CLAUDE_CODE_OAUTH_TOKEN). The
-# native installer and `claude update` create ~/.claude.json themselves, so
-# MERGE the flags — a write-if-absent guard never fires. The merge is
-# idempotent on resumed containers; theme is defaulted only when unset.
-flags='{"hasCompletedOnboarding": true, "bypassPermissionsModeAccepted": true, "projects": {"/workspace": {"hasTrustDialogAccepted": true}}}'
-if [ -f "$HOME/.claude.json" ]; then
-	jq --argjson flags "$flags" '. * $flags | .theme //= "dark"' "$HOME/.claude.json" \
-		> "$HOME/.claude.json.tmp" && mv "$HOME/.claude.json.tmp" "$HOME/.claude.json"
+# ── Agent-specific CLI setup ─────────────────────────────────────────
+if [ "$AGENT_KIND" = "codex" ]; then
+	# Codex config + auth (parity with the claude branch below). CODEX_HOME
+	# defaults to ~/.codex. Seed the model + reasoning effort; bin/codex also
+	# passes both as flags — the reliable source of truth, since config.toml
+	# effort can be ignored on a fresh launch (openai/codex#17436) — but the file
+	# documents the pin and covers any path that reads it. CODEX_MODEL is
+	# forwarded by bin/codex; reseeded each start so an updated pin propagates.
+	mkdir -p "$HOME/.codex"
+	printf 'model = "%s"\nmodel_reasoning_effort = "xhigh"\n' "${CODEX_MODEL:-gpt-5.5}" \
+		> "$HOME/.codex/config.toml"
+	# Auth. Primary: the host's `codex login` credential (OAuth against the
+	# ChatGPT plan — billed to the subscription, no per-token API charge),
+	# injected base64-encoded by bin/codex because auth.json is multi-line JSON
+	# that --env-file can't carry. This mirrors claude's CLAUDE_CODE_OAUTH_TOKEN
+	# (a host-generated subscription credential). Fallback: OPENAI_API_KEY for
+	# pay-as-you-go API billing. Never block startup.
+	if [ -n "${CODEX_AUTH_B64:-}" ]; then
+		# `if` consumes the decode's exit status, so a bad blob never aborts start.
+		if printf '%s' "$CODEX_AUTH_B64" | base64 -d > "$HOME/.codex/auth.json"; then
+			chmod 600 "$HOME/.codex/auth.json"
+		fi
+	elif command -v codex >/dev/null 2>&1 && [ -n "${OPENAI_API_KEY:-}" ]; then
+		codex login --api-key "$OPENAI_API_KEY" >/dev/null 2>&1 || true
+	fi
 else
-	printf '%s\n' "$flags" | jq '.theme = "dark"' > "$HOME/.claude.json"
+	# Refresh the claude CLI before the session starts (native install under
+	# ~/.local is node-owned, so this works without root). Never block startup.
+	claude update 2>&1 | tail -1 || true
+
+	# First-run state for claude: mark onboarding, the bypass-permissions
+	# warning, and /workspace trust as completed so a fresh container drops
+	# straight into an authenticated session (CLAUDE_CODE_OAUTH_TOKEN). The
+	# native installer and `claude update` create ~/.claude.json themselves, so
+	# MERGE the flags — a write-if-absent guard never fires. The merge is
+	# idempotent on resumed containers; theme is defaulted only when unset.
+	flags='{"hasCompletedOnboarding": true, "bypassPermissionsModeAccepted": true, "projects": {"/workspace": {"hasTrustDialogAccepted": true}}}'
+	if [ -f "$HOME/.claude.json" ]; then
+		jq --argjson flags "$flags" '. * $flags | .theme //= "dark"' "$HOME/.claude.json" \
+			> "$HOME/.claude.json.tmp" && mv "$HOME/.claude.json.tmp" "$HOME/.claude.json"
+	else
+		printf '%s\n' "$flags" | jq '.theme = "dark"' > "$HOME/.claude.json"
+	fi
+
+	# Default model: under setup-token auth the entitlement metadata
+	# under-reports, so the /model picker omits Fable and the `best` alias falls
+	# back to Opus — but explicit ids work and bill the Max subscription.
+	# Update the id here when a newer top model ships.
+	# skipDangerousModePermissionPrompt is the current key gating the
+	# --dangerously-skip-permissions acceptance dialog (claude migrated it here
+	# from ~/.claude.json's bypassPermissionsModeAccepted).
+	mkdir -p "$HOME/.claude"
+	if [ -f "$HOME/.claude/settings.json" ]; then
+		jq '.model //= "claude-fable-5" | .effort //= "xhigh" | .skipDangerousModePermissionPrompt //= true' \
+			"$HOME/.claude/settings.json" \
+			> "$HOME/.claude/settings.json.tmp" && mv "$HOME/.claude/settings.json.tmp" "$HOME/.claude/settings.json"
+	else
+		printf '{"model": "claude-fable-5", "effort": "xhigh", "skipDangerousModePermissionPrompt": true}\n' \
+			> "$HOME/.claude/settings.json"
+	fi
 fi
 
-# Default model: under setup-token auth the entitlement metadata
-# under-reports, so the /model picker omits Fable and the `best` alias falls
-# back to Opus — but explicit ids work and bill the Max subscription.
-# Update the id here when a newer top model ships.
-# skipDangerousModePermissionPrompt is the current key gating the
-# --dangerously-skip-permissions acceptance dialog (claude migrated it here
-# from ~/.claude.json's bypassPermissionsModeAccepted).
-mkdir -p "$HOME/.claude"
-if [ -f "$HOME/.claude/settings.json" ]; then
-	jq '.model //= "claude-fable-5" | .effort //= "xhigh" | .skipDangerousModePermissionPrompt //= true' \
-		"$HOME/.claude/settings.json" \
-		> "$HOME/.claude/settings.json.tmp" && mv "$HOME/.claude/settings.json.tmp" "$HOME/.claude/settings.json"
-else
-	printf '{"model": "claude-fable-5", "effort": "xhigh", "skipDangerousModePermissionPrompt": true}\n' \
-		> "$HOME/.claude/settings.json"
-fi
-
-# Surface identity: container-scoped user memory, auto-loaded into context by
-# every claude session in here. Overwritten each start so updates propagate.
-cat > "$HOME/.claude/CLAUDE.md" <<'EOF'
+# Surface identity: container-scoped global instructions, auto-loaded into
+# context by every session in here. Written to each agent's global path
+# (claude: ~/.claude/CLAUDE.md; codex: ~/.codex/AGENTS.md) and overwritten each
+# start so updates propagate.
+case "$AGENT_KIND" in
+	codex) AGENT_GLOBAL_INSTRUCTIONS="$HOME/.codex/AGENTS.md" ;;
+	*)     AGENT_GLOBAL_INSTRUCTIONS="$HOME/.claude/CLAUDE.md" ;;
+esac
+mkdir -p "$(dirname "$AGENT_GLOBAL_INSTRUCTIONS")"
+cat > "$AGENT_GLOBAL_INSTRUCTIONS" <<'EOF'
 # Surface: news agent container
 
 You are running inside the isolated agent container for the news repo
-(`./bin/claude`, --dangerously-skip-permissions).
+(`./bin/claude` for Claude, `./bin/codex` for Codex; both
+--dangerously-skip-permissions / --yolo).
 
 - /workspace was cloned fresh from GitHub at container start — you begin on
   `main`; create a branch before committing.
