@@ -19,8 +19,11 @@ declare namespace App {
 }
 
 // Worker runtime env additions beyond the generated worker-configuration.d.ts.
-// AUTH_PEPPER is an optional password pepper delivered as a Worker secret
+// AUTH_PEPPER is the password pepper delivered as a Worker secret
 // (`wrangler secret put AUTH_PEPPER`, `.dev.vars` locally) — never in .env.
+// Typed optional because dev/test may omit it and bindings aren't statically
+// guaranteed, but it is REQUIRED in production: getPepper (src/lib/session.ts)
+// fails signup/login closed when it's absent or empty (#189).
 // AUTH_ALLOWED_EMAILS is the comma-separated signup allowlist (issue #76); a
 // plain Worker var (the addresses aren't secret), defaulting in code to
 // connor@couetil.com when unset. Set it locally in `.dev.vars`; in production
