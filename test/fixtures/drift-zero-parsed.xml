@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Shape-drift fixture (#78): a structurally valid RSS 2.0 feed whose <item>s
+  carry the editorial fields but NO <guid> and NO <link> — exactly what a source
+  renaming/removing its id+link elements would look like. parseRss20 needs a
+  stable id to dedupe on, so it skips every item: a 200 with three raw entries
+  that parses to ZERO items. The smoking-gun 'zero_parsed_of_raw' anomaly.
+-->
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Drifted Feed</title>
+    <link>https://drift.test/</link>
+    <description>Items lost their guid and link in a redesign.</description>
+    <item>
+      <title>A post with no id or link</title>
+      <pubDate>Thu, 12 Jun 2026 14:00:00 GMT</pubDate>
+      <description>Body one.</description>
+      <content:encoded><![CDATA[<p>One.</p>]]></content:encoded>
+    </item>
+    <item>
+      <title>Another orphaned post</title>
+      <pubDate>Thu, 12 Jun 2026 09:30:00 GMT</pubDate>
+      <description>Body two.</description>
+      <content:encoded><![CDATA[<p>Two.</p>]]></content:encoded>
+    </item>
+    <item>
+      <title>A third one, still no id</title>
+      <pubDate>Wed, 11 Jun 2026 18:00:00 GMT</pubDate>
+      <description>Body three.</description>
+      <content:encoded><![CDATA[<p>Three.</p>]]></content:encoded>
+    </item>
+  </channel>
+</rss>

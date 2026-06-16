@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Shape-drift fixture (#78): a valid RSS 2.0 feed whose items still have a <link>
+  (so they parse and get a guid) but whose <title> element was renamed/removed in
+  a source redesign. parseRss20 keeps each item but with title: '' — a parse that
+  "succeeded" yet produced junk. The 'missing_required_fields' anomaly (field:
+  title). Both items parse, so this is NOT a zero/drop case — it exercises the
+  per-item required-field validation distinctly.
+-->
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Half-broken Feed</title>
+    <link>https://drift.test/</link>
+    <description>Titles disappeared after a CMS migration.</description>
+    <item>
+      <link>https://drift.test/post-one</link>
+      <guid isPermaLink="true">https://drift.test/post-one</guid>
+      <pubDate>Thu, 12 Jun 2026 14:00:00 GMT</pubDate>
+      <description>A summary.</description>
+      <content:encoded><![CDATA[<p>Body one.</p>]]></content:encoded>
+    </item>
+    <item>
+      <link>https://drift.test/post-two</link>
+      <guid isPermaLink="true">https://drift.test/post-two</guid>
+      <pubDate>Thu, 12 Jun 2026 09:30:00 GMT</pubDate>
+      <description>Another summary.</description>
+      <content:encoded><![CDATA[<p>Body two.</p>]]></content:encoded>
+    </item>
+  </channel>
+</rss>

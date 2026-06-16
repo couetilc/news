@@ -6,11 +6,14 @@ import { parseAwsWhatsNew } from '../src/ingest/parse/aws-whats-new';
 import { parseSecEdgar } from '../src/ingest/parse/sec-edgar';
 import { ingestAll, type IngestDeps } from '../src/ingest/run';
 import type { FeedConfig } from '../src/ingest/types';
+import { countRss20 } from '../src/ingest/parse/count';
 import gravitonJson from './fixtures/aws-graviton.json?raw';
 import nitroJson from './fixtures/aws-nitro.json?raw';
 import cloudflareXml from './fixtures/cloudflare-blog.xml?raw';
 import ciscoXml from './fixtures/cisco.xml?raw';
 import ciscoEdgarJson from './fixtures/cisco-sec-edgar.json?raw';
+import driftZeroXml from './fixtures/drift-zero-parsed.xml?raw';
+import driftMissingFieldsXml from './fixtures/drift-missing-fields.xml?raw';
 
 const USER_AGENT = 'news.cuteteal.com aggregator (connor@couetil.com)';
 const db = env.NEWS_DB;
@@ -20,6 +23,7 @@ const cfFeed: FeedConfig = {
 	feed: 'https://cf.test/rss',
 	pollIntervalSeconds: 3600,
 	parse: (xml) => parseRss20(xml, { content: 'content:encoded' }),
+	countRaw: countRss20,
 };
 
 type Route = () => Response | Promise<Response>;
@@ -265,5 +269,165 @@ describe('ingestAll', () => {
 			feed: 'https://cf.test/rss',
 			err: 'Error: network down',
 		});
+	});
+});
+
+describe('ingestAll shape-drift detection (#78)', () => {
+	it('emits ingest.anomaly when a 200 parses to ZERO items from a non-empty payload', async () => {
+		const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		vi.spyOn(console, 'log').mockImplementation(() => {});
+		const { fn } = fakeFetch({
+			'https://cf.test/rss': () => new Response(driftZeroXml, { status: 200 }),
+		});
+
+		await ingestAll(deps(fn), [cfFeed]);
+
+		// The smoking-gun anomaly: 3 raw <item>s, 0 parsed. Logged at error level so
+		// it surfaces in the Workers Logs error stream, with the queryable `kind`.
+		expect(errSpy).toHaveBeenCalledWith({
+			level: 'error',
+			event: 'ingest.anomaly',
+			source: 'cf',
+			feed: 'https://cf.test/rss',
+			kind: 'zero_parsed_of_raw',
+			rawCount: 3,
+			parsedCount: 0,
+			missingFields: undefined,
+			invalidCount: undefined,
+		});
+
+		// The poll is still recorded as a normal 200 (we don't abort on an anomaly —
+		// we store whatever parsed, which here is nothing, and reschedule healthily).
+		const [state] = await getFeedStates(db);
+		expect(state).toMatchObject({ last_status: 200, failure_count: 0 });
+		expect(await listItems(db, 10)).toEqual([]);
+	});
+
+	it('emits a missing_required_fields anomaly when parsed items lack a required field', async () => {
+		const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		vi.spyOn(console, 'log').mockImplementation(() => {});
+		const { fn } = fakeFetch({
+			'https://cf.test/rss': () => new Response(driftMissingFieldsXml, { status: 200 }),
+		});
+
+		await ingestAll(deps(fn), [cfFeed]);
+
+		// Both items parse (they have a link → guid) but with empty titles.
+		expect(errSpy).toHaveBeenCalledWith({
+			level: 'error',
+			event: 'ingest.anomaly',
+			source: 'cf',
+			feed: 'https://cf.test/rss',
+			kind: 'missing_required_fields',
+			rawCount: 2,
+			parsedCount: 2,
+			missingFields: 'title',
+			invalidCount: 2,
+		});
+
+		// The items still land — an anomaly is a signal, not a hard reject.
+		expect(await listItems(db, 10)).toHaveLength(2);
+	});
+
+	it('does NOT emit an anomaly for a healthy feed', async () => {
+		const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		vi.spyOn(console, 'log').mockImplementation(() => {});
+		const { fn } = fakeFetch({
+			'https://cf.test/rss': () => new Response(cloudflareXml, { status: 200 }),
+		});
+
+		await ingestAll(deps(fn), [cfFeed]);
+
+		expect(errSpy).not.toHaveBeenCalled();
+		expect(await listItems(db, 10)).toHaveLength(2);
+	});
+
+	it('does NOT emit an anomaly for a legitimately empty feed (0 raw, 0 parsed)', async () => {
+		const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		vi.spyOn(console, 'log').mockImplementation(() => {});
+		const emptyRss =
+			'<?xml version="1.0"?><rss version="2.0"><channel><title>Empty</title></channel></rss>';
+		const { fn } = fakeFetch({
+			'https://cf.test/rss': () => new Response(emptyRss, { status: 200 }),
+		});
+
+		await ingestAll(deps(fn), [cfFeed]);
+
+		// The distinction the issue insists on: an empty feed is normal, not drift.
+		expect(errSpy).not.toHaveBeenCalled();
+		expect(await listItems(db, 10)).toEqual([]);
+	});
+
+	it('skips the zero/drop signal for a feed with no countRaw, but still validates fields', async () => {
+		const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		vi.spyOn(console, 'log').mockImplementation(() => {});
+		// Same drifted-to-zero payload, but this feed declares no raw counter — so
+		// the zero-of-N signal can't fire (no denominator) and nothing is flagged.
+		const noCounterFeed: FeedConfig = {
+			source: 'nc',
+			feed: 'https://nc.test/rss',
+			pollIntervalSeconds: 3600,
+			parse: (xml) => parseRss20(xml, { content: 'content:encoded' }),
+		};
+		const { fn } = fakeFetch({
+			'https://nc.test/rss': () => new Response(driftZeroXml, { status: 200 }),
+		});
+
+		await ingestAll(deps(fn), [noCounterFeed]);
+
+		expect(errSpy).not.toHaveBeenCalled();
+	});
+
+	it('degrades to field-only validation if a feed countRaw throws (no feed error)', async () => {
+		const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		vi.spyOn(console, 'log').mockImplementation(() => {});
+		// A counter that blows up must not turn a healthy 200 into an ingest.error;
+		// the parse already succeeded, so we just skip the zero/drop check.
+		const throwingCounterFeed: FeedConfig = {
+			...cfFeed,
+			source: 'tc',
+			feed: 'https://tc.test/rss',
+			countRaw: () => {
+				throw new Error('counter boom');
+			},
+		};
+		const { fn } = fakeFetch({
+			'https://tc.test/rss': () => new Response(cloudflareXml, { status: 200 }),
+		});
+
+		await ingestAll(deps(fn), [throwingCounterFeed]);
+
+		// No anomaly, no error — the poll succeeds and the items land.
+		expect(errSpy).not.toHaveBeenCalled();
+		expect(await listItems(db, 10)).toHaveLength(2);
+		const [state] = await getFeedStates(db);
+		expect(state).toMatchObject({ last_status: 200, failure_count: 0 });
+	});
+
+	it('a drifted feed does not abort its peers (per-feed isolation holds)', async () => {
+		const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		vi.spyOn(console, 'log').mockImplementation(() => {});
+		const driftedFeed: FeedConfig = { ...cfFeed, source: 'drifted', feed: 'https://drift.test/rss' };
+		const healthyFeed: FeedConfig = { ...cfFeed, source: 'healthy', feed: 'https://healthy.test/rss' };
+
+		const { fn } = fakeFetch({
+			'https://drift.test/rss': () => new Response(driftZeroXml, { status: 200 }),
+			'https://healthy.test/rss': () => new Response(cloudflareXml, { status: 200 }),
+		});
+
+		await ingestAll(deps(fn), [driftedFeed, healthyFeed]);
+
+		// The drifted feed logged its anomaly...
+		expect(errSpy).toHaveBeenCalledWith(
+			expect.objectContaining({ event: 'ingest.anomaly', source: 'drifted' }),
+		);
+		// ...and the healthy peer ingested unaffected (its 2 items are present).
+		const rows = await listItems(db, 10);
+		expect(rows).toHaveLength(2);
+		expect(rows.every((r) => r.source === 'healthy')).toBe(true);
+		// Both feeds recorded a clean 200 — the anomaly is informational, not a failure.
+		const states = new Map((await getFeedStates(db)).map((s) => [s.feed, s]));
+		expect(states.get('https://drift.test/rss')).toMatchObject({ last_status: 200, failure_count: 0 });
+		expect(states.get('https://healthy.test/rss')).toMatchObject({ last_status: 200, failure_count: 0 });
 	});
 });

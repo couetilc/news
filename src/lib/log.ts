@@ -16,6 +16,7 @@
 export type LogEvent =
 	| 'ingest.poll' // a feed was polled successfully (see `outcome` for 200 vs 304)
 	| 'ingest.error' // a feed fetch/parse/store failed
+	| 'ingest.anomaly' // a 200 poll parsed to a suspicious shape (drift); see `kind` (#78)
 	| 'read.toggle'; // a digest item was marked read/unread (the one request-path mutation)
 
 // Arbitrary indexed fields to attach to a record. Kept to JSON-friendly

@@ -6,7 +6,8 @@ import {
 	updateFeedState,
 	type FeedState,
 } from './db';
-import type { FeedConfig } from './types';
+import type { FeedConfig, ParsedItem } from './types';
+import { validateParse } from './validate';
 
 // Identifies us to feed origins; SEC EDGAR (a future source) requires a
 // contact-bearing UA, and it's polite everywhere else.
@@ -67,7 +68,17 @@ async function pollFeed(deps: IngestDeps, config: FeedConfig, state: FeedState):
 			throw new Error(`unexpected status ${res.status}`);
 		}
 
-		const items = config.parse(await res.text());
+		const body = await res.text();
+		const items = config.parse(body);
+
+		// Shape-drift check (#78): a successful 200 can still be silently broken —
+		// the parser may no longer recognise the entries, or pull junk into required
+		// fields. Detect that BEFORE the writes (so a drifted poll is flagged even
+		// though we still store whatever we got) and emit a distinct, queryable
+		// signal. Isolated from the happy path: a counter/validate fault must never
+		// turn a healthy poll into a feed error, so it can't escape this helper.
+		reportAnomaly(config, body, items);
+
 		const inserted = await insertItems(db, config.source, items, now());
 		await updateFeedState(db, config.feed, {
 			etag: res.headers.get('ETag'),
@@ -99,4 +110,38 @@ async function pollFeed(deps: IngestDeps, config: FeedConfig, state: FeedState):
 			err: String(err),
 		});
 	}
+}
+
+// Compare a 200 poll's raw entries against what parse kept and emit a structured
+// `ingest.anomaly` when the result looks like shape drift (see validate.ts for
+// the verdicts). Self-contained and non-throwing by contract: it runs inside the
+// per-feed try but must never convert a healthy poll into a feed failure, so a
+// fault in a feed's `countRaw` is swallowed (the parse already succeeded) and
+// degrades to field-only validation rather than aborting the poll or its peers.
+function reportAnomaly(config: FeedConfig, body: string, items: ParsedItem[]): void {
+	let rawCount: number | null = null;
+	if (config.countRaw) {
+		try {
+			rawCount = config.countRaw(body);
+		} catch {
+			// A raw-counter fault is not a feed error: leave rawCount null so only
+			// per-item field validation runs, and don't disturb the successful poll.
+			rawCount = null;
+		}
+	}
+
+	const anomaly = validateParse({ rawCount, items });
+	if (!anomaly) return;
+
+	log.error('ingest.anomaly', {
+		source: config.source,
+		feed: config.feed,
+		kind: anomaly.kind,
+		rawCount: anomaly.rawCount,
+		parsedCount: anomaly.parsedCount,
+		// Only present on the missing-fields verdict; undefined fields are dropped
+		// by the log helper's LogFields shape, so a join is safe and self-describing.
+		missingFields: anomaly.missingFields?.join(','),
+		invalidCount: anomaly.invalidCount,
+	});
 }

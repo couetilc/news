@@ -3,6 +3,7 @@ import { parseAwsWhatsNew } from './parse/aws-whats-new';
 import { parseRss20 } from './parse/rss20';
 import { parseSecEdgar } from './parse/sec-edgar';
 import { parseTiNewsroom } from './parse/ti-newsroom';
+import { countAtom, countAwsWhatsNew, countRss20, countTiNewsroom } from './parse/count';
 import type { FeedConfig } from './types';
 
 // #26 — Annapurna's silicon ships through AWS's What's New JSON search API.
@@ -28,6 +29,7 @@ function awsFeed(term: string): FeedConfig {
 		feed: url.toString(),
 		pollIntervalSeconds: 21600,
 		parse: parseAwsWhatsNew,
+		countRaw: countAwsWhatsNew,
 	};
 }
 
@@ -42,6 +44,7 @@ export const SOURCES: FeedConfig[] = [
 		feed: 'https://blog.cloudflare.com/rss/',
 		pollIntervalSeconds: 3600,
 		parse: (xml) => parseRss20(xml, { content: 'content:encoded' }),
+		countRaw: countRss20,
 	},
 	{
 		// #20 — full HTML in the description CDATA (not content:encoded); supports
@@ -50,6 +53,7 @@ export const SOURCES: FeedConfig[] = [
 		feed: 'https://spectrum.ieee.org/feeds/feed.rss',
 		pollIntervalSeconds: 7200,
 		parse: (xml) => parseRss20(xml, { content: 'description' }),
+		countRaw: countRss20,
 	},
 	{
 		// #29 — Atom despite the .rss extension. Each <entry> carries a one-liner
@@ -60,6 +64,7 @@ export const SOURCES: FeedConfig[] = [
 		feed: 'https://www.apple.com/newsroom/rss-feed.rss',
 		pollIntervalSeconds: 86400,
 		parse: (xml) => parseAtom(xml, { content: 'summary-only' }),
+		countRaw: countAtom,
 	},
 	{
 		// #21 — the all.xml firehose: summaries only (233–524 char rewritten press
@@ -70,6 +75,7 @@ export const SOURCES: FeedConfig[] = [
 		feed: 'https://www.sciencedaily.com/rss/all.xml',
 		pollIntervalSeconds: 3600,
 		parse: (xml) => parseRss20(xml, { content: 'content:encoded' }),
+		countRaw: countRss20,
 	},
 	{
 		// #24 — AMD investor-relations press releases (Equisolve RSS 2.0).
@@ -81,6 +87,7 @@ export const SOURCES: FeedConfig[] = [
 		feed: 'https://ir.amd.com/news-events/press-releases/rss',
 		pollIntervalSeconds: 21600,
 		parse: (xml) => parseRss20(xml, { content: 'description' }),
+		countRaw: countRss20,
 	},
 	{
 		// #28 — Q4 Inc RSS 2.0 with full Business Wire HTML in the description; only
@@ -91,6 +98,7 @@ export const SOURCES: FeedConfig[] = [
 		feed: 'https://investor.qualcomm.com/rss/pressrelease.aspx',
 		pollIntervalSeconds: 21600,
 		parse: (xml) => parseRss20(xml, { content: 'description' }),
+		countRaw: countRss20,
 	},
 	{
 		// #27 — WordPress RSS, 10-item window, excerpts only (no content:encoded) so
@@ -100,6 +108,7 @@ export const SOURCES: FeedConfig[] = [
 		feed: 'https://newsroom.intel.com/feed',
 		pollIntervalSeconds: 86400,
 		parse: (xml) => parseRss20(xml, { content: 'content:encoded' }),
+		countRaw: countRss20,
 	},
 	{
 		// #25 — NVIDIA newsroom (iPressroom RSS 2.0). FULL release text lives in a
@@ -111,6 +120,7 @@ export const SOURCES: FeedConfig[] = [
 		feed: 'https://nvidianews.nvidia.com/releases.xml',
 		pollIntervalSeconds: 3600,
 		parse: (xml) => parseRss20(xml, { content: 'content' }),
+		countRaw: countRss20,
 	},
 	{
 		// #25 — NVIDIA corporate blog (WordPress RSS), full text via content:encoded;
@@ -120,6 +130,7 @@ export const SOURCES: FeedConfig[] = [
 		feed: 'https://blogs.nvidia.com/feed/',
 		pollIntervalSeconds: 86400,
 		parse: (xml) => parseRss20(xml, { content: 'content:encoded' }),
+		countRaw: countRss20,
 	},
 	{
 		// #23 — Elon Litman's blog (Pelican-generated Atom). Full HTML is in
@@ -129,6 +140,7 @@ export const SOURCES: FeedConfig[] = [
 		feed: 'https://elonlit.com/feeds/all.atom.xml',
 		pollIntervalSeconds: 86400,
 		parse: (xml) => parseAtom(xml, { content: 'content' }),
+		countRaw: countAtom,
 	},
 	// #22 — Anthropic has no official feed, so we read each section through the
 	// OpenRSS proxy. All three are RSS 2.0 with the full rendered article HTML in
@@ -144,18 +156,21 @@ export const SOURCES: FeedConfig[] = [
 		feed: 'https://openrss.org/feed/www.anthropic.com/news',
 		pollIntervalSeconds: 28800,
 		parse: (xml) => parseRss20(xml, { content: 'description' }),
+		countRaw: countRss20,
 	},
 	{
 		source: 'anthropic',
 		feed: 'https://openrss.org/feed/www.anthropic.com/research',
 		pollIntervalSeconds: 28800,
 		parse: (xml) => parseRss20(xml, { content: 'description' }),
+		countRaw: countRss20,
 	},
 	{
 		source: 'anthropic',
 		feed: 'https://openrss.org/feed/www.anthropic.com/engineering',
 		pollIntervalSeconds: 28800,
 		parse: (xml) => parseRss20(xml, { content: 'description' }),
+		countRaw: countRss20,
 	},
 	{
 		// #31 — Cisco IR press releases (Q4 Inc RSS 2.0), the PRIMARY earnings
@@ -170,6 +185,7 @@ export const SOURCES: FeedConfig[] = [
 		feed: 'https://investor.cisco.com/rss/pressrelease.aspx',
 		pollIntervalSeconds: 3600,
 		parse: (xml) => parseRss20(xml, { content: 'description' }),
+		countRaw: countRss20,
 	},
 	{
 		// #31 — SEC EDGAR 8-K BACKSTOP for Cisco (CIK 0000858877). The earnings 8-K
@@ -205,6 +221,7 @@ export const SOURCES: FeedConfig[] = [
 		feed: 'https://www.ti.com/bin/ti/newsroom?page=1&lang=en-us&categories=none&years=none&type=news',
 		pollIntervalSeconds: 21600,
 		parse: parseTiNewsroom,
+		countRaw: countTiNewsroom,
 	},
 	{
 		// #30 — Texas Instruments COMPANY BLOG. Same AEM JSON endpoint and record
@@ -217,6 +234,7 @@ export const SOURCES: FeedConfig[] = [
 		feed: 'https://www.ti.com/bin/ti/newsroom?page=1&lang=en-us&categories=none&years=none&type=blog',
 		pollIntervalSeconds: 86400,
 		parse: parseTiNewsroom,
+		countRaw: countTiNewsroom,
 	},
 	{
 		// #30 — Texas Instruments SEC EDGAR 8-K filings. The owner explicitly wants
