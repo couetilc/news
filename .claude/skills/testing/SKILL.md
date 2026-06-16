@@ -139,6 +139,31 @@ round-trip. e2e is a **separate entry point, outside `npm test` and the coverage
 gate**; it's slower and flakier, so keep it sparse. Use it for behavior the
 hermetic pools *can't* exercise, never as a substitute for a unit test.
 
+## Browser-only client modules (`src/scripts/**`) — happy-dom in the node project
+
+`src/scripts/**` ships to the browser, but it's **pure DOM logic**, so it's
+**unit-tested and stays inside the 100% `src/**` gate** — not carved out, not
+left to e2e. `src/scripts/enhance-forms.ts` (the ClientRouter-safe delegated
+async-feedback initializer) + `test/enhance-forms.test.ts` is the canonical
+example. The pattern:
+
+- The spec lives in the **node** project under a per-file
+  `// @vitest-environment happy-dom` docblock (first line of the test), so
+  `document` / `HTMLFormElement` / `SubmitEvent` resolve. The workerd pool can't
+  host a DOM environment, so add the spec to **`vitest.node.config.ts`'s
+  `include` and `vitest.workers.config.ts`'s `exclude`** (`happy-dom` is a
+  devDependency).
+- `import` the module for its **side effect** — that registers its real listener
+  (`enhance-forms.ts` adds one delegated `submit` listener on `document`).
+- Assert behavior by **dispatching real events at that registered listener**
+  (`form.dispatchEvent(new Event('submit', { bubbles: true }))`) and checking the
+  resulting DOM state — not by hand-calling an exported function. Drive every
+  branch this way to hold the gate.
+
+This refines the unit-vs-e2e line above: **pure-DOM client logic is
+unit-testable** and belongs in the gate; only **full-browser behavior** (real
+navigation, ClientRouter swaps end-to-end) goes to Playwright e2e.
+
 ## Testing the ingest parsers (untrusted input)
 
 `src/ingest/parse/**` parse **untrusted external XML/JSON**, so malformed /
