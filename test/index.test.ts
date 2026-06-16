@@ -416,6 +416,56 @@ describe('index page', () => {
 			expect(html).toContain('name="return" value="/?tab=read"');
 		});
 
+		// Slice out just the source-filter <nav> so an assertion about chip hrefs
+		// isn't satisfied (or tripped) by the FeedTabs nav, which always renders a
+		// /?tab=read link of its own. The filter bar is the only "Filter by source"
+		// landmark, so this isolates the chips under test (#217).
+		const filterNav = (html: string): string => {
+			const open = html.indexOf('<nav aria-label="Filter by source"');
+			return html.slice(open, html.indexOf('</nav>', open));
+		};
+
+		it('source chips carry the active ?tab=read so filtering keeps the Read tab (#217)', async () => {
+			vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog', 'ieee-spectrum']);
+			feed({ read: [row({ read_at: 4000 })] });
+
+			const nav = filterNav(await render('https://news.test/?tab=read'));
+			// Each off chip turns its source ON while keeping ?tab=read, so a click on
+			// the Read tab filters Read history instead of dropping to Unread. ?tab
+			// leads the query string (mirroring the tab links), & is HTML-escaped.
+			expect(nav).toContain('href="/?tab=read&amp;source=cloudflare-blog"');
+			expect(nav).toContain('href="/?tab=read&amp;source=ieee-spectrum"');
+			// The All reset stays on the Read tab too (clears source, keeps the tab).
+			expect(nav).toMatch(/href="\/\?tab=read"[^>]*>All</);
+			// It must NOT emit a tab-less chip href that would reset to Unread.
+			expect(nav).not.toContain('href="/?source=cloudflare-blog"');
+			expect(nav).not.toMatch(/href="\/"[^>]*>All</);
+		});
+
+		it('an active read-tab source chip toggles itself OFF while keeping ?tab=read (#217)', async () => {
+			vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog', 'ieee-spectrum']);
+			feed({ read: [row({ source: 'ieee-spectrum', read_at: 4000 })] });
+
+			const nav = filterNav(await render('https://news.test/?tab=read&source=ieee-spectrum'));
+			// The active chip's href drops its own slug but preserves the tab, so
+			// turning a filter off on Read stays on Read (not back to Unread).
+			expect(nav).toMatch(/href="\/\?tab=read"[^>]*aria-current="true"[^>]*>[\s\S]*?IEEE Spectrum/);
+			// The other (off) chip ADDS its slug alongside the active one, still on Read.
+			expect(nav).toContain('href="/?tab=read&amp;source=ieee-spectrum&amp;source=cloudflare-blog"');
+		});
+
+		it('source chips omit ?tab on the default Unread tab for clean URLs (#217)', async () => {
+			vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog']);
+			feed({ unread: [row({})] });
+
+			const nav = filterNav(await render('https://news.test/?tab=unread'));
+			// Unread is the default, so chip + All hrefs stay tab-less.
+			expect(nav).toContain('href="/?source=cloudflare-blog"');
+			expect(nav).toMatch(/href="\/"[^>]*>All</);
+			expect(nav).not.toContain('tab=read');
+			expect(nav).not.toContain('tab=unread');
+		});
+
 		it('supports multi-select via repeated ?source params', async () => {
 			vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog', 'ieee-spectrum', 'apple']);
 			feed({ unread: [row({})] });

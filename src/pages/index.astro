@@ -109,7 +109,7 @@ const emptyMessage = isReadTab(tab)
 					</p>
 				) : (
 					<div class="mx-auto max-w-2xl">
-						<FilterBar sources={present} active={active} />
+						<FilterBar sources={present} active={active} tab={tab} />
 						<FeedTabs
 							active={tab}
 							sources={active}
