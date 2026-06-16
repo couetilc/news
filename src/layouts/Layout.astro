@@ -54,8 +54,12 @@ const isAuthed = Astro.locals.userId !== undefined;
 							/* Sign out — the action-button idiom (#129): a drawn ink-outline
 							   control (resting affordance), accent-filling on hover, a
 							   focus-visible ring, cursor-pointer. A plain POST form so it
-							   logs out with JS off (POST /logout → 303). */
-							<form method="POST" action="/logout">
+							   logs out with JS off (POST /logout → 303). data-astro-reload
+							   (issue #124): like the signup/login forms, this is a
+							   credential/session-changing POST, so it opts out of the
+							   globally-mounted ClientRouter above and submits as a real
+							   document navigation rather than a client-router fetch. */
+							<form method="POST" action="/logout" data-astro-reload>
 								<button
 									type="submit"
 									class="cursor-pointer border border-ink px-2 py-1 font-sans text-[0.6rem] uppercase tracking-[0.2em] text-ink hover:bg-ink hover:text-paper focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink sm:text-xs"

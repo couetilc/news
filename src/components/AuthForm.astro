@@ -36,7 +36,14 @@ const { heading, submitLabel, error, email, alt } = Astro.props;
 		)
 	}
 
-	<form method="POST" class="space-y-4">
+	{/* data-astro-reload (issue #124): opt this credential-changing form out of
+	    the globally-mounted <ClientRouter /> (Layout.astro). Without it Astro's
+	    client router intercepts the submit as a `fetch` (resourceType 'fetch',
+	    isNavigationRequest false) instead of a real document navigation. The
+	    enhanced-fetch path is the right default for the read/unread toggle, but
+	    login/signup mutate cookies/session state and should be boring full-page
+	    navigations — the e2e in e2e/auth-signup.spec.ts pins this. */}
+	<form method="POST" class="space-y-4" data-astro-reload>
 		<div>
 			<label
 				for="email"
