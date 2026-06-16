@@ -121,23 +121,17 @@ const { heading, submitLabel, busyLabel, error, email, alt } = Astro.props;
    re-render-with-error (failure) path is the source of truth, and the server is
    the double-submit defense (the users.email UNIQUE constraint makes a duplicate
    signup safe, and a duplicate login is harmless). This LAYERS in-flight feedback
-   on top when JS runs: on submit it disables the button (client layer of the
-   double-submit defense), marks it aria-busy, and swaps the label to the
-   present-tense busy label so the reader sees the click registered. Completion is
-   confirmed by the redirect to the unlocked homepage; a failure re-renders this
-   form server-side with the inline role="alert" error (no toast, no silent
-   failure). Built by Astro's client pipeline, not the SSR module graph the vitest
-   gate sees — covered by the Playwright e2e, not the istanbul gate. */}
+   on top when JS runs: on submit the shared initializer disables the button
+   (client layer of the double-submit defense), marks it aria-busy, and swaps the
+   label to the present-tense data-busy-label so the reader sees the click
+   registered. Completion is confirmed by the redirect to the unlocked homepage; a
+   failure re-renders this form server-side with the inline role="alert" error (no
+   toast, no silent failure). The enhancement is a single delegated `submit`
+   listener on `document` (src/scripts/enhance-forms.ts), shared with the
+   read-toggle and sign-out — it survives ClientRouter DOM swaps rather than going
+   stale on freshly-rendered markup (#155). Pure DOM logic, unit-tested under
+   happy-dom (test/enhance-forms.test.ts) inside the 100% src/** gate and covered
+   by the Playwright e2e as a behavioral guard. */}
 <script>
-	for (const button of document.querySelectorAll<HTMLButtonElement>('button[data-auth-submit]')) {
-		const form = button.closest('form');
-		form?.addEventListener('submit', () => {
-			button.disabled = true;
-			button.setAttribute('aria-busy', 'true');
-			const busy = button.dataset.busyLabel;
-			if (busy) {
-				button.textContent = busy;
-			}
-		});
-	}
+	import '../scripts/enhance-forms';
 </script>

@@ -51,6 +51,11 @@ export default getViteConfig(
 				'test/worker.test.ts',
 				'test/auth-pages.test.ts',
 				'test/middleware.test.ts',
+				// Browser-only client module (src/scripts/enhance-forms.ts) — runs
+				// under a per-file `@vitest-environment happy-dom` override (declared in
+				// the spec) so document/HTMLFormElement/SubmitEvent resolve. Lives here,
+				// not the worker pool, which can't honor a DOM environment override.
+				'test/enhance-forms.test.ts',
 			],
 		},
 	},

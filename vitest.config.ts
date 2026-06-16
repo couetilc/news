@@ -17,6 +17,11 @@ export default defineConfig({
 		coverage: {
 			provider: 'istanbul',
 			include: ['src/**'],
+			// No src/** carve-outs: every source file is exercised by one of the
+			// projects. Browser-only client modules under src/scripts/** (e.g.
+			// enhance-forms.ts) are unit-tested in the node project under a per-file
+			// happy-dom environment (test/enhance-forms.test.ts) so they stay inside
+			// the 100% gate, and are additionally covered by the Playwright e2e.
 			thresholds: {
 				statements: 100,
 				branches: 100,
