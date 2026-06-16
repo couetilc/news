@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseAtom } from '../src/ingest/parse/atom';
 import appleXml from './fixtures/apple.xml?raw';
+import textOnlyEntryXml from './fixtures/atom-text-only-entry.xml?raw';
 
 describe('parseAtom — summary-only mode (Apple Newsroom)', () => {
 	const items = parseAtom(appleXml, { content: 'summary-only' });
@@ -210,5 +211,45 @@ describe('parseAtom — edge cases', () => {
 
 	it('rejects an empty payload with the documented error', () => {
 		expect(() => parseAtom('', { content: 'summary-only' })).toThrow(/not an Atom feed/);
+	});
+
+	// #173 (fuzz-found, follow-up to #165/#172): fast-xml-parser parses a text-only
+	// or empty <entry> to a bare string ('text' / ''), not an object. The loop then
+	// read `entry.link` on that string, which resolves to String.prototype.link (a
+	// function, not nullish), and articleLink threw "links is not iterable". A
+	// non-object entry must be skipped, never crash with a raw TypeError.
+	it('skips a text-only <entry> without throwing a TypeError', () => {
+		const run = () => parseAtom(wrap('<entry>text</entry>'), { content: 'content' });
+		expect(run).not.toThrow();
+		expect(run()).toEqual([]);
+	});
+
+	it('skips an empty <entry> without throwing a TypeError', () => {
+		const run = () => parseAtom(wrap('<entry></entry>'), { content: 'content' });
+		expect(run).not.toThrow();
+		expect(run()).toEqual([]);
+	});
+
+	it('ignores a text-only <link> element (a string, not a link object)', () => {
+		// A malformed <link>text</link> parses to a string inside the link array
+		// rather than an object with an href attribute; it has no usable url, so the
+		// entry falls back to its <id> instead of crashing on the non-object link.
+		const [item] = parseAtom(wrap('<entry><id>g</id><link>text</link></entry>'), {
+			content: 'summary-only',
+		});
+		expect(item.url).toBe('g');
+	});
+
+	it('returns a well-formed item array for a feed mixing non-object and real entries', () => {
+		const items = parseAtom(textOnlyEntryXml, { content: 'summary-only' });
+		// Both the text-only and empty entries are skipped; only the real one remains.
+		expect(items).toHaveLength(1);
+		expect(items[0]).toMatchObject({
+			guid: 'https://example.com/real',
+			url: 'https://example.com/real',
+			title: 'A real entry',
+			summary: 'teaser',
+			contentHtml: null,
+		});
 	});
 });
