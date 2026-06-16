@@ -20,9 +20,9 @@ human-gated") in the global `CLAUDE.md`, extended to npm packages.
 - **Prefer a vetted library for the critical-or-complex.** Security/correctness-
   critical or genuinely intricate functionality (crypto/KDF, parsing untrusted
   input at scale, protocol clients) is exactly where a rolled-our-own version is
-  a liability. A reputable, audited, maintained library is the safer choice — the
-  point of #125/#142 (password hashing): chained PBKDF2 is "rolling our own"; a
-  vetted KDF lib is preferred.
+  a liability. A reputable, audited, maintained library is the safer choice: for
+  password hashing, chained PBKDF2 is "rolling our own"; a vetted KDF lib is
+  preferred.
 - **Never add a dependency unilaterally, and never roll your own as a silent
   workaround to avoid the conversation.** Surface it (below).
 

@@ -67,8 +67,8 @@ What the helper adds centrally:
 |---|---|---|---|
 | `ingest.poll` | info | `source`, `feed`, `status`, `outcome`, plus `items`+`inserted` on 200 | A feed was polled. `outcome: 'ok'` (200, with counts) or `'not_modified'` (304). |
 | `ingest.error` | error | `source`, `feed`, `err` | A feed fetch/parse/store failed (one feed; the tick continues). |
-| `ingest.anomaly` | error | `source`, `feed`, `kind`, `rawCount`, `parsedCount`, `missingFields`, `invalidCount` | Shape drift on a 200 poll (#78): the payload parsed to a suspicious shape. Filter by `kind` — `zero_parsed_of_raw` (raw entries present but 0 parsed — the smoking gun), `parse_drop` (kept <50% of raw entries), or `missing_required_fields` (parsed items with an empty guid/url/title or implausible date). Distinct from a legitimately empty feed, which emits no anomaly. Informational: the poll still succeeds and stores whatever parsed, so it never aborts the feed or its peers. |
-| `read.toggle` | info | `userId`, `id`, `read` | A digest item was marked read (`read: true`) or unread (`read: false`), scoped to the session user (#70). Filter by `userId` for one user's toggles. |
+| `ingest.anomaly` | error | `source`, `feed`, `kind`, `rawCount`, `parsedCount`, `missingFields`, `invalidCount` | Shape drift on a 200 poll: the payload parsed to a suspicious shape. Filter by `kind` — `zero_parsed_of_raw` (raw entries present but 0 parsed — the smoking gun), `parse_drop` (kept <50% of raw entries), or `missing_required_fields` (parsed items with an empty guid/url/title or implausible date). Distinct from a legitimately empty feed, which emits no anomaly. Informational: the poll still succeeds and stores whatever parsed, so it never aborts the feed or its peers. |
+| `read.toggle` | info | `userId`, `id`, `read` | A digest item was marked read (`read: true`) or unread (`read: false`), scoped to the session user. Filter by `userId` for one user's toggles. |
 
 Add a new event by extending the `LogEvent` union and using the same field
 style. Keep field values JSON-scalar (string/number/boolean/null) so they index.
@@ -129,7 +129,7 @@ free-text strings.
 ## Observability dashboard deep-link convention
 
 The per-Worker observability page is reachable at a URL built from the account
-id and the Worker name (cross-ref #43, which links the status page to it):
+id and the Worker name:
 
 ```
 https://dash.cloudflare.com/<account_id>/workers/services/view/<worker-name>/production/observability
