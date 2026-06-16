@@ -27,11 +27,13 @@ aggregator.
   domain route `news.cuteteal.com` (DNS record + certificate are auto-managed by
   Cloudflare), `nodejs_compat`. Declare future D1/R2/KV resources here — and
   update the token-scope comments in `.env.example` in the same commit.
-- **node 24 via mise** (`mise.toml`) on host machines; mise also injects
-  `.env` into every shell run inside the project (`[env] _.file = ".env"`).
-  Surface qualifier: the agent container bakes node into its image and gets
-  env vars via `docker --env-file`; the cloud VM uses its stock node and has
-  no `.env` at all — neither has mise, so skip mise commands there.
+- **node 24** is the working pin: `package.json` `engines` sets the floor
+  (`>=22.12.0`), and each surface provisions node independently — the agent
+  container bakes `node:24-slim` into its image, CI pins node 24 via
+  `actions/setup-node`, and the cloud VM's stock node 22 satisfies `engines`.
+  On host machines install node 24 with your version manager of choice (e.g.
+  `nvm install 24`). Env vars: `wrangler` reads `.env` natively, and the agent
+  container injects it via `docker --env-file`; the cloud VM has no `.env`.
 - **npm** for dependencies; `package-lock.json` is committed. Adding a dependency
   follows a **middle-path policy + an agent propose-for-approval mechanism** —
   don't roll your own crypto, don't add deps unilaterally; see the `dependencies`
@@ -73,8 +75,8 @@ aggregator.
 ## Credentials and secrets contract
 
 - **`.env`** (gitignored) holds *tooling* credentials — currently just
-  `CLOUDFLARE_API_TOKEN` (wrangler reads `.env` natively; mise injects it for
-  everything else). **`.env.example` is the living documentation** for each
+  `CLOUDFLARE_API_TOKEN` (wrangler reads `.env` natively). **`.env.example` is
+  the living documentation** for each
   token — purpose, regeneration steps, and exact scopes. Convention: any change
   to a token's required scope updates those comments in the same commit.
 - **Worker runtime secrets** never go in `.env`: use `.dev.vars` locally and

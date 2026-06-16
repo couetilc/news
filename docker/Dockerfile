@@ -1,5 +1,5 @@
 # Isolated agent environment for this repo: everything a Claude Code session
-# needs (node 24 matching mise.toml, git, gh, gitleaks, claude CLI, plus
+# needs (node 24 matching the repo's pin, git, gh, gitleaks, claude CLI, plus
 # shellcheck/actionlint/ripgrep for shell + CI-workflow linting), run as
 # non-root — --dangerously-skip-permissions refuses to run as root. Nothing
 # from the host is mounted: each container clones the repo from GitHub at
