@@ -3,14 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ensureFeedRows, getFeedStates, listItems, updateFeedState } from '../src/ingest/db';
 import { parseRss20 } from '../src/ingest/parse/rss20';
 import { parseAwsWhatsNew } from '../src/ingest/parse/aws-whats-new';
-import { parseEdgar8k } from '../src/ingest/parse/edgar-8k';
+import { parseSecEdgar } from '../src/ingest/parse/sec-edgar';
 import { ingestAll, type IngestDeps } from '../src/ingest/run';
 import type { FeedConfig } from '../src/ingest/types';
 import gravitonJson from './fixtures/aws-graviton.json?raw';
 import nitroJson from './fixtures/aws-nitro.json?raw';
 import cloudflareXml from './fixtures/cloudflare-blog.xml?raw';
 import ciscoXml from './fixtures/cisco.xml?raw';
-import ciscoEdgarXml from './fixtures/cisco-edgar-8k.xml?raw';
+import ciscoEdgarJson from './fixtures/cisco-sec-edgar.json?raw';
 
 const USER_AGENT = 'news.cuteteal.com aggregator (connor@couetil.com)';
 const db = env.NEWS_DB;
@@ -218,12 +218,12 @@ describe('ingestAll', () => {
 			source: 'cisco',
 			feed: 'https://cisco.test/edgar',
 			pollIntervalSeconds: 3600,
-			parse: parseEdgar8k,
+			parse: (json) => parseSecEdgar(json, { cik: '858877', issuer: 'Cisco', items: ['2.02'] }),
 		};
 
 		const { fn } = fakeFetch({
 			'https://cisco.test/ir': () => new Response(ciscoXml, { status: 200 }),
-			'https://cisco.test/edgar': () => new Response(ciscoEdgarXml, { status: 200 }),
+			'https://cisco.test/edgar': () => new Response(ciscoEdgarJson, { status: 200 }),
 		});
 
 		// First tick: 3 IR press releases + 2 Item-2.02 EDGAR filings = 5 rows.

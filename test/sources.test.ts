@@ -5,7 +5,7 @@ import anthropicXml from './fixtures/anthropic.xml?raw';
 import appleXml from './fixtures/apple.xml?raw';
 import gravitonJson from './fixtures/aws-graviton.json?raw';
 import ciscoXml from './fixtures/cisco.xml?raw';
-import ciscoEdgarXml from './fixtures/cisco-edgar-8k.xml?raw';
+import ciscoEdgarJson from './fixtures/cisco-sec-edgar.json?raw';
 import cloudflareXml from './fixtures/cloudflare-blog.xml?raw';
 import elonlitXml from './fixtures/elonlit.xml?raw';
 import ieeeXml from './fixtures/ieee-spectrum.xml?raw';
@@ -42,10 +42,10 @@ describe('SOURCES', () => {
 
 	it('registers both Cisco feeds (IR RSS primary + EDGAR 8-K backstop) under one source', () => {
 		const feeds = SOURCES.filter((s) => s.source === 'cisco').map((s) => s.feed);
-		expect(feeds).toEqual([
-			'https://investor.cisco.com/rss/pressrelease.aspx',
-			'https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0000858877&type=8-K&output=atom&count=10',
-		]);
+		// Per-feed presence (not exact-list equality) so a sibling Cisco feed addition
+		// won't break this. #71 moved the backstop onto the data.sec.gov JSON API.
+		expect(feeds).toContain('https://investor.cisco.com/rss/pressrelease.aspx');
+		expect(feeds).toContain('https://data.sec.gov/submissions/CIK0000858877.json');
 	});
 
 	it('parses the Cisco IR feed: title-only earnings PR, no content or summary', () => {
@@ -58,12 +58,13 @@ describe('SOURCES', () => {
 
 	it('parses the Cisco EDGAR feed: keeps Item 2.02 earnings 8-Ks, accession-number guids', () => {
 		const edgar = SOURCES.find((s) => s.source === 'cisco' && s.feed.includes('sec.gov'))!;
-		const items = edgar.parse(ciscoEdgarXml);
+		const items = edgar.parse(ciscoEdgarJson);
 		expect(items.map((i) => i.guid)).toEqual([
 			'0000858877-26-000075',
 			'0000858877-26-000006',
 		]);
-		expect(items[0].title).toContain('Item 2.02');
+		// The 2.02 earnings filing carries the "Results of Operations" label.
+		expect(items[0].title).toContain('Results of Operations and Financial Condition');
 	});
 
 	it('registers all three Anthropic OpenRSS sections under one source', () => {
@@ -190,11 +191,15 @@ describe('SOURCES', () => {
 
 	it('registers all three TI feeds (news + blog newsroom API + EDGAR backstop) under one source (#30)', () => {
 		const feeds = SOURCES.filter((s) => s.source === 'ti').map((s) => s.feed);
-		expect(feeds).toEqual([
+		// Per-feed presence (not exact-list equality) so a sibling TI feed addition
+		// won't break this.
+		expect(feeds).toContain(
 			'https://www.ti.com/bin/ti/newsroom?page=1&lang=en-us&categories=none&years=none&type=news',
+		);
+		expect(feeds).toContain(
 			'https://www.ti.com/bin/ti/newsroom?page=1&lang=en-us&categories=none&years=none&type=blog',
-			'https://data.sec.gov/submissions/CIK0000097476.json',
-		]);
+		);
+		expect(feeds).toContain('https://data.sec.gov/submissions/CIK0000097476.json');
 	});
 
 	it('parses the TI news-releases API: headline as title, subheadline summary, links out (#30)', () => {
