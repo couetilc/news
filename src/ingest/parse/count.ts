@@ -24,32 +24,56 @@ function arrayLength(value: unknown): number {
 	return Array.isArray(value) ? value.length : 0;
 }
 
+// Parse JSON without ever throwing: a malformed/truncated payload counts as 0
+// raw entries (the correct, non-alarming denominator — `parse` already surfaced
+// the real error). Honors the FeedConfig contract that a counter must never
+// throw on a payload `parse` would reject (#165).
+function parseJsonSafe(payload: string): unknown {
+	try {
+		return JSON.parse(payload);
+	} catch {
+		return null;
+	}
+}
+
+// Parse XML without ever throwing: fast-xml-parser raises internal errors on
+// truncated/malformed input, which would otherwise escape the counter. A
+// malformed payload yields no recognizable container, so it counts as 0 (#165).
+function parseXmlSafe(payload: string): Record<string, unknown> {
+	try {
+		return xml.parse(payload) as Record<string, unknown>;
+	} catch {
+		return {};
+	}
+}
+
 // RSS 2.0: the <item> elements under <channel>. A payload that no longer has
-// rss > channel (a format switch) counts as 0 — and `parse` will already have
-// thrown on it, so run.ts never reaches the counter in that case.
+// rss > channel (a format switch) — or that is malformed XML — counts as 0; and
+// `parse` will already have rejected it, so the count is just the denominator.
 export function countRss20(payload: string): number {
-	const parsed = xml.parse(payload) as { rss?: { channel?: { item?: unknown } } };
+	const parsed = parseXmlSafe(payload) as { rss?: { channel?: { item?: unknown } } };
 	return arrayLength(parsed.rss?.channel?.item);
 }
 
 // Atom: the <entry> elements under <feed>.
 export function countAtom(payload: string): number {
-	const parsed = xml.parse(payload) as { feed?: { entry?: unknown } };
+	const parsed = parseXmlSafe(payload) as { feed?: { entry?: unknown } };
 	return arrayLength(parsed.feed?.entry);
 }
 
 // AWS What's New search API: the top-level `items` array (each element wraps one
-// record under `item`).
+// record under `item`). A non-object/garbage top level counts as 0.
 export function countAwsWhatsNew(payload: string): number {
-	const parsed = JSON.parse(payload) as { items?: unknown };
-	return arrayLength(parsed.items);
+	const parsed = parseJsonSafe(payload);
+	if (typeof parsed !== 'object' || parsed === null) return 0;
+	return arrayLength((parsed as { items?: unknown }).items);
 }
 
 // TI newsroom AEM endpoint: the response is an array whose element 0 is the
 // total-count string and elements 1..N are the records — so the raw entry count
 // is length minus the count header (never negative).
 export function countTiNewsroom(payload: string): number {
-	const parsed = JSON.parse(payload) as unknown;
+	const parsed = parseJsonSafe(payload);
 	return Array.isArray(parsed) ? Math.max(parsed.length - 1, 0) : 0;
 }
 

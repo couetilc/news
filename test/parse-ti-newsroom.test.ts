@@ -65,6 +65,34 @@ describe('parseTiNewsroom — edge cases', () => {
 		expect(() => parseTiNewsroom('{}')).toThrow(/not a TI newsroom/);
 	});
 
+	// #165 (fuzz-found): a null/non-object array element bypassed the record loop's
+	// field access and threw a raw TypeError on `record.path`. A garbage element
+	// must be skipped, leaving a well-formed (empty) array — never a TypeError.
+	it('skips a null array element without crashing', () => {
+		expect(parseTiNewsroom('[0,null]')).toEqual([]);
+		expect(() => parseTiNewsroom('[0,null]')).not.toThrow();
+	});
+
+	it('skips non-object array elements (numbers, strings, arrays) and keeps the good ones', () => {
+		const json = JSON.stringify([
+			'3',
+			null,
+			42,
+			'string-record',
+			[1, 2],
+			{ path: 'https://www.ti.com/keep.html', headline: 'Kept' },
+		]);
+		const items = parseTiNewsroom(json);
+		expect(items).toHaveLength(1);
+		expect(items[0].guid).toBe('https://www.ti.com/keep.html');
+		expect(items[0].title).toBe('Kept');
+	});
+
+	it('rejects truncated/invalid JSON with the documented error (no SyntaxError)', () => {
+		expect(() => parseTiNewsroom('garbage')).toThrow(/not a TI newsroom response: invalid JSON/);
+		expect(() => parseTiNewsroom('garbage')).not.toThrow(SyntaxError);
+	});
+
 	it('returns no items for a count-only response', () => {
 		expect(parseTiNewsroom('["0"]')).toEqual([]);
 	});

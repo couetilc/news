@@ -107,6 +107,25 @@ describe('parseSecEdgar — edge cases', () => {
 		expect(() => parseSecEdgar('{}', TI)).toThrow(/not an EDGAR/);
 	});
 
+	// #165 (fuzz-found): JSON.parse("null") is null, on which `.filings` threw a
+	// raw TypeError. A non-object top level must degrade to the documented
+	// rejection — never an undocumented TypeError/SyntaxError on untrusted input.
+	it('rejects a JSON null top level with the documented error (no TypeError)', () => {
+		expect(() => parseSecEdgar('null', TI)).toThrow(/not an EDGAR/);
+		expect(() => parseSecEdgar('null', TI)).not.toThrow(TypeError);
+	});
+
+	it('rejects non-object JSON top levels with the documented error', () => {
+		for (const payload of ['[]', '1', '"x"', 'true']) {
+			expect(() => parseSecEdgar(payload, TI)).toThrow(/not an EDGAR/);
+		}
+	});
+
+	it('rejects truncated/invalid JSON with the documented error (no SyntaxError)', () => {
+		expect(() => parseSecEdgar('{', TI)).toThrow(/not an EDGAR submissions response: invalid JSON/);
+		expect(() => parseSecEdgar('{', TI)).not.toThrow(SyntaxError);
+	});
+
 	it('throws when accessionNumber is not an array', () => {
 		expect(() => parseSecEdgar(JSON.stringify({ filings: { recent: {} } }), TI)).toThrow(
 			/not an EDGAR/,

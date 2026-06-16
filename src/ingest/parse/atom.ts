@@ -61,7 +61,17 @@ function articleLink(links: AtomLink[]): string | null {
 }
 
 export function parseAtom(xml: string, opts: AtomOptions): ParsedItem[] {
-	const feed = parser.parse(xml).feed;
+	// fast-xml-parser throws its own internal errors on truncated/malformed XML
+	// (e.g. a TypeError reading 'addChild' on bad tag nesting). Treat any such
+	// failure as the documented "not an Atom feed" rejection rather than letting an
+	// undocumented runtime error escape on untrusted input (#165).
+	let parsed: { feed?: { entry?: unknown[] } };
+	try {
+		parsed = parser.parse(xml);
+	} catch {
+		throw new Error('not an Atom feed: malformed XML');
+	}
+	const feed = parsed.feed;
 	if (!feed) {
 		throw new Error('not an Atom feed: missing feed root');
 	}

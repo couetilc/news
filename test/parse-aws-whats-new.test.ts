@@ -47,6 +47,31 @@ describe('parseAwsWhatsNew — edge cases', () => {
 		expect(() => parseAwsWhatsNew('{}')).toThrow(/not an AWS/);
 	});
 
+	// #165 (fuzz-found): JSON.parse("null") is null, on which `.items` threw a raw
+	// TypeError. A non-object top level must degrade to the documented rejection —
+	// never an undocumented TypeError/SyntaxError on untrusted input.
+	it('rejects a JSON null top level with the documented error (no TypeError)', () => {
+		expect(() => parseAwsWhatsNew('null')).toThrow(/not an AWS/);
+		expect(() => parseAwsWhatsNew('null')).not.toThrow(TypeError);
+	});
+
+	it('rejects non-object JSON top levels with the documented error', () => {
+		for (const payload of ['[1]', '1', '"x"', 'true']) {
+			expect(() => parseAwsWhatsNew(payload)).toThrow(/not an AWS/);
+		}
+	});
+
+	it('rejects truncated/invalid JSON with the documented error (no SyntaxError)', () => {
+		expect(() => parseAwsWhatsNew('{')).toThrow(/not an AWS What’s New response: invalid JSON/);
+		expect(() => parseAwsWhatsNew('{')).not.toThrow(SyntaxError);
+	});
+
+	it('skips a null array element without crashing', () => {
+		// A garbage items array carrying null/non-object elements must yield a
+		// well-formed (empty) array, not a TypeError (#165).
+		expect(parseAwsWhatsNew(wrap([null, 0, 'x']))).toEqual([]);
+	});
+
 	it('skips a wrapper with no item record', () => {
 		expect(parseAwsWhatsNew(wrap([{}]))).toEqual([]);
 	});

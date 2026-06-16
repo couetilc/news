@@ -36,6 +36,13 @@ describe('countRss20', () => {
 			<item><guid>a</guid><link>https://x.test/a</link></item></channel></rss>`;
 		expect(countRss20(one)).toBe(1);
 	});
+
+	it('returns 0 on malformed XML without throwing (#165)', () => {
+		// A counter must never throw on a payload `parse` would reject; truncated XML
+		// counts as 0 raw entries, the correct denominator.
+		expect(countRss20('<![CDATA[')).toBe(0);
+		expect(() => countRss20('<![CDATA[')).not.toThrow();
+	});
 });
 
 describe('countAtom', () => {
@@ -46,6 +53,11 @@ describe('countAtom', () => {
 	it('returns 0 when the payload has no feed root', () => {
 		expect(countAtom('<rss version="2.0"><channel></channel></rss>')).toBe(0);
 	});
+
+	it('returns 0 on malformed XML without throwing (#165)', () => {
+		expect(countAtom('</item><item>')).toBe(0);
+		expect(() => countAtom('</item><item>')).not.toThrow();
+	});
 });
 
 describe('countAwsWhatsNew', () => {
@@ -55,6 +67,14 @@ describe('countAwsWhatsNew', () => {
 
 	it('returns 0 when items is missing', () => {
 		expect(countAwsWhatsNew('{}')).toBe(0);
+	});
+
+	it('returns 0 on a non-object/garbage top level without throwing (#165)', () => {
+		// JSON null, a bare number, and invalid JSON all count as 0 raw entries.
+		expect(countAwsWhatsNew('null')).toBe(0);
+		expect(countAwsWhatsNew('1')).toBe(0);
+		expect(countAwsWhatsNew('{')).toBe(0);
+		expect(() => countAwsWhatsNew('{')).not.toThrow();
 	});
 });
 
@@ -71,5 +91,10 @@ describe('countTiNewsroom', () => {
 	it('never goes negative for an empty or header-only array', () => {
 		expect(countTiNewsroom('[]')).toBe(0);
 		expect(countTiNewsroom('["0"]')).toBe(0);
+	});
+
+	it('returns 0 on invalid JSON without throwing (#165)', () => {
+		expect(countTiNewsroom('garbage')).toBe(0);
+		expect(() => countTiNewsroom('garbage')).not.toThrow();
 	});
 });

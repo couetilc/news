@@ -308,4 +308,26 @@ describe('parseRss20 — edge cases', () => {
 			/not an RSS 2.0 feed/,
 		);
 	});
+
+	// #165 (fuzz-found): truncated/malformed XML made fast-xml-parser throw its own
+	// internal error ("CDATA is not closed", or a TypeError on bad nesting) instead
+	// of the documented rejection. Each must surface as "not an RSS 2.0 feed", never
+	// an undocumented runtime error.
+	it('rejects a truncated CDATA payload with the documented error (no raw parser error)', () => {
+		expect(() => parseRss20('<![CDATA[', { content: 'description' })).toThrow(
+			/not an RSS 2.0 feed: malformed XML/,
+		);
+		expect(() => parseRss20('<![CDATA[', { content: 'description' })).not.toThrow(/CDATA/);
+	});
+
+	it('rejects malformed tag nesting with the documented error (no TypeError)', () => {
+		expect(() => parseRss20('</item><item>', { content: 'description' })).toThrow(
+			/not an RSS 2.0 feed/,
+		);
+		expect(() => parseRss20('</item><item>', { content: 'description' })).not.toThrow(TypeError);
+	});
+
+	it('rejects an empty payload with the documented error', () => {
+		expect(() => parseRss20('', { content: 'description' })).toThrow(/not an RSS 2.0 feed/);
+	});
 });

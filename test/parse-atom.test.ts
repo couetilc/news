@@ -191,4 +191,24 @@ describe('parseAtom — edge cases', () => {
 			/not an Atom feed/,
 		);
 	});
+
+	// #165 (fuzz-found): malformed tag nesting made fast-xml-parser throw a raw
+	// "Cannot read properties of undefined (reading 'addChild')" TypeError instead
+	// of the documented rejection. Each malformed/truncated payload must surface as
+	// "not an Atom feed", never an undocumented runtime error.
+	it('rejects malformed tag nesting with the documented error (no TypeError)', () => {
+		expect(() => parseAtom('</item><item>', { content: 'content' })).toThrow(/not an Atom feed/);
+		expect(() => parseAtom('</item><item>', { content: 'content' })).not.toThrow(TypeError);
+	});
+
+	it('rejects a truncated CDATA payload with the documented error (no raw parser error)', () => {
+		expect(() => parseAtom('<![CDATA[', { content: 'summary-only' })).toThrow(
+			/not an Atom feed: malformed XML/,
+		);
+		expect(() => parseAtom('<![CDATA[', { content: 'summary-only' })).not.toThrow(/CDATA/);
+	});
+
+	it('rejects an empty payload with the documented error', () => {
+		expect(() => parseAtom('', { content: 'summary-only' })).toThrow(/not an Atom feed/);
+	});
 });
