@@ -50,15 +50,20 @@ reached through the `.codex/skills` symlink, so an agent that reads skills from
 4. `git fetch origin main` and fast-forward local `main` with
    `git merge --ff-only origin/main`.
 5. Review the merged code in context. Read surrounding files, tests, configs,
-   generated output, and existing workflow code as needed. Look for feature
+   generated output, and existing workflow code as needed. If you fetched diffs
+   before fast-forwarding, re-read the current files after the fast-forward so
+   stale pre-merge content does not leak into the review. Look for feature
    interactions, not only line-local bugs.
 6. Run validation appropriate to the change. For this repo, default to
    `npm test` and `npm run build` for source changes. For external feed/source
-   PRs, also do a live shape spot-check when safe.
+   PRs, also do a live shape spot-check when safe; keep tests hermetic, but
+   quantify live shape/backfill risk in the review notes.
 7. **File an issue for each actionable finding**, following
    `references/finding-issue.md` (a `agent-review` label plus the usual type/area
-   labels; reference the source `PR #N` in the body). If there are no actionable
-   findings, file nothing.
+   labels; reference the source `PR #N` in the body). Search existing issues
+   first. If an existing issue already covers the finding, add a comment with
+   the PR-specific context instead of filing a duplicate. If there are no
+   actionable findings, file nothing.
 8. **Mark the PR reviewed** regardless of outcome:
 
    ```bash
