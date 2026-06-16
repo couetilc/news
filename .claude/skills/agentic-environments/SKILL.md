@@ -115,8 +115,10 @@ refuses to run as root).
   containers AND rebuilds the image from scratch (`--pull --no-cache`) so the
   baked-in claude CLI doesn't freeze at image-build-time latest. Containers
   are **kept after exit** so unpushed work is recoverable (`docker start -ai
-  <name>` — note this starts a NEW claude session in the old workspace; use
-  `/resume` inside to pick up the prior one; `docker cp` to salvage files).
+  <name>` re-runs the container's original command — for an interactive launch
+  that's a NEW claude session in the old workspace, where `/resume` picks up the
+  prior one; for a headless `-p` launch it reruns the original prompt, so salvage
+  with `docker cp` instead. See the resume section below).
 - **First-run UX + surface identity**: the entrypoint pre-seeds
   `~/.claude.json` (onboarding + bypass-permissions + /workspace trust
   accepted) for Claude and `~/.codex/config.toml`
@@ -204,10 +206,18 @@ new container (`news-agent-<kind>-<timestamp>`) that can't see any earlier
 session, so cross-launch resume looks dead. **The same-container path already
 works and is the recommended one:** containers are kept after exit (no `--rm`),
 so `docker start -ai <name>` reopens that workspace — the entrypoint skips the
-re-clone when `/workspace/.git` already exists — and `/resume` (or Codex
-`resume`) inside picks up that container's prior thread. **Recommendation: keep
-the per-container `docker start -ai` path and do not add shared session
-persistence.** The reasoning, against the four options considered (#127):
+re-clone when `/workspace/.git` already exists. **This resume path applies only
+to containers first launched interactively.** `docker start` re-runs the
+container's *original* command: an interactive container reopens to a new session
+where `/resume` (or Codex `resume`) picks up that container's prior thread, but a
+container first launched headless (`./bin/claude -p "..."` / `./bin/codex -p
+"..."`, i.e. `claude -p` / `codex exec`) reruns that one-shot prompt instead —
+repeating its autonomous edits, commits, and pushes — with no interactive prompt
+to `/resume` from. For a stopped headless container, recover code via its
+already-pushed branch (auto-push) or `docker cp`, not `docker start`.
+**Recommendation: keep the per-container `docker start -ai` path and do not add
+shared session persistence.** The reasoning, against the four options considered
+(#127):
 
 - **A named session-history volume** (mirroring `news-agent-npm-cache`, which
   mounts at `/home/node/.npm`) is mechanically trivial — `~/.claude` and
@@ -239,7 +249,11 @@ persistence.** The reasoning, against the four options considered (#127):
   `docker start -ai`. A thin `./bin/claude --resume [name]` that lists kept
   containers and `docker start -ai`s the chosen/most-recent one (defaulting to
   the latest by the timestamped name) would make resume a first-class gesture
-  without persisting anything new. Filed as a follow-up (below).
+  without persisting anything new. Such a helper must distinguish interactive
+  from headless containers — `docker start` reruns the saved command, so a
+  headless `-p` container would replay its one-shot prompt rather than resume —
+  by refusing or warning on a headless container instead of blindly starting it.
+  Filed as a follow-up (below).
 
 Cross-cutting caveats that hold regardless of option:
 
