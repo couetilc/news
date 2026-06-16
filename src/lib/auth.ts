@@ -1,35 +1,61 @@
-// Password hashing for Cloudflare Workers (issue #40).
+// Password hashing for Cloudflare Workers (issues #40, #125).
 //
-// Workers have no native bcrypt/argon2 — only Web Crypto (`crypto.subtle`) is
-// available at runtime. We use PBKDF2-HMAC-SHA-256, the password KDF that Web
-// Crypto exposes directly, with:
-//   • a per-user 16-byte random salt (crypto.getRandomValues) so identical
-//     passwords get distinct hashes and precomputed/rainbow tables don't apply;
-//   • the maximum iteration count Cloudflare Workers permits — 100,000. Workers
-//     HARD-CAPS PBKDF2 at 100k (workerd#1346); request more and crypto.subtle
-//     fails with "iteration counts above 100000 are not supported", which hung
-//     every production signup (local workerd does NOT enforce the cap, so the
-//     hermetic suite passed while prod was broken — see test/auth.test.ts).
-//     100k is below OWASP's 2023 SHA-256 guidance (600k), so the PEPPER below is
-//     the compensating control for that platform-imposed gap;
-//   • an optional server-side PEPPER (a Worker secret, not in the DB) mixed into
-//     the input, so a stolen database alone can't be brute-forced offline.
+// NEW HASHES USE ARGON2ID — OWASP's #1 password KDF (memory-hard, GPU/ASIC-
+// resistant), via `@noble/hashes` (MIT, cure53-audited, zero transitive deps,
+// PURE JS). "Don't roll your own crypto": the derivation is the audited
+// primitive; only the storage envelope and the constant-time verify are ours.
 //
-// Verification is CONSTANT-TIME: we recompute the hash with the stored salt and
-// iterations, then compare the raw derived-key bytes with a constant-time
-// equality (no early return on first mismatch), so an attacker can't time their
-// way to the digest. We compare the binary hash, not the base64 text.
+// Why a library, and why this one: Workers expose only Web Crypto at runtime,
+// which has no bcrypt/argon2 and HARD-CAPS PBKDF2 at 100,000 iterations
+// (workerd#1346) — below OWASP's 2023 PBKDF2-SHA256 guidance (600k) and, more
+// importantly, not memory-hard. A WASM argon2 (hash-wasm) was tried and
+// REJECTED: it calls `WebAssembly.compile()` at runtime, which workerd
+// permanently forbids (#160). `@noble/hashes` is pure JS — no dynamic
+// WASM/eval — so argon2id runs in workerd unmodified (proven in the `workers`
+// vitest pool: test/noble-workerd-smoke.test.ts).
 //
-// Storage format is a single self-describing string:
-//   pbkdf2$<iterations>$<salt-b64>$<hash-b64>
-// The iteration count and salt travel with each digest, so the work factor can
-// be raised later (new signups get the new count) without a migration, and old
-// hashes still verify against the count they were created with.
+// PARAMS (OWASP-aligned, within the Worker ~128MB/CPU budget; single-user, so
+// generous):
+//   • memory m = 19456 KiB (19 MiB) — OWASP's second argon2id option;
+//   • iterations t = 3;
+//   • parallelism p = 1 (lanes; Workers are single-threaded anyway);
+//   • output 32 bytes; per-hash 16-byte random salt.
+// One hash costs ~1.6s in the local workerd vitest pool — acceptable login
+// latency for a single-user tool. These params travel IN the stored record
+// (self-describing), so they can be raised later for new signups without a
+// migration — old hashes still verify against the params they were created with.
+//
+// PEPPER: an optional server-side secret (a Worker secret, never in the DB —
+// `AUTH_PEPPER`) is prepended to the password before derivation, so a stolen
+// database alone can't be brute-forced offline. Absent a configured pepper it's
+// the empty string. Mixing is identical to the previous PBKDF2 scheme, so the
+// pepper semantics are unchanged across the migration.
+//
+// VERIFY is CONSTANT-TIME: recompute the digest with the record's own salt and
+// params, then compare the raw bytes with a constant-time equality (no early
+// return on first mismatch). We compare the binary hash, not the base64 text.
+//
+// BACK-COMPAT: verification is dispatched on the record's leading tag, so legacy
+// PBKDF2 records keep verifying byte-for-byte (no migration):
+//   • argon2id$m=<KiB>,t=<iters>,p=<lanes>$<salt-b64>$<hash-b64>  (new)
+//   • pbkdf2$<iterations>$<salt-b64>$<hash-b64>                   (legacy, single-pass)
+//   • pbkdf2$<perPass>x<passes>$<salt-b64>$<hash-b64>             (legacy, chained)
+// The users table is currently empty, but the self-describing contract is
+// preserved so any record ever written stays verifiable.
 
-const ALGORITHM = 'pbkdf2';
-const ITERATIONS = 100_000; // Cloudflare Workers hard cap (workerd#1346) — see header
+import { argon2id } from '@noble/hashes/argon2.js';
+
+const ARGON2ID_TAG = 'argon2id';
+const PBKDF2_TAG = 'pbkdf2';
+
+// Argon2id parameters for NEW hashes — see header.
+const ARGON2_MEMORY_KIB = 19456; // 19 MiB
+const ARGON2_ITERATIONS = 3;
+const ARGON2_PARALLELISM = 1;
+const ARGON2_HASH_BYTES = 32;
+
 const SALT_BYTES = 16;
-const HASH_BITS = 256; // SHA-256 output width
+const PBKDF2_HASH_BITS = 256; // SHA-256 output width, for legacy verification
 
 const encoder = new TextEncoder();
 
@@ -46,29 +72,66 @@ function fromBase64(b64: string): Uint8Array {
 	return bytes;
 }
 
-// Run PBKDF2 over (pepper + password) with the given salt/iterations, returning
-// the raw derived-key bytes. The pepper is prepended to the password before
-// derivation; absent a configured pepper it's the empty string (still secure,
-// just without the extra DB-theft mitigation).
-async function derive(
+// Compute the argon2id digest of (pepper + password) with the given salt and
+// cost params, returning the raw derived-key bytes. The pepper is prepended to
+// the password exactly as the legacy PBKDF2 path did, so the pepper semantics
+// carry over unchanged.
+function deriveArgon2id(
 	password: string,
 	salt: Uint8Array,
+	memoryKib: number,
 	iterations: number,
+	parallelism: number,
+	hashBytes: number,
 	pepper: string,
+): Uint8Array {
+	return argon2id(encoder.encode(pepper + password), salt, {
+		m: memoryKib,
+		t: iterations,
+		p: parallelism,
+		dkLen: hashBytes,
+	});
+}
+
+// Run PBKDF2 over the given input for ONE pass — the legacy single-pass
+// primitive, kept only to verify pre-argon2id records.
+async function pbkdf2Pass(
+	input: Uint8Array,
+	salt: Uint8Array,
+	iterations: number,
 ): Promise<Uint8Array> {
-	const keyMaterial = await crypto.subtle.importKey(
-		'raw',
-		encoder.encode(pepper + password),
-		'PBKDF2',
-		false,
-		['deriveBits'],
-	);
+	const keyMaterial = await crypto.subtle.importKey('raw', input as BufferSource, 'PBKDF2', false, [
+		'deriveBits',
+	]);
 	const bits = await crypto.subtle.deriveBits(
 		{ name: 'PBKDF2', hash: 'SHA-256', salt: salt as BufferSource, iterations },
 		keyMaterial,
-		HASH_BITS,
+		PBKDF2_HASH_BITS,
 	);
 	return new Uint8Array(bits);
+}
+
+// Legacy PBKDF2 derivation, supporting BOTH historical record shapes:
+//   • single-pass:  one deriveBits call at `perPass` iterations (passes === 1);
+//   • chained:      `passes` deriveBits calls of `perPass` iterations each,
+//                   feeding one pass's output as the next pass's key material,
+//                   to multiply the effective work factor within the 100k cap.
+// `passes === 1` collapses to the single-pass case, so the same code verifies
+// both. Returns the raw derived-key bytes.
+async function derivePbkdf2(
+	password: string,
+	salt: Uint8Array,
+	perPass: number,
+	passes: number,
+	pepper: string,
+): Promise<Uint8Array> {
+	let input = encoder.encode(pepper + password);
+	let out = input;
+	for (let i = 0; i < passes; i++) {
+		out = await pbkdf2Pass(input, salt, perPass);
+		input = out;
+	}
+	return out;
 }
 
 // Compare two byte arrays in constant time: always walks every byte and ORs the
@@ -81,17 +144,84 @@ function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
 	return diff === 0;
 }
 
-// Hash a password for storage. Generates a fresh random salt each call.
+// Hash a password for storage with argon2id. Generates a fresh random salt each
+// call and records the cost params in the envelope so they can be raised later
+// without a migration.
 export async function hashPassword(password: string, pepper = ''): Promise<string> {
 	const salt = crypto.getRandomValues(new Uint8Array(SALT_BYTES));
-	const hash = await derive(password, salt, ITERATIONS, pepper);
-	return `${ALGORITHM}$${ITERATIONS}$${toBase64(salt)}$${toBase64(hash)}`;
+	const hash = deriveArgon2id(
+		password,
+		salt,
+		ARGON2_MEMORY_KIB,
+		ARGON2_ITERATIONS,
+		ARGON2_PARALLELISM,
+		ARGON2_HASH_BYTES,
+		pepper,
+	);
+	const params = `m=${ARGON2_MEMORY_KIB},t=${ARGON2_ITERATIONS},p=${ARGON2_PARALLELISM}`;
+	return `${ARGON2ID_TAG}$${params}$${toBase64(salt)}$${toBase64(hash)}`;
 }
 
-// Verify a candidate password against a stored "pbkdf2$iter$salt$hash" record.
-// Returns false for any malformed record rather than throwing, so a corrupt row
-// can't crash login. Recomputes with the record's own salt/iterations and does a
-// constant-time compare of the raw hash bytes.
+// Verify a candidate password against an argon2id record:
+//   argon2id$m=<KiB>,t=<iters>,p=<lanes>$<salt-b64>$<hash-b64>
+// Returns false for any malformed record rather than throwing. Recomputes with
+// the record's own salt + params, then constant-time-compares the raw bytes.
+async function verifyArgon2id(
+	password: string,
+	paramText: string,
+	saltB64: string,
+	hashB64: string,
+	pepper: string,
+): Promise<boolean> {
+	const params: Record<string, number> = {};
+	for (const pair of paramText.split(',')) {
+		const [key, value] = pair.split('=');
+		const n = Number(value);
+		if (!key || value === undefined || !Number.isInteger(n) || n <= 0) return false;
+		params[key] = n;
+	}
+	const { m, t, p } = params;
+	if (m === undefined || t === undefined || p === undefined) return false;
+	const salt = fromBase64(saltB64);
+	const expected = fromBase64(hashB64);
+	const actual = deriveArgon2id(password, salt, m, t, p, expected.length, pepper);
+	return timingSafeEqual(actual, expected);
+}
+
+// Verify a candidate password against a legacy PBKDF2 record. The cost field is
+// either a plain iteration count (single-pass) or "<perPass>x<passes>" (chained
+// PBKDF2). Returns false for malformed cost fields rather than throwing.
+async function verifyPbkdf2(
+	password: string,
+	costText: string,
+	saltB64: string,
+	hashB64: string,
+	pepper: string,
+): Promise<boolean> {
+	let perPass: number;
+	let passes: number;
+	if (costText.includes('x')) {
+		const [perPassText, passesText] = costText.split('x');
+		perPass = Number(perPassText);
+		passes = Number(passesText);
+	} else {
+		perPass = Number(costText);
+		passes = 1;
+	}
+	if (!Number.isInteger(perPass) || perPass <= 0) return false;
+	if (!Number.isInteger(passes) || passes <= 0) return false;
+	const salt = fromBase64(saltB64);
+	const expected = fromBase64(hashB64);
+	const actual = await derivePbkdf2(password, salt, perPass, passes, pepper);
+	return timingSafeEqual(actual, expected);
+}
+
+// Verify a candidate password against a stored record. The record is self-
+// describing: the leading tag selects the scheme (argon2id for new hashes,
+// pbkdf2 for legacy single-pass and chained records), so old and new hashes
+// coexist with no migration. Returns false for any malformed record (wrong
+// field count, unknown tag, bad params) rather than throwing, so a corrupt row
+// can't crash login.
 export async function verifyPassword(
 	password: string,
 	stored: string,
@@ -99,14 +229,14 @@ export async function verifyPassword(
 ): Promise<boolean> {
 	const parts = stored.split('$');
 	if (parts.length !== 4) return false;
-	const [algorithm, iterationsText, saltB64, hashB64] = parts;
-	if (algorithm !== ALGORITHM) return false;
-	const iterations = Number(iterationsText);
-	if (!Number.isInteger(iterations) || iterations <= 0) return false;
-	const salt = fromBase64(saltB64);
-	const expected = fromBase64(hashB64);
-	const actual = await derive(password, salt, iterations, pepper);
-	return timingSafeEqual(actual, expected);
+	const [tag, costText, saltB64, hashB64] = parts;
+	if (tag === ARGON2ID_TAG) {
+		return verifyArgon2id(password, costText, saltB64, hashB64, pepper);
+	}
+	if (tag === PBKDF2_TAG) {
+		return verifyPbkdf2(password, costText, saltB64, hashB64, pepper);
+	}
+	return false;
 }
 
 // Input validation, shared by /signup and /login so the rules live in one place.
