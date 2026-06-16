@@ -30,7 +30,10 @@ skeleton; every change should move it toward being a useful news aggregator.
   Surface qualifier: the agent container bakes node into its image and gets
   env vars via `docker --env-file`; the cloud VM uses its stock node and has
   no `.env` at all — neither has mise, so skip mise commands there.
-- **npm** for dependencies; `package-lock.json` is committed.
+- **npm** for dependencies; `package-lock.json` is committed. Adding a dependency
+  follows a **middle-path policy + an agent propose-for-approval mechanism** —
+  don't roll your own crypto, don't add deps unilaterally; see the `dependencies`
+  skill.
 - Scaffold note: create-cloudflare (C3) crashed scaffolding Astro 6
   non-interactively (June 2026), so this was scaffolded with `create-astro` +
   `npx astro add cloudflare` — same end state.
