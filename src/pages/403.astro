@@ -1,0 +1,46 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+// The in-voice rejection page for a forbidden cross-site write (issue #95).
+//
+// Astro's built-in same-origin check (`security.checkOrigin`) is turned OFF in
+// astro.config.mjs and reimplemented in src/middleware.ts so we control the
+// response: the default returns an unstyled plaintext "Cross-site POST form
+// submissions are forbidden" 403, which reads as a broken page. When the
+// middleware catches a cross-site form POST it `rewrite`s here instead, so the
+// reader gets the masthead + this newsprint-voice notice rather than raw text.
+//
+// SSR (no `prerender`): it's reached only via the middleware rewrite, which
+// preserves the original (POST) request, so it can't be statically prerendered.
+// The 403 status is set here — a rewrite renders this route's response as-is, so
+// the page owns its own status code (the middleware just chose the route).
+//
+// Branch-free frontmatter (the 100% coverage gate, see the design-system
+// "Coverage gotcha"): no conditionals, just a status assignment and static
+// markup, so rendering it once in test/error-pages.test.ts covers it fully.
+Astro.response.status = 403;
+---
+
+<Layout title="Forbidden · News">
+	<section class="mx-auto max-w-sm py-6 text-center">
+		<p class="font-sans text-[0.65rem] uppercase tracking-[0.3em] text-accent">
+			403 · Forbidden
+		</p>
+		<h2 class="mb-4 mt-2 text-2xl">That request didn’t come from here</h2>
+		<p
+			role="alert"
+			class="mb-5 border-l-2 border-accent bg-paper-edge px-3 py-2 text-left font-sans text-sm text-accent"
+		>
+			For your security, this form can only be submitted from a page on
+			news.cuteteal.com. Open the form fresh and try again.
+		</p>
+		<p class="font-sans text-sm text-muted">
+			<a
+				href="/login"
+				class="text-ink-soft underline underline-offset-2 hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+			>
+				Back to sign in
+			</a>
+		</p>
+	</section>
+</Layout>

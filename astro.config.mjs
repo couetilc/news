@@ -9,6 +9,17 @@ export default defineConfig({
   // SSR for all pages by default: a news aggregator serves fresh content.
   // Individual pages can opt back into prerendering with `export const prerender = true`.
   output: 'server',
+  security: {
+    // Astro's built-in cross-site form-POST guard (default ON) returns an
+    // unstyled plaintext "Cross-site POST form submissions are forbidden" 403,
+    // which reads as a broken page (issue #95). We turn it OFF here and
+    // reimplement the exact same same-origin check in src/middleware.ts so we
+    // control the response: a failed check rewrites to the in-voice
+    // src/pages/403.astro instead of dumping raw text. The protection is not
+    // weakened — same origin comparison, same form-content-type scope — just
+    // surfaced in the newspaper voice.
+    checkOrigin: false,
+  },
   adapter: cloudflare({
     // Build-time image optimization only; avoids a dependency on Cloudflare
     // Images billing. Switch to 'cloudflare-binding' if we ever transform

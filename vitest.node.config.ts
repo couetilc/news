@@ -50,6 +50,7 @@ export default getViteConfig(
 				'test/article.test.ts',
 				'test/worker.test.ts',
 				'test/auth-pages.test.ts',
+				'test/error-pages.test.ts',
 				'test/middleware.test.ts',
 				// Browser-only client module (src/scripts/enhance-forms.ts) — runs
 				// under a per-file `@vitest-environment happy-dom` override (declared in

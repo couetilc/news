@@ -36,6 +36,7 @@ export default defineConfig({
 			'test/article.test.ts',
 			'test/worker.test.ts',
 			'test/auth-pages.test.ts',
+			'test/error-pages.test.ts',
 			'test/middleware.test.ts',
 			// DOM unit test for a browser-only client module — needs a happy-dom
 			// environment the workerd pool can't provide; runs in the node project.
