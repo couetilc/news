@@ -35,8 +35,9 @@ const sessionWith = (userId: number | undefined) => ({
 
 describe('auth middleware', () => {
 	it('lets public paths through without checking the session', async () => {
-		// /public is the read-only feed (issue #49) — reachable logged out.
-		for (const path of ['/login', '/signup', '/logout', '/public']) {
+		// /logout works even with a lapsed session; /public is the legacy read-only
+		// feed redirect (issue #49) — both reachable logged out without a session read.
+		for (const path of ['/logout', '/public']) {
 			const { promise } = run(path, undefined);
 			expect(await promise).toBe(NEXT);
 		}
@@ -48,11 +49,24 @@ describe('auth middleware', () => {
 		// same route but leaves the slash on context.url.pathname; the guard
 		// normalizes it before the exact-match lookup (issues #81, #95), so the
 		// slash forms reach the same allowlist as their no-slash forms.
-		for (const path of ['/login/', '/signup/', '/logout/', '/public/']) {
+		for (const path of ['/logout/', '/public/']) {
 			const { promise } = run(path, undefined);
 			expect(await promise).toBe(NEXT);
 		}
 		expect(next).toHaveBeenCalled();
+	});
+
+	it('lets anonymous requests through to the auth pages without redirecting (#150)', async () => {
+		// /login and /signup are session-adaptive (#150), not blanket public: the
+		// guard reads the session, but an anonymous request still falls through to
+		// render the form (no userId on locals → the masthead's logged-out branch).
+		// Covers the slash forms too, so the #95 POST-drop fix still holds.
+		for (const path of ['/login', '/signup', '/login/', '/signup/']) {
+			const { promise, redirect, locals } = run(path, sessionWith(undefined));
+			expect(await promise).toBe(NEXT);
+			expect(redirect).not.toHaveBeenCalled();
+			expect(locals.userId).toBeUndefined();
+		}
 	});
 
 	it('does not drop a POST to a trailing-slash auth route (issue #95)', async () => {
@@ -60,9 +74,24 @@ describe('auth middleware', () => {
 		// dropping the submitted form data so no account was ever created. After
 		// normalization the request passes straight through to the route, which is
 		// what lets the POST body survive — verified here without booting a server.
+		// (session undefined: e.g. sessions misconfigured — still must not redirect.)
 		const { promise, redirect } = run('/signup/', undefined);
 		expect(await promise).toBe(NEXT);
 		expect(redirect).not.toHaveBeenCalled();
+	});
+
+	it('surfaces the user id on locals for a logged-in request to an auth page (#150)', async () => {
+		// An already-authenticated visitor to /login or /signup is still let through
+		// (the page renders), but now with locals.userId set, so the shared masthead
+		// shows the signed-in control instead of the anonymous "Log in" self-link.
+		// This is the bug #150 fixes: these were previously public paths the guard
+		// returned from before ever reading the session.
+		for (const path of ['/login', '/signup', '/signup/']) {
+			const { promise, redirect, locals } = run(path, sessionWith(42));
+			expect(await promise).toBe(NEXT);
+			expect(redirect).not.toHaveBeenCalled();
+			expect(locals.userId).toBe(42);
+		}
 	});
 
 	it('redirects an unauthenticated request for a gated page to /login', async () => {

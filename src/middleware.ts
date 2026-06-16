@@ -1,25 +1,23 @@
 import { defineMiddleware } from 'astro:middleware';
 import { SESSION_USER_KEY } from './lib/session';
 
-// Auth guard (issue #40, #87). The private surface is gated by default: a
-// request without a logged-in session is redirected to /login. The one
-// deliberate exception is the homepage `/`, which is *session-adaptive* (#87):
-// it serves the public read-only feed to anonymous visitors and the personal
-// feed to logged-in ones at the same URL, so it must be reachable with or
-// without a session. It still isn't a blanket public path — for a logged-in
-// request the guard reads the session and exposes the user id on locals (below),
-// so the page can render the personal view.
+// Auth guard (issue #40, #87, #150). The private surface is gated by default: a
+// request without a logged-in session is redirected to /login. The deliberate
+// exceptions are the *session-adaptive* paths — `/`, `/login`, `/signup` — which
+// are reachable with or without a session, but still aren't blanket public paths:
+// the guard reads the session for them and, when one exists, exposes the user id
+// on locals (below) so each page can adapt to the real auth state.
 //
 // PUBLIC_PATHS is the allowlist of pages that stay reachable while logged out
 // *without even looking at the session*. It's an exact-match Set so adding a
-// page is a one-line edit and there's no accidental prefix match. /login and
-// /signup must be here or the guard would redirect them to themselves; /logout
-// is here so signing out works even if the session has already lapsed; /public
-// is the legacy read-only feed (issue #49), now a permanent redirect to the
+// page is a one-line edit and there's no accidental prefix match. /logout is
+// here so signing out works even if the session has already lapsed; /public is
+// the legacy read-only feed (issue #49), now a permanent redirect to the
 // session-adaptive `/` (#87) but still allowlisted so the redirect itself is
-// reachable logged out.
+// reachable logged out. Neither renders the session-aware masthead in a state
+// that needs the user id, so neither reads the session.
 //
-// Crucially, write routes stay OUT of both this set and the `/` exception.
+// Crucially, write routes stay OUT of both this set and the adaptive set.
 // /api/read (the read/unread toggle, an Astro route under src/pages/api) is
 // therefore covered by the gate: an unauthenticated POST to it — including a
 // hand-crafted one from the public view of `/` — is redirected to /login (303)
@@ -27,13 +25,24 @@ import { SESSION_USER_KEY } from './lib/session';
 // refuses writes, not merely because the form isn't drawn. If a future write
 // route needs to answer JSON callers rather than redirect, check the session
 // inside that route instead.
-const PUBLIC_PATHS = new Set(['/login', '/signup', '/logout', '/public']);
+const PUBLIC_PATHS = new Set(['/logout', '/public']);
 
-// The session-adaptive homepage (#87): reachable by anyone, but not a blanket
-// public path — when a session exists the guard still surfaces the user id on
-// locals so the personal feed renders. Kept separate from PUBLIC_PATHS so the
-// "look at the session even though the path is reachable" behavior is explicit.
-const ADAPTIVE_PATH = '/';
+// Session-adaptive paths: reachable by anyone (logged in or out), but not blanket
+// public paths — the guard reads the session for them and, when one exists,
+// surfaces the user id on locals so each page renders the matching state. Kept as
+// an explicit Set, separate from PUBLIC_PATHS, so the "look at the session even
+// though the path is reachable" behavior is deliberate, not a prefix accident.
+//
+// - `/` (#87): serves the public read-only feed to anonymous visitors and the
+//   personal feed to logged-in ones at the same URL.
+// - `/login`, `/signup` (#150): the auth forms must stay reachable logged out, but
+//   the shared layout's masthead carries the session control (#128). If the guard
+//   skipped the session here (the old PUBLIC_PATHS behavior), an already logged-in
+//   visitor hitting /login would render the anonymous "Log in" control — a
+//   self-link on /login — instead of "Sign out". Reading the session lets the
+//   masthead reflect the real state while anonymous requests still fall through to
+//   the form.
+const ADAPTIVE_PATHS = new Set(['/', '/login', '/signup']);
 
 // Astro's default `trailingSlash: "ignore"` serves both `/public` and `/public/`
 // (and `/signup` vs `/signup/`, etc.) as the same route, but leaves the trailing
@@ -51,11 +60,12 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
 	const userId = await context.session?.get(SESSION_USER_KEY);
 
-	// The session-adaptive homepage (#87) is reachable either way: an anonymous
-	// request falls through to render the public read-only feed (no userId on
-	// locals, so the page takes its anonymous branch); a logged-in one gets the
-	// user id on locals below and renders the personal feed.
-	if (pathname === ADAPTIVE_PATH && userId === undefined) return next();
+	// The session-adaptive paths (#87, #150) are reachable either way: an anonymous
+	// request falls through to render its logged-out view (no userId on locals, so
+	// the page/masthead takes its anonymous branch — the public read-only feed on
+	// `/`, the auth form on /login and /signup); a logged-in one gets the user id on
+	// locals below so the page and the shared masthead render the signed-in state.
+	if (ADAPTIVE_PATHS.has(pathname) && userId === undefined) return next();
 
 	if (userId === undefined) return context.redirect('/login', 303);
 
