@@ -34,9 +34,6 @@ skeleton; every change should move it toward being a useful news aggregator.
   follows a **middle-path policy + an agent propose-for-approval mechanism** —
   don't roll your own crypto, don't add deps unilaterally; see the `dependencies`
   skill.
-- Scaffold note: create-cloudflare (C3) crashed scaffolding Astro 6
-  non-interactively (June 2026), so this was scaffolded with `create-astro` +
-  `npx astro add cloudflare` — same end state.
 
 ## Commands
 
