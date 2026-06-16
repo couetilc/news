@@ -238,4 +238,58 @@ describe('parseSecEdgar — edge cases', () => {
 		);
 		expect(item.title).toBe('Texas Instruments 10-Q');
 	});
+
+	// #79 — synthesize a long, most-recent-first run of matching 8-Ks (more than
+	// any sensible cap) to prove the parser never backfills the whole history.
+	const manyEightKs = (count: number) =>
+		Array.from({ length: count }, (_, i) => ({
+			// Accession suffixes count DOWN so index 0 is the newest filing, matching
+			// EDGAR's most-recent-first ordering of filings.recent.
+			accessionNumber: `0000097476-26-${String(count - i).padStart(6, '0')}`,
+			form: '8-K',
+			items: '8.01',
+		}));
+
+	it('does NOT ingest the full filings.recent history — caps to the default window', () => {
+		// 95 matching 8-Ks (the live-TI backfill the issue cites) must collapse to
+		// the 20-row default window, keeping the 20 MOST-RECENT ones (indices 0–19).
+		const all = manyEightKs(95);
+		const items = parseSecEdgar(wrap(all), TI);
+		expect(items).toHaveLength(20);
+		expect(items.map((i) => i.guid)).toEqual(all.slice(0, 20).map((r) => r.accessionNumber));
+		// The oldest filings (e.g. the 2017-era tail) are dropped, not ingested.
+		expect(items.map((i) => i.guid)).not.toContain('0000097476-26-000001');
+	});
+
+	it('caps to an explicit, smaller limit and keeps the most-recent matches', () => {
+		const all = manyEightKs(10);
+		const items = parseSecEdgar(wrap(all), { ...TI, limit: 3 });
+		expect(items.map((i) => i.guid)).toEqual([
+			'0000097476-26-000010',
+			'0000097476-26-000009',
+			'0000097476-26-000008',
+		]);
+	});
+
+	it('counts only kept (matching) filings toward the limit, scanning past drops', () => {
+		// Interleave non-matching 10-Q rows between 8-Ks: the cap counts kept items,
+		// so it must scan past the 10-Qs to gather `limit` real 8-Ks.
+		const rows = [
+			{ accessionNumber: '0000097476-26-000020', form: '8-K', items: '8.01' },
+			{ accessionNumber: '0000097476-26-000019', form: '10-Q', items: '' },
+			{ accessionNumber: '0000097476-26-000018', form: '8-K', items: '8.01' },
+			{ accessionNumber: '0000097476-26-000017', form: '10-Q', items: '' },
+			{ accessionNumber: '0000097476-26-000016', form: '8-K', items: '8.01' },
+		];
+		const items = parseSecEdgar(wrap(rows), { ...TI, limit: 2 });
+		expect(items.map((i) => i.guid)).toEqual([
+			'0000097476-26-000020',
+			'0000097476-26-000018',
+		]);
+	});
+
+	it('keeps nothing when the limit is 0 (early-exits before the first keep)', () => {
+		const all = manyEightKs(5);
+		expect(parseSecEdgar(wrap(all), { ...TI, limit: 0 })).toEqual([]);
+	});
 });

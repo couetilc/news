@@ -47,6 +47,18 @@ const ITEM_LABELS: Record<string, string> = {
 // Default to the 8-K current-report family (the base form and its amendments).
 const DEFAULT_FORMS = ['8-K', '8-K/A'] as const;
 
+// #79 — `filings.recent` is the WHOLE submissions history (the live TI payload
+// carries ~1000 rows, ~95 of them 8-Ks back to 2017). Without a cap the FIRST
+// poll would backfill years of corporate filings — a far larger, older window
+// than any other source. We keep only the N most-recent MATCHING filings; since
+// `filings.recent` is most-recent first this is a clean early-exit once N are
+// kept (deterministic and time-independent — no Date.now() in the hot path). 20
+// mirrors the largest feed window we ingest (the Cloudflare blog's 20-item
+// burst) and, at TI's ~1–2 filings/month, still spans ~1 year of history — ample
+// headroom so a genuinely new filing is never dropped between polls, while
+// bounding the first-poll backfill. Override via SecEdgarOptions.limit.
+const DEFAULT_LIMIT = 20;
+
 export interface SecEdgarOptions {
 	// CIK as it appears in the Archives path (no leading zeros), e.g. '858877'.
 	// Used to build per-filing document URLs.
@@ -59,6 +71,10 @@ export interface SecEdgarOptions {
 	// include at least one of these codes. Cisco's backstop passes ['2.02'] to
 	// keep just the earnings 8-Ks; omit it (TI) to keep every matching form.
 	items?: readonly string[];
+	// Recent-window cap (#79): keep at most this many of the most-recent matching
+	// filings, so the first poll never backfills the whole filings.recent history.
+	// Defaults to DEFAULT_LIMIT (20). Pass 0 or a negative value to keep none.
+	limit?: number;
 }
 
 interface EdgarRecent {
@@ -99,6 +115,7 @@ export function parseSecEdgar(json: string, options: SecEdgarOptions): ParsedIte
 	const { cik, issuer } = options;
 	const forms = options.forms ?? DEFAULT_FORMS;
 	const itemFilter = options.items;
+	const limit = options.limit ?? DEFAULT_LIMIT;
 
 	const parsed = JSON.parse(json) as EdgarSubmissions;
 	const recent = parsed.filings?.recent;
@@ -107,10 +124,14 @@ export function parseSecEdgar(json: string, options: SecEdgarOptions): ParsedIte
 	}
 
 	// One pass over the columnar arrays, deciding keep/drop per filing as plain
-	// field access. A recent-window cap (#79) can slot in as an additional filter
-	// in this loop (filings are most-recent first) before rows become ParsedItems.
+	// field access. The recent-window cap (#79) is enforced here: `filings.recent`
+	// is most-recent first, so once we've kept `limit` matching filings every
+	// remaining row is strictly older and can be skipped — a clean early exit that
+	// bounds the first-poll backfill without scanning the whole history.
 	const items: ParsedItem[] = [];
 	for (let i = 0; i < recent.accessionNumber.length; i++) {
+		if (items.length >= limit) break;
+
 		const form = textOf(recent.form?.[i]);
 		// Keep only the configured filing forms (default: 8-K / 8-K/A).
 		if (!form || !forms.includes(form)) continue;
