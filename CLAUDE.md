@@ -188,7 +188,8 @@ The convention on every surface (local, Dispatch, agent container, cloud):
    request).
 4. `gh pr create --fill`
 5. `gh pr merge --auto --squash <num>` — merges itself once the required
-   `test` check passes.
+   `test` check passes. **Ordinary PRs only** — human-gated PRs are presented
+   for the human to merge, not auto-merged (see Deploy flow for which classes).
 6. Watch CI: `gh run list --branch <topic>` then `gh run watch <run-id>`
    (`gh run view <run-id> --log` for failure logs). On a red check, fix and
    commit again — the push updates the same PR. (`gh pr checks` needs an
@@ -205,8 +206,12 @@ changes authored locally, via Dispatch, or in cloud sessions. Verify with
 
 **Direct pushes to `main` are blocked** by the `protect-main` repo ruleset —
 always work on a branch and open a PR; the `test` check must be green to
-merge. Queue merges with `gh pr merge --auto --squash` (auto-merge is enabled
-repo-wide).
+merge. Queue ordinary merges with `gh pr merge --auto --squash` (auto-merge is
+enabled repo-wide). **Human-gated PRs are the exception** — leave them for the
+human to review and merge rather than queueing auto-merge: skill updates (Skills
+& memory policy), dependency adds (the `dependencies` skill), README changes
+(README policy), and `.github/workflows/*` / `docker/**` changes (explicit human
+go-ahead).
 
 Manual fallback: `npm run deploy` from a machine with `.env` or wrangler OAuth
 (never from cloud sessions — `api.cloudflare.com` isn't reachable there under
