@@ -7,14 +7,35 @@ import {
 	verifyPassword,
 } from '../src/lib/auth';
 
-// Runs in the workers project so crypto.subtle (PBKDF2) behaves exactly as in
-// production. No D1 needed, but living here keeps it on real workerd Web Crypto.
+// Runs in the workers project so crypto.subtle (PBKDF2) runs on real workerd Web
+// Crypto. CAVEAT (load-bearing): local workerd does NOT enforce production's
+// PBKDF2 iteration cap, so this suite cannot reproduce the prod hang by simply
+// hashing — it passed at 210k while every production signup hung. The explicit
+// cap invariant below is what actually guards it; a true behavioral repro needs
+// an e2e smoke against a real deploy (#77).
+//
+// Cloudflare Workers HARD-CAPS PBKDF2 at 100,000 iterations (workerd#1346);
+// above it crypto.subtle throws "iteration counts above 100000 are not
+// supported". Stated independently of src/lib/auth.ts so this is a real check of
+// the platform contract, not a tautology against our own constant.
+const WORKERS_PBKDF2_MAX_ITERATIONS = 100_000;
+
 describe('password hashing', () => {
+	it('uses an iteration count within the Cloudflare Workers PBKDF2 cap', async () => {
+		// RED at the old 210_000 (exceeds the cap → prod signup hangs); GREEN once
+		// ITERATIONS is at or below 100_000. This is the regression guard for the
+		// signup-hang bug.
+		const stored = await hashPassword('correct horse battery');
+		const iterations = Number(stored.split('$')[1]);
+		expect(iterations).toBeLessThanOrEqual(WORKERS_PBKDF2_MAX_ITERATIONS);
+		expect(iterations).toBeGreaterThan(0);
+	});
+
 	it('produces a self-describing pbkdf2 record and verifies the right password', async () => {
 		const stored = await hashPassword('correct horse battery');
 		const [algorithm, iterations, salt, hash] = stored.split('$');
 		expect(algorithm).toBe('pbkdf2');
-		expect(Number(iterations)).toBeGreaterThanOrEqual(210_000);
+		expect(Number(iterations)).toBeLessThanOrEqual(WORKERS_PBKDF2_MAX_ITERATIONS);
 		// salt + hash are non-empty base64 blobs.
 		expect(salt.length).toBeGreaterThan(0);
 		expect(hash.length).toBeGreaterThan(0);

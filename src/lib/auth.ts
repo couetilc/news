@@ -5,8 +5,13 @@
 // Crypto exposes directly, with:
 //   • a per-user 16-byte random salt (crypto.getRandomValues) so identical
 //     passwords get distinct hashes and precomputed/rainbow tables don't apply;
-//   • a high iteration count (210k — OWASP's 2023 PBKDF2-SHA256 floor) to make
-//     each guess expensive;
+//   • the maximum iteration count Cloudflare Workers permits — 100,000. Workers
+//     HARD-CAPS PBKDF2 at 100k (workerd#1346); request more and crypto.subtle
+//     fails with "iteration counts above 100000 are not supported", which hung
+//     every production signup (local workerd does NOT enforce the cap, so the
+//     hermetic suite passed while prod was broken — see test/auth.test.ts).
+//     100k is below OWASP's 2023 SHA-256 guidance (600k), so the PEPPER below is
+//     the compensating control for that platform-imposed gap;
 //   • an optional server-side PEPPER (a Worker secret, not in the DB) mixed into
 //     the input, so a stolen database alone can't be brute-forced offline.
 //
@@ -22,7 +27,7 @@
 // hashes still verify against the count they were created with.
 
 const ALGORITHM = 'pbkdf2';
-const ITERATIONS = 210_000;
+const ITERATIONS = 100_000; // Cloudflare Workers hard cap (workerd#1346) — see header
 const SALT_BYTES = 16;
 const HASH_BITS = 256; // SHA-256 output width
 
