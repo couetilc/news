@@ -24,8 +24,17 @@ const post = (fields: Record<string, string>) => {
 	});
 };
 
-const render = (component: Parameters<AstroContainer['renderToResponse']>[0], request?: Request) =>
-	AstroContainer.create().then((c) => c.renderToResponse(component, request ? { request } : {}));
+const render = (
+	component: Parameters<AstroContainer['renderToResponse']>[0],
+	request?: Request,
+	locals?: App.Locals,
+) =>
+	AstroContainer.create().then((c) =>
+		c.renderToResponse(component, {
+			...(request ? { request } : {}),
+			...(locals ? { locals } : {}),
+		}),
+	);
 
 beforeEach(() => {
 	vi.mocked(signup).mockReset();
@@ -120,5 +129,41 @@ describe('login page', () => {
 		const res = await render(Login, post({ email: 'a@b.co', password: 'wrong' }));
 		expect(res.status).toBe(400);
 		expect(await res.text()).toContain('Incorrect email or password.');
+	});
+});
+
+// The masthead session control (#128) lives in the shared Layout and reads
+// Astro.locals.userId. The auth pages use that layout, so on /login and /signup
+// the masthead must reflect the *real* session state too — the bug #150 fixes,
+// where these pages were public paths the middleware skipped, so a logged-in
+// visitor always got the anonymous "Log in" control (a self-link on /login).
+// The middleware now reads the session for these adaptive paths and surfaces the
+// user id on locals (covered in test/middleware.test.ts); here we prove each
+// page renders the matching masthead control from that locals value.
+//
+// We discriminate on the logout form's `action="/logout"`: it appears ONLY in
+// the signed-in masthead control, never in the auth form body, the cross-links,
+// or the page <title> (so it's unambiguous, unlike the bare text "Sign out" /
+// "Log in" — "Log in" is also in the login page's <title>).
+describe.each([
+	['login', Login],
+	['signup', Signup],
+])('%s page masthead session control (#150)', (_name, Page) => {
+	it('renders the signed-in Sign out control when a session exists', async () => {
+		const html = await (await render(Page, undefined, { userId: 7 })).text();
+		// Signed-in masthead: the POST-to-/logout Sign out form, not the anon link.
+		expect(html).toContain('Sign out');
+		expect(html).toContain('action="/logout"');
+		expect(html).toContain('data-logout-submit');
+	});
+
+	it('renders the anonymous Log in control when no session exists', async () => {
+		const html = await (await render(Page)).text();
+		// Logged-out masthead: a Log in link to /login, never the Sign out logout
+		// form. `action="/logout"` is the unique signal that the signed-in branch
+		// rendered — its absence proves the anonymous branch did.
+		expect(html).toContain('Log in');
+		expect(html).not.toContain('action="/logout"');
+		expect(html).not.toContain('data-logout-submit');
 	});
 });
