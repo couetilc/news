@@ -40,9 +40,12 @@ describe('sendEmail', () => {
 		const [url, init] = mock.mock.calls[0];
 		expect(url).toBe('https://api.resend.com/emails');
 		expect(init.method).toBe('POST');
+		// Resend's direct-HTTP API requires a `User-Agent`; without it a valid key
+		// can still 403 (issue #168), so it's pinned alongside auth + content-type.
 		expect(init.headers).toEqual({
 			Authorization: 'Bearer re_test_key',
 			'Content-Type': 'application/json',
+			'User-Agent': 'news-cuteteal-worker (+https://github.com/couetilc/news)',
 		});
 		// Body is the JSON-serialized envelope, carrying from + every param field.
 		expect(JSON.parse(init.body)).toEqual({
