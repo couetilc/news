@@ -51,6 +51,15 @@ function parseFragment(html: string): Node[] {
 // the list is exhausted. A network error leaves the sentinel in place (its
 // in-flight flag cleared) so a later intersection can retry, and is surfaced in
 // voice on the sentinel rather than failing silently (#96).
+//
+// If the session expires while the feed is open, the auth middleware answers a
+// /feed fetch with a 303 to /login; browser fetch transparently follows it, so
+// res.ok is true and res.text() is the *login page* HTML, not a feed fragment
+// (#216). Parsing/appending that would inject the whole login page into the feed
+// <ol>. So before treating the response as a fragment, detect that the fetch was
+// redirected away from /feed and instead send the browser to the final URL with a
+// full-page navigation — handing the reader the real login flow rather than a
+// corrupted feed.
 async function loadNext(sentinel: HTMLElement, observer: IntersectionObserver): Promise<void> {
 	const url = sentinel.dataset.nextUrl;
 	// A sentinel with no next-url is the end of the list — nothing to load.
@@ -60,6 +69,14 @@ async function loadNext(sentinel: HTMLElement, observer: IntersectionObserver): 
 	try {
 		const res = await fetch(url);
 		if (!res.ok) throw new Error(`feed page ${res.status}`);
+		// An auth-redirect (session lapsed → 303 to /login, followed by fetch) lands
+		// here as a 200 whose final URL is no longer /feed. Don't parse it as a
+		// fragment — navigate the browser to that final URL so the reader gets the
+		// login flow (#216). A full navigation, not an append.
+		if (res.redirected && new URL(res.url).pathname !== '/feed') {
+			window.location.assign(res.url);
+			return;
+		}
 		const html = await res.text();
 		const nodes = parseFragment(html);
 		const parent = sentinel.parentNode;
