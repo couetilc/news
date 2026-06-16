@@ -20,26 +20,113 @@ import {
 // the platform contract, not a tautology against our own constant.
 const WORKERS_PBKDF2_MAX_ITERATIONS = 100_000;
 
+// Build a genuine LEGACY single-pass record: "pbkdf2$<iter>$<salt-b64>$<hash-b64>",
+// exactly as the pre-#125 code did — ONE PBKDF2 pass of `iter` iterations over
+// the UTF-8 (pepper + password) bytes. This is intentionally independent of
+// src/lib/auth.ts (it talks to crypto.subtle directly) so it's a real proof that
+// the new verify() reads the stored work factor, not a tautology against our own
+// derive(). A 1-pass chain in the new code derives identical bytes, so this
+// digest is byte-for-byte what an old DB row would hold.
+async function makeLegacySinglePassRecord(
+	password: string,
+	pepper: string,
+	iter = 100_000,
+): Promise<string> {
+	const enc = new TextEncoder();
+	const salt = crypto.getRandomValues(new Uint8Array(16));
+	const keyMaterial = await crypto.subtle.importKey(
+		'raw',
+		enc.encode(pepper + password),
+		'PBKDF2',
+		false,
+		['deriveBits'],
+	);
+	const bits = await crypto.subtle.deriveBits(
+		{ name: 'PBKDF2', hash: 'SHA-256', salt: salt as BufferSource, iterations: iter },
+		keyMaterial,
+		256,
+	);
+	const toB64 = (bytes: Uint8Array) => {
+		let s = '';
+		for (const b of bytes) s += String.fromCharCode(b);
+		return btoa(s);
+	};
+	return `pbkdf2$${iter}$${toB64(salt)}$${toB64(new Uint8Array(bits))}`;
+}
+
+// The work-factor field is now self-describing in two shapes: a chained
+// "<perPass>x<passes>" (new, issue #125) or a bare "<iterations>" (legacy,
+// single-pass). Return the per-deriveBits-call iteration count and the pass
+// count for either shape, so the cap guard can assert on the per-CALL count —
+// that, not the effective count, is what the Workers cap limits.
+function parseWorkFactor(field: string): { perPass: number; passes: number } {
+	if (field.includes('x')) {
+		const [perPass, passes] = field.split('x');
+		return { perPass: Number(perPass), passes: Number(passes) };
+	}
+	return { perPass: Number(field), passes: 1 };
+}
+
 describe('password hashing', () => {
-	it('uses an iteration count within the Cloudflare Workers PBKDF2 cap', async () => {
-		// RED at the old 210_000 (exceeds the cap → prod signup hangs); GREEN once
-		// ITERATIONS is at or below 100_000. This is the regression guard for the
-		// signup-hang bug.
+	it('keeps every PBKDF2 pass within the Cloudflare Workers per-call cap', async () => {
+		// RED at the old 210_000 (exceeds the cap → prod signup hangs); GREEN while
+		// each deriveBits call is at or below 100_000. With chained PBKDF2 (#125)
+		// the EFFECTIVE work factor is perPass × passes, but the platform caps the
+		// PER-CALL iteration count — so that is what this regression guard asserts.
 		const stored = await hashPassword('correct horse battery');
-		const iterations = Number(stored.split('$')[1]);
-		expect(iterations).toBeLessThanOrEqual(WORKERS_PBKDF2_MAX_ITERATIONS);
-		expect(iterations).toBeGreaterThan(0);
+		const { perPass, passes } = parseWorkFactor(stored.split('$')[1]);
+		expect(perPass).toBeLessThanOrEqual(WORKERS_PBKDF2_MAX_ITERATIONS);
+		expect(perPass).toBeGreaterThan(0);
+		expect(passes).toBeGreaterThan(0);
+	});
+
+	it('chains multiple passes for a > single-pass effective work factor (#125)', async () => {
+		// New signups must use more than one pass so the effective work factor
+		// (perPass × passes) clears a single capped pass and approaches OWASP's
+		// 600k SHA-256 target while no single call exceeds the cap.
+		const stored = await hashPassword('correct horse battery');
+		const field = stored.split('$')[1];
+		expect(field).toMatch(/^\d+x\d+$/); // self-describing chained shape
+		const { perPass, passes } = parseWorkFactor(field);
+		expect(passes).toBeGreaterThan(1);
+		expect(perPass * passes).toBeGreaterThanOrEqual(WORKERS_PBKDF2_MAX_ITERATIONS);
 	});
 
 	it('produces a self-describing pbkdf2 record and verifies the right password', async () => {
 		const stored = await hashPassword('correct horse battery');
-		const [algorithm, iterations, salt, hash] = stored.split('$');
+		const [algorithm, field, salt, hash] = stored.split('$');
 		expect(algorithm).toBe('pbkdf2');
-		expect(Number(iterations)).toBeLessThanOrEqual(WORKERS_PBKDF2_MAX_ITERATIONS);
+		expect(parseWorkFactor(field).perPass).toBeLessThanOrEqual(
+			WORKERS_PBKDF2_MAX_ITERATIONS,
+		);
 		// salt + hash are non-empty base64 blobs.
 		expect(salt.length).toBeGreaterThan(0);
 		expect(hash.length).toBeGreaterThan(0);
 		expect(await verifyPassword('correct horse battery', stored)).toBe(true);
+	});
+
+	it('verifies a legacy single-pass "pbkdf2$<iter>$..." record without a migration', async () => {
+		// Backward-compat contract: pre-#125 hashes have a bare integer iterations
+		// field (one pass). Build one the way the old code did — a single 100k pass
+		// over (pepper + password) — and confirm the new verify path still accepts
+		// it. We reproduce the legacy digest via the public API by checking that a
+		// hand-constructed legacy-shaped record verifies for the right password and
+		// rejects the wrong one. The digest itself is computed by crypto.subtle the
+		// same way for a 1-pass chain, so a record this test mints by hashing then
+		// rewriting the field to the legacy shape is byte-identical to a true legacy
+		// record.
+		const legacy = await makeLegacySinglePassRecord('correct horse battery', '');
+		expect(legacy.split('$')[1]).toMatch(/^\d+$/); // bare integer, no "x"
+		expect(await verifyPassword('correct horse battery', legacy)).toBe(true);
+		expect(await verifyPassword('wrong password', legacy)).toBe(false);
+	});
+
+	it('new chained hash + verify roundtrips for both right and wrong passwords', async () => {
+		const stored = await hashPassword('round-trip-123', 'pepper-X');
+		expect(stored.split('$')[1]).toMatch(/^\d+x\d+$/);
+		expect(await verifyPassword('round-trip-123', stored, 'pepper-X')).toBe(true);
+		expect(await verifyPassword('round-trip-123', stored, 'pepper-Y')).toBe(false);
+		expect(await verifyPassword('nope', stored, 'pepper-X')).toBe(false);
 	});
 
 	it('rejects the wrong password (constant-time compare returns false)', async () => {
@@ -70,9 +157,18 @@ describe('password hashing', () => {
 		expect(await verifyPassword('x', 'pbkdf2$210000$onlythree')).toBe(false);
 		// Unknown algorithm.
 		expect(await verifyPassword('x', 'bcrypt$210000$c2FsdA==$aGFzaA==')).toBe(false);
-		// Non-numeric / non-positive iteration counts.
+		// Non-numeric / non-positive iteration counts (legacy single-pass shape).
 		expect(await verifyPassword('x', 'pbkdf2$abc$c2FsdA==$aGFzaA==')).toBe(false);
 		expect(await verifyPassword('x', 'pbkdf2$0$c2FsdA==$aGFzaA==')).toBe(false);
+		// Chained-shape work factors that are malformed (#125):
+		// more than one "x" separator.
+		expect(await verifyPassword('x', 'pbkdf2$100000x2x3$c2FsdA==$aGFzaA==')).toBe(false);
+		// non-integer / non-positive per-pass count.
+		expect(await verifyPassword('x', 'pbkdf2$abcx2$c2FsdA==$aGFzaA==')).toBe(false);
+		expect(await verifyPassword('x', 'pbkdf2$0x2$c2FsdA==$aGFzaA==')).toBe(false);
+		// non-integer / non-positive pass count.
+		expect(await verifyPassword('x', 'pbkdf2$100000xabc$c2FsdA==$aGFzaA==')).toBe(false);
+		expect(await verifyPassword('x', 'pbkdf2$100000x0$c2FsdA==$aGFzaA==')).toBe(false);
 	});
 
 	it('rejects a record whose stored hash is the wrong length (length short-circuit)', async () => {
