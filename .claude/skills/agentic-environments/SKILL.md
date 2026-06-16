@@ -7,7 +7,7 @@ when_to_use: Configuring or debugging any Claude execution surface for this repo
 # Agentic dev environments for this repo
 
 This repo (`couetilc/news` → https://news.cuteteal.com) is developed by Claude
-sessions on four surfaces. Each has a different execution context, credential
+sessions on four surfaces, each with a different execution context, credential
 set, and set of allowed actions. This skill is the source of truth for those
 differences.
 
@@ -43,10 +43,10 @@ Key facts:
 | Cloud sessions | **None — deliberately credential-free** | Scoped credential via GitHub App proxy (automatic) |
 | GitHub Actions | Repo Actions secret `CLOUDFLARE_API_TOKEN` (same token value as `.env`) | Built-in `GITHUB_TOKEN` |
 
-Decisions behind this (June 2026): deploys happen in CI after merge, so cloud
-sessions need no Cloudflare token and no network exception; the claude.ai
-environment has no dedicated secrets store (env vars are visible to anyone who
-can edit the environment), so keeping it empty is the safest default.
+Cloud sessions need no Cloudflare token: deploys happen in CI after merge, so
+they need no network exception. The claude.ai environment has no dedicated
+secrets store (env vars are visible to anyone who can edit the environment), so
+keeping it empty is the safest default.
 
 ## Cloud environment recipe (claude.ai settings)
 
@@ -56,10 +56,10 @@ The environment for this repo should be configured as:
 - **Environment variables:** none
 - **Setup script:** none
 
-No setup script is needed because the VM preinstalls Node 20/21/22 via nvm and
-stock Node 22 satisfies our `engines` requirement (>=22.12.0); `npm ci` is
-handled by the repo's SessionStart hook (below). mise is NOT preinstalled in
-the VM and is not needed there.
+No setup script is needed: the VM preinstalls Node 20/21/22 via nvm and stock
+Node 22 satisfies our `engines` requirement (>=22.12.0); `npm ci` is handled by
+the repo's SessionStart hook (below). mise is NOT preinstalled in the VM and is
+not needed there.
 
 If Node version drift ever breaks the build in cloud sessions, paste this as
 the environment's setup script:
@@ -88,9 +88,9 @@ Setup-script mechanics (why it behaves unlike a normal script):
 The script exits immediately unless `CLAUDE_CODE_REMOTE=true` (set only in
 cloud sessions), where it runs `npm ci` so the fresh clone has dependencies.
 
-Division of labor per official docs: tools/runtimes the VM lacks → setup
-script (cached snapshot); project dependency install → SessionStart hook
-(runs every session, repo-versioned).
+Division of labor: tools/runtimes the VM lacks → setup script (cached
+snapshot); project dependency install → SessionStart hook (runs every session,
+repo-versioned).
 
 ## Agent container (`./bin/claude`)
 
@@ -102,47 +102,42 @@ refuses to run as root).
 
 - **Nothing from the host is mounted**: the entrypoint clones the repo fresh
   from GitHub at launch (`GH_TOKEN`, HTTPS) into the container-private
-  `/workspace`. Parallel containers share nothing (but an npm cache volume),
-  and the host filesystem is unreachable — **work enters via the remote and
-  leaves only via git**: each commit is gitleaks-gated
-  (`.git-hooks/pre-commit`) then auto-pushed (`.git-hooks/post-commit`),
-  landing as a branch for the normal PR → CI → merge flow. Consequence: a
-  container starts from origin's state, so hand it in-progress work by
-  committing first (auto-push publishes the branch), then have the session
-  check out that branch.
+  `/workspace`. Parallel containers share nothing (but an npm cache volume) and
+  the host filesystem is unreachable — **work enters via the remote and leaves
+  only via git**: each commit is gitleaks-gated (`.git-hooks/pre-commit`) then
+  auto-pushed (`.git-hooks/post-commit`), landing as a branch for the normal PR
+  → CI → merge flow. A container starts from origin's state, so hand it
+  in-progress work by committing first (auto-push publishes the branch), then
+  checking out that branch in the session.
 - `./bin/claude [args]` → builds the image if needed and runs claude
   full-auto; `--shell` drops into bash; `--clean` removes exited agent
   containers AND rebuilds the image from scratch (`--pull --no-cache`) so the
   baked-in claude CLI doesn't freeze at image-build-time latest. Containers
-  are **kept after exit** so unpushed work is recoverable (`docker start -ai
-  <name>` — note this starts a NEW claude session in the old workspace; use
-  `/resume` inside to pick up the prior one; `docker cp` to salvage files).
+  are **kept after exit** so unpushed work is recoverable (see "Session resume"
+  below).
 - **First-run UX + surface identity**: the entrypoint pre-seeds
-  `~/.claude.json` (onboarding + bypass-permissions + /workspace trust
-  accepted) for Claude and `~/.codex/config.toml`
+  `~/.claude.json` (onboarding + bypass-permissions + /workspace trust) for
+  Claude and `~/.codex/config.toml`
   (`[projects."/workspace"].trust_level = "trusted"`) for Codex, so sessions
-  drop straight into the coding UI with repo-local guidance loaded. It also
-  writes container-scoped global instructions (`~/.claude/CLAUDE.md` or
-  `~/.codex/AGENTS.md`) telling each session it's in this container (no mise,
-  PR-only path to prod, backlog = gh issues).
+  drop straight into the coding UI. It also writes container-scoped global
+  instructions (`~/.claude/CLAUDE.md` or `~/.codex/AGENTS.md`) telling each
+  session it's in this container (no mise, PR-only path to prod, backlog = gh
+  issues).
 - **Model quirk under setup-token auth**: the session bills the Max
   subscription ("inference-only" limits capability scope, not billing), but
   entitlement metadata under-reports — the /model picker omits Fable and
   `best` falls back to Opus. Explicit ids work fine, so the entrypoint seeds
-  `~/.claude/settings.json` with the current top model id (verified
-  empirically 2026-06; update the id in `docker/entrypoint.sh` when a newer
-  model ships). Default effort is **xhigh** (`--effort` on the invocation +
-  settings seed).
+  `~/.claude/settings.json` with the current top model id (update the id in
+  `docker/entrypoint.sh` when a newer model ships). Default effort is **xhigh**
+  (`--effort` on the invocation + settings seed).
 - **CLI freshness**: claude is installed via the native installer under
-  `~/.local` (node-owned), and the entrypoint runs `claude update` before
-  every session start; mid-session auto-update stays disabled for
-  predictability. `--clean` rebuilds still refresh the base image (node,
-  gh, gitleaks).
-- **Future gap, noted**: `.dev.vars` (Worker runtime secrets for local dev)
-  is gitignored, so container clones won't have it. When the app gains feed
-  API keys, decide a distribution path (e.g. inject via `.env` →
-  entrypoint-written `.dev.vars`, or accept that runtime-secret dev happens
-  on the host).
+  `~/.local` (node-owned); the entrypoint runs `claude update` before every
+  session start, while mid-session auto-update stays disabled for
+  predictability. `--clean` rebuilds also refresh the base image (node, gh,
+  gitleaks).
+- **`.dev.vars` gap**: `.dev.vars` (Worker runtime secrets for local dev) is
+  gitignored, so container clones don't have it — runtime-secret dev currently
+  happens on the host. No distribution path into the container exists yet.
 - **Env injection**: the wrapper passes `--env-file .env` — the container
   authenticates with `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`;
   Keychain isn't mountable), pushes with `GH_TOKEN` (SSH remote is rewritten
@@ -152,119 +147,84 @@ refuses to run as root).
   binaries like workerd can't run on Linux); the shared `news-agent-npm-cache`
   volume keeps repeat installs fast.
 - **Reaching the dev server from the host**: `bin/claude` picks a random free
-  host port per launch and binds the container's 4321/8787 to it, then injects
-  the host-side address into the container as `$DEV_HOST_4321` / `$DEV_HOST_8787`
-  (printed at startup too). Two gotchas the agent must handle so it can hand the
-  user a working URL: (1) start the dev server bound to all interfaces —
-  `npm run dev -- --host` — because Docker forwards published ports to the
-  container's external interface, and a default localhost-only listener never
-  sees that traffic; (2) report `http://$DEV_HOST_4321/`, **not** `localhost:4321`
-  (that's the in-container port, random on the host). `docker port <name> 4321`
-  on the host still works as a fallback.
+  host port per launch, binds the container's 4321/8787 to it, and injects the
+  host-side address as `$DEV_HOST_4321` / `$DEV_HOST_8787` (printed at startup).
+  Two gotchas: (1) start the dev server on all interfaces — `npm run dev --
+  --host` — because Docker forwards published ports to the container's external
+  interface and a localhost-only listener never sees that traffic; (2) report
+  `http://$DEV_HOST_4321/`, **not** `localhost:4321` (the in-container port,
+  random on the host). `docker port <name> 4321` works as a fallback.
 - **Tooling policy** (also in the container's surface memory): agents run as
   non-root, so system packages can't be installed mid-session — one-off needs
   use user-space installs (`npx`, devDependency, binary in `~/.local/bin`);
   a tool earns a `docker/Dockerfile` entry only on second need (via PR, with
   a one-line justification comment naming its workflow).
-- **Headless browser (Playwright) baked in** (#46): the image installs a
-  headless Chromium shell + its apt deps (`playwright install --with-deps
-  --only-shell chromium`, run as root before the `USER node` drop) into a
-  world-readable `PLAYWRIGHT_BROWSERS_PATH=/ms-playwright`, version-pinned in
-  lockstep with the `@playwright/test` devDependency. This is what lets the
-  `verify`/`run` skills drive the local dev server in a real browser to watch a
-  change behave (the launch that failed in #42). Two must-knows: (1) launch with
+- **Headless browser (Playwright) baked in**: the image installs a headless
+  Chromium shell + its apt deps (`playwright install --with-deps --only-shell
+  chromium`, run as root before the `USER node` drop) into a world-readable
+  `PLAYWRIGHT_BROWSERS_PATH=/ms-playwright`, version-pinned in lockstep with the
+  `@playwright/test` devDependency. This lets the `verify`/`run` skills drive the
+  dev server in a real browser. Two must-knows: (1) launch with
   **`chromium.launch({ args: ['--no-sandbox'] })`** — non-root Chromium can't
   use the container sandbox (throwaway container, so it's fine); (2) point the
-  browser at `http://$DEV_HOST_4321/` after `npm run dev -- --host`, per the
-  dev-server note above. Browser/e2e tests run via `npm run test:e2e`, kept out
-  of the hermetic `npm test` suite and its coverage gate.
+  browser at `http://$DEV_HOST_4321/` after `npm run dev -- --host`. Browser/e2e
+  tests run via `npm run test:e2e`, outside the hermetic `npm test` suite and its
+  coverage gate.
 - **Isolation contract, honestly stated**: protects the host filesystem,
   Keychain, SSH keys, and other repos. It does NOT protect the tokens
   injected from `.env` (readable as env vars by anything in the container)
-  and has unrestricted network egress. For
-  egress restriction, adapt Anthropic's reference firewall:
+  and has unrestricted network egress. For egress restriction, adapt
+  Anthropic's reference firewall:
   https://github.com/anthropics/claude-code/tree/main/.devcontainer
   (init-firewall.sh; needs NET_ADMIN/NET_RAW). Only use with trusted repo
   content. A lighter alternative for fewer prompts without skipping checks is
   permission "auto mode" (classifier-reviewed).
-- **Auto-push on commit**: the repo-versioned, self-contained hooks in
-  `.git-hooks/` (see its README) are wired automatically by the container
-  entrypoint and the cloud SessionStart hook; Connor's machine has equivalent
-  global hooks (repo hooks are opt-in there). Branch commits push themselves —
-  `main` is skipped (ruleset blocks it). In the clone-per-container model this
-  is the data path: an unpushed commit exists only inside that container.
+- **Auto-push on commit**: the repo-versioned hooks in `.git-hooks/` (see its
+  README) are wired automatically by the container entrypoint and the cloud
+  SessionStart hook; Connor's machine has equivalent global hooks (repo hooks
+  opt-in there). Branch commits push themselves — `main` is skipped (ruleset
+  blocks it). In the clone-per-container model this is the data path: an
+  unpushed commit exists only inside that container.
 
-### Session resume across container runs (decision: keep the per-container path)
+### Session resume across container runs
 
 Both CLIs can reattach to a prior conversation (Claude `/resume`, Codex
-`resume`), but the transcripts they read live on the container's ephemeral
-home — Claude under `~/.claude/projects/**/*.jsonl` (+ `~/.claude.json`), Codex
-under `~/.codex/**`. A *fresh* `./bin/claude` / `./bin/codex` launch builds a
-new container (`news-agent-<kind>-<timestamp>`) that can't see any earlier
-session, so cross-launch resume looks dead. **The same-container path already
-works and is the recommended one:** containers are kept after exit (no `--rm`),
-so `docker start -ai <name>` reopens that workspace — the entrypoint skips the
-re-clone when `/workspace/.git` already exists — and `/resume` (or Codex
-`resume`) inside picks up that container's prior thread. **Recommendation: keep
-the per-container `docker start -ai` path and do not add shared session
-persistence.** The reasoning, against the four options considered (#127):
+`resume`), but transcripts live on the container's ephemeral home (Claude under
+`~/.claude/projects/**/*.jsonl` + `~/.claude.json`, Codex under `~/.codex/**`). A
+*fresh* `./bin/claude` / `./bin/codex` launch builds a new container
+(`news-agent-<kind>-<timestamp>`) that can't see any earlier session. Resume from
+the **same kept container** instead (no `--rm`; the entrypoint skips re-clone when
+`/workspace/.git` exists) — find it with
+`docker ps -a --filter label=news-agent`.
 
-- **A named session-history volume** (mirroring `news-agent-npm-cache`, which
-  mounts at `/home/node/.npm`) is mechanically trivial — `~/.claude` and
-  `~/.codex` are siblings under the same `/home/node` — and that's exactly the
-  problem. It would persist transcripts for *all* concurrent containers into
-  one shared store, breaking the "parallel containers share nothing" property:
-  cross-task/cross-branch session bleed, and concurrent appends corrupting the
-  append-only `.jsonl` transcripts. It also durably persists secret-laden
-  output (transcripts capture command results; the home already holds the
-  injected `CLOUDFLARE_API_TOKEN`/`GH_TOKEN` and Codex's `~/.codex/auth.json`),
-  widening the blast radius beyond the throwaway container — which the isolation
-  contract above explicitly does *not* cover. And it needs a pruning story it
-  doesn't have; the volume would grow unbounded. Net: highest cost, worst fit.
-- **A host bind-mount of a session dir** persists across runs but reintroduces
-  the host coupling the container model deliberately avoids ("nothing from the
-  host is mounted; the host filesystem is unreachable"), plus every isolation
-  and secret concern above. Rejected on the same grounds, harder.
-- **Export/import transcripts as an artifact** (snapshot out via `docker cp`,
-  re-seed on the next launch) avoids a *standing* shared store but is the most
-  fragile: it commits us to the on-disk transcript formats, which differ
-  between the two tools and drift across CLI versions, and it deliberately
-  carries secret-bearing transcripts out of the container by hand. Only worth
-  it for a deliberate, scrubbed hand-off — which `docker cp` of specific files
-  already covers ad hoc.
-- **Improving the per-container path** is the low-risk answer and preserves
-  isolation completely (no shared state — each session's history stays in its
-  own kept container). The friction today is purely ergonomic: you must find
-  the container name (`docker ps -a --filter label=news-agent`) and remember
-  `docker start -ai`. A thin `./bin/claude --resume [name]` that lists kept
-  containers and `docker start -ai`s the chosen/most-recent one (defaulting to
-  the latest by the timestamped name) would make resume a first-class gesture
-  without persisting anything new. Filed as a follow-up (below).
+- **`docker start -ai <name>` re-runs the container's ORIGINAL command.** For a
+  container first launched **interactively** it reopens the interactive session,
+  so `/resume` (Codex `resume`) inside picks up that container's prior thread.
+  For one first launched **headless** (`./bin/claude -p "..."` /
+  `./bin/codex -p "..."`) it **reruns that one-shot prompt** — repeating its
+  autonomous edits/commits/pushes. Do NOT `docker start` a headless container to
+  recover work: recover from the already-pushed branch, or `docker cp <name>:…`
+  the files out.
 
-Cross-cutting caveats that hold regardless of option:
+No shared session store (named volume or host bind-mount) is used: it would pool
+all concurrent containers' transcripts — cross-task/cross-branch bleed,
+concurrent appends corrupting the append-only `.jsonl` files, and durable
+persistence of secret-laden output (transcripts capture command results, and the
+home holds the injected `CLOUDFLARE_API_TOKEN`/`GH_TOKEN` and Codex's
+`~/.codex/auth.json`), widening the blast radius the isolation contract does not
+cover. The per-container `docker start` path is also format-agnostic.
 
-- **Resume ≠ workspace restore.** A transcript holds the *conversation*, not
-  the git working tree. A resumed container still starts from whatever its
-  clone had; if the session's branch has since merged or moved upstream,
-  resuming can mislead unless you `git fetch` and check out the right branch
-  first. (The same-container path sidesteps this — the workspace is exactly as
-  left.) Hand in-progress work the durable way: commit (auto-push publishes the
-  branch), then check it out in the new session.
-- **Two tools, two formats.** Any scheme that reads/moves transcripts must not
-  assume a stable layout — Claude's `projects/**/*.jsonl` + `~/.claude.json`
-  and Codex's `~/.codex/**` differ and change under us. The `docker start`
-  path is format-agnostic (it just reopens the container), which is another
-  reason to prefer it.
-- **`--clean` deletes resumability.** It `docker rm`s every exited
-  `news-agent` container, so any kept session — and the only copy of its
-  transcript — is gone. Resume before you `--clean`; a shared volume would have
-  survived `--clean` but only by trading that for the isolation/secret costs
-  above. Either way: unpushed *code* must be committed (auto-push) before the
-  container is removed; resume only ever recovered the conversation.
+Caveats regardless of path:
 
-Implementation of the ergonomic `--resume` helper touches `bin/**` and so is
-human-gated per the container-tool policy — filed as its own follow-up issue,
-not done here.
+- **Resume ≠ workspace restore.** A transcript holds the *conversation*, not the
+  git working tree. The same-container path keeps the workspace exactly as left;
+  any other resume starts from whatever the clone had, so `git fetch` and check
+  out the right branch first. Hand in-progress work the durable way: commit
+  (auto-push publishes the branch), then check it out in the new session.
+- **`--clean` deletes resumability.** It `docker rm`s every exited `news-agent`
+  container, taking any kept session's only transcript copy with it. Resume
+  before you `--clean`. Either way, unpushed *code* must be committed (auto-push)
+  before removal; resume only ever recovered the conversation.
 
 ## Network access (cloud sessions)
 
@@ -273,18 +233,18 @@ cloud SDKs) / **Full** (any domain) / **Custom** (your allowlist, optionally
 plus the Trusted defaults). All egress passes through Anthropic's security
 proxy; GitHub traffic uses its own separate proxy regardless of mode.
 
-Facts that drove our choices:
+Facts that drive our choices:
 
 - `api.cloudflare.com` is **not** in the Trusted allowlist → `wrangler deploy`
   fails from a Trusted cloud session. That's fine: deploys belong to CI.
 - **Testing policy: vitest must never hit the network.** Mock all external
   HTTP. This keeps `npm test` working under Trusted, in CI, and offline.
-- Future: when feature work needs to fetch live feeds/APIs *during cloud
-  development*, switch the environment to **Custom**, list the feed domains
-  (one per line, `*.` wildcards supported), and check "Also include default
-  list of common package managers". Until then, develop live-fetch features
-  locally or via Dispatch. Changing network settings invalidates the
-  environment cache (setup script re-runs).
+- When feature work needs to fetch live feeds/APIs *during cloud development*,
+  switch the environment to **Custom**, list the feed domains (one per line,
+  `*.` wildcards supported), and check "Also include default list of common
+  package managers". Otherwise develop live-fetch features locally or via
+  Dispatch. Changing network settings invalidates the environment cache (setup
+  script re-runs).
 
 ## Deploy paths
 
@@ -296,19 +256,16 @@ Facts that drove our choices:
    wrangler OAuth (local/Dispatch only).
 3. Cloud sessions never deploy directly.
 
-Two behaviors verified empirically (2026-06-10):
+Surface behaviors:
 
 - **Cloud sessions cannot open PRs.** The sandbox has no `gh` CLI and no
   GitHub API credential — its scoped git credential only clones, fetches, and
   pushes the session branch. A cloud session's job ends at "branch pushed";
   the PR is then created either from the session UI on claude.ai (Create PR
   button) or by any credentialed session (`gh pr create --head <branch>`).
-  This is platform design, not a prompt/config gap.
-- **Direct pushes to `main` are mechanically blocked** since 2026-06-10 by
-  the repo ruleset `protect-main` (requires a PR and a green `test` check; no
-  bypass actors; branch deletion blocked). Before that, a Dispatch test
-  demonstrated local sessions could push main directly. All surfaces must use
-  branch → PR.
+- **Direct pushes to `main` are mechanically blocked** by the repo ruleset
+  `protect-main` (requires a PR and a green `test` check; no bypass actors;
+  branch deletion blocked). All surfaces must use branch → PR.
 
 ## Merge automation (phone-friendly loop)
 
@@ -316,7 +273,7 @@ Two behaviors verified empirically (2026-06-10):
   the ruleset makes the `test` check required, a PR can be queued to merge
   the moment CI goes green:
   `gh pr merge <num> --auto --squash` (or the Enable auto-merge button).
-  Merging to main then triggers the CI deploy as usual.
+  Merging to main then triggers the CI deploy.
 - **Auto-fix** (Claude watches a PR and pushes fixes for CI failures /
   review comments) needs no repo setup beyond the already-installed Claude
   GitHub App. It is a **per-PR opt-in**: in a web session's CI status bar
@@ -348,16 +305,6 @@ via the normal PR → CI flow.
 running `npm test` in the news repo. Verify the session appears in the Code
 tab with a "Dispatch" badge and tests pass. Optional: commit/push/PR to
 exercise SSH + CI deploy.
-
-## One-time setup status
-
-- [x] Claude GitHub App installed with access to `couetilc/news` (claude.ai/code onboarding)
-- [x] claude.ai environment created: Trusted network, no env vars, no setup script
-- [x] GitHub Actions secret `CLOUDFLARE_API_TOKEN` set on the repo
-- [x] Local `.env` populated (see `.env.example`)
-- [x] Verified 2026-06-10: CI deploy (PRs #1–#3), Dispatch (`npm test` + edit
-      pushed to main from Connor's Mac), cloud session (`npm test` + branch
-      `claude/keen-pascal-wo54he` pushed via GitHub proxy, landed as PR #3)
 
 ## Official documentation
 
