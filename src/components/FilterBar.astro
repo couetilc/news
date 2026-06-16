@@ -28,8 +28,13 @@ function hrefFor(slug: string): string {
 
 // Shared chip shape: a compact, ruled, small-caps tag in the newspaper voice —
 // no rounded pills. Active chips invert to ink; inactive ones are hairline-ruled.
+// The drawn border is already each chip's resting affordance (the ruled-box
+// idiom, like the read square), so #136 adds only the missing obligation: the
+// ink focus-visible ring on the shared base, so both on and off chips show a
+// visible keyboard-focus box. <a href> supplies cursor-pointer; hover is on the
+// off variant (the on/active chip is the current selection, with no hover move).
 const base =
-	'inline-flex items-center gap-1.5 border px-2 py-1 font-sans text-[0.65rem] uppercase tracking-wider';
+	'inline-flex items-center gap-1.5 border px-2 py-1 font-sans text-[0.65rem] uppercase tracking-wider focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink';
 const on = `${base} border-ink bg-ink text-paper`;
 const off = `${base} border-rule text-ink-soft hover:border-ink hover:text-accent`;
 ---

@@ -261,6 +261,10 @@ describe('index page', () => {
 			expect(html).toMatch(/href="\/"[^>]*>All</);
 			// With no ?source, nothing is marked active and every source is queried.
 			expect(vi.mocked(listItemsByRead).mock.calls[0][1].sources).toEqual([]);
+			// Interactive-affordance obligation (#136): every chip carries the ink
+			// focus-visible ring (the drawn border is its resting affordance), so a
+			// keyboard reader sees which chip is focused.
+			expect(html).toMatch(/href="\/"[^>]*class="[^"]*focus-visible:outline-ink/);
 		});
 
 		it('marks the selected source active and narrows the query to it', async () => {
@@ -338,6 +342,11 @@ describe('index page', () => {
 			expect(html).toContain('rel="next"');
 			// Next link advances the unread cursor only.
 			expect(html).toContain('href="/?unread=2"');
+			// Interactive-affordance obligations (#136): the live pager link carries a
+			// resting underline plus the ink focus-visible ring so it's discoverable
+			// without hover and keyboard-focusable.
+			expect(html).toMatch(/rel="next"[^>]*class="[^"]*\bunderline\b/);
+			expect(html).toMatch(/rel="next"[^>]*class="[^"]*focus-visible:outline-ink/);
 		});
 
 		it('shows prev (not next) on the last page', async () => {

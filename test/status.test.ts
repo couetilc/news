@@ -75,6 +75,15 @@ describe('status page', () => {
 		expect(html).toContain('/news/production/observability');
 		// On-brand chrome.
 		expect(html).toMatch(/>\s*Status\s*</);
+		// Interactive-affordance obligations (#136): both the commit link and the
+		// observability link carry a resting underline plus the ink focus-visible
+		// ring, so they read as links without hover and are keyboard-focusable.
+		expect(html).toMatch(
+			/href="https:\/\/github.com\/couetilc\/news\/commit\/[^"]*"[^>]*class="[^"]*\bunderline\b[^"]*focus-visible:outline-ink/,
+		);
+		expect(html).toMatch(
+			/href="[^"]*\/news\/production\/observability[^"]*"[^>]*class="[^"]*\bunderline\b[^"]*focus-visible:outline-ink/,
+		);
 	});
 
 	it('degrades gracefully with the local-dev fallbacks', async () => {
