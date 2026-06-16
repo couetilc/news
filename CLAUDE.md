@@ -3,8 +3,10 @@
 ## What this is
 
 A personal, single-user news aggregator for Connor (GitHub: couetilc), served at
-https://news.cuteteal.com on Cloudflare Workers. Currently a hello-world Astro
-skeleton; every change should move it toward being a useful news aggregator.
+https://news.cuteteal.com on Cloudflare Workers. It ingests feeds into D1 and
+serves a per-user read/unread digest behind email+password auth (public
+read-only feed for anonymous visitors); keep moving it toward a more capable
+aggregator.
 
 ## Stack and architectural decisions
 
@@ -34,9 +36,6 @@ skeleton; every change should move it toward being a useful news aggregator.
   follows a **middle-path policy + an agent propose-for-approval mechanism** —
   don't roll your own crypto, don't add deps unilaterally; see the `dependencies`
   skill.
-- Scaffold note: create-cloudflare (C3) crashed scaffolding Astro 6
-  non-interactively (June 2026), so this was scaffolded with `create-astro` +
-  `npx astro add cloudflare` — same end state.
 
 ## Commands
 

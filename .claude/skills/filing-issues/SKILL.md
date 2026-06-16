@@ -18,9 +18,7 @@ machinery that rots into misleading noise.
 
 Search first (`gh issue list --search "…"`, `--state all`). If an issue already
 covers it, **augment or cross-link it** rather than opening a near-duplicate —
-e.g. broaden it with a comment, or reference it from the new one. Precedent:
-the trailing-slash bug was added to #81 by comment; the coverage-metrics and
-e2e-policy research were folded into #75 and #77.
+e.g. broaden it with a comment, or reference it from the new one.
 
 ## Issue structure
 

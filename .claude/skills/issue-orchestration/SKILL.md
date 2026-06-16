@@ -7,9 +7,8 @@ when_to_use: When asked to orchestrate / drive / implement multiple GitHub issue
 # Issue orchestration
 
 Driving a GitHub-issue backlog to completion with **in-session sub-agents** doing the
-implementation while **you orchestrate and review every PR**. Distilled from the first
-full run (20 issues → 20 PRs in one session). Defer to `CLAUDE.md` for the dev loop,
-testing policy, and deploy flow; this skill is the *meta*-process layered on top.
+implementation while **you orchestrate and review every PR**. Defer to `CLAUDE.md` for the
+dev loop, testing policy, and deploy flow; this skill is the *meta*-process layered on top.
 
 ## Role split
 
@@ -148,8 +147,7 @@ hand (merges deploy).
   agent *while you also hand-edit and commit in `/workspace`* can fuse their work:
   worktrees share branch refs **and** you both act on the same repo, so the agent's
   checkout/stage can leak into `/workspace`'s HEAD and index — and a bare `git commit` then
-  sweeps it into your commit, on the wrong branch. (Hit once: a #83 commit swallowed a
-  concurrent agent's PR-revision; caught pre-push, `origin` was intact, redone serially.)
+  sweeps it into your commit, on the wrong branch.
   **Three independent fixes — apply all:** (1) **don't author in `/workspace` while agents
   run** — serialize your own pieces (do them before dispatching or after agents finish), or
   keep `/workspace` review/merge-only; (2) **scope every commit to explicit pathspecs**
