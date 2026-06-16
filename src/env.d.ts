@@ -11,8 +11,13 @@ declare namespace App {
 // Worker runtime env additions beyond the generated worker-configuration.d.ts.
 // AUTH_PEPPER is an optional password pepper delivered as a Worker secret
 // (`wrangler secret put AUTH_PEPPER`, `.dev.vars` locally) — never in .env.
+// AUTH_ALLOWED_EMAILS is the comma-separated signup allowlist (issue #76); a
+// plain Worker var (the addresses aren't secret), defaulting in code to
+// connor@couetil.com when unset. Set it locally in `.dev.vars`; in production
+// either add a `vars` entry to wrangler.jsonc or `wrangler secret put`.
 declare namespace Cloudflare {
 	interface Env {
 		AUTH_PEPPER?: string;
+		AUTH_ALLOWED_EMAILS?: string;
 	}
 }

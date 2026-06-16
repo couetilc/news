@@ -54,13 +54,16 @@ describe('signup page', () => {
 		// The page normalized + forwarded the submitted credentials. The DB arg is
 		// the `cloudflare:workers` env.NEWS_DB, which the node stub leaves undefined
 		// (the real D1 path is covered in the workers project); we assert the
-		// credential + pepper + timestamp args the page is responsible for.
+		// credential + pepper + timestamp + allowlist args the page is responsible
+		// for. The allowlist resolves to its default (AUTH_ALLOWED_EMAILS unset in
+		// the node env stub), so connor@couetil.com is the only allowed signup.
 		expect(signup).toHaveBeenCalledWith(
 			undefined,
 			'a@b.co',
 			'long-enough-pw',
 			'',
 			expect.any(Number),
+			['connor@couetil.com'],
 		);
 	});
 
