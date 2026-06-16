@@ -33,8 +33,8 @@ working shape:
 
 Flag **human-gated** changes explicitly in the body: anything that edits
 `docker/**` / the agent image, adds a heavyweight tool or new devDependency, or
-touches `.github/workflows/*` needs an explicit human go-ahead before the PR
-merges (see CLAUDE.md / the container tool policy).
+touches `.github/workflows/*` or `bin/**` launcher scripts needs an explicit
+human go-ahead before the PR merges (see CLAUDE.md / the container tool policy).
 
 ## Labels: a type axis, plus steerable area-groups
 
