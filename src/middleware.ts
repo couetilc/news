@@ -38,5 +38,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	const userId = await context.session?.get(SESSION_USER_KEY);
 	if (userId === undefined) return context.redirect('/login', 303);
 
+	// Past the gate the request is authenticated, so expose the user id to the
+	// page/API route via locals — the one place they read it to scope per-user
+	// read state (issue #70), rather than each re-reading the session.
+	context.locals.userId = userId;
+
 	return next();
 });

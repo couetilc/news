@@ -35,8 +35,16 @@ const item = (over: Partial<ParsedItem>): ParsedItem => ({
 	...over,
 });
 
+// A stable user id for the single-user read-state tests; the two-user
+// independence test below uses its own pair (USER_A / USER_B).
+const USER = 1;
+
 beforeEach(async () => {
-	await db.batch([db.prepare('DELETE FROM items'), db.prepare('DELETE FROM feeds')]);
+	await db.batch([
+		db.prepare('DELETE FROM items'),
+		db.prepare('DELETE FROM feeds'),
+		db.prepare('DELETE FROM item_reads'),
+	]);
 });
 
 describe('ensureFeedRows', () => {
@@ -133,14 +141,18 @@ describe('listItems', () => {
 		expect(rows.map((r) => r.guid)).toEqual(['second', 'first']);
 	});
 
-	it('sorts read items after unread, each group still newest-first', async () => {
-		// newest, middle, oldest by published_at; mark the newest read so it
-		// drops below the still-unread middle and oldest.
+	it('sorts read items after unread by the legacy global column, each group newest-first', async () => {
+		// listItems backs the public read-only feed (#49) and still reads the
+		// legacy GLOBAL items.read_at column (per-user state moved to item_reads in
+		// #70). Per-user setItemRead no longer writes that column, so set it
+		// directly here to prove listItems' global ordering still works. (The
+		// public page renders everything as unread regardless, so this ordering is
+		// vestigial — kept until the column is dropped.)
 		await insertItems(db, 's', [item({ guid: 'newest', publishedAt: 3000 })], 100);
 		await insertItems(db, 's', [item({ guid: 'middle', publishedAt: 2000 })], 100);
 		await insertItems(db, 's', [item({ guid: 'oldest', publishedAt: 1000 })], 100);
 		const [{ id: newestId }] = await listItems(db, 1);
-		await setItemRead(db, newestId, 5000);
+		await db.prepare('UPDATE items SET read_at = ? WHERE id = ?').bind(5000, newestId).run();
 
 		const rows = await listItems(db, 10);
 		// Unread (middle, oldest) lead newest-first; the read item trails.
@@ -161,9 +173,10 @@ describe('listItems', () => {
 		await insertItems(db, 'a', [item({ guid: 'a1', publishedAt: 3000 })], 100);
 		await insertItems(db, 'b', [item({ guid: 'b1', publishedAt: 2500 })], 100);
 		await insertItems(db, 'c', [item({ guid: 'c1', publishedAt: 2000 })], 100);
-		// Mark a1 read so it trails within the a+b selection.
+		// Mark a1 read (legacy global column — see the note above) so it trails
+		// within the a+b selection.
 		const [{ id: a1Id }] = await listItems(db, 1, ['a']);
-		await setItemRead(db, a1Id, 9000);
+		await db.prepare('UPDATE items SET read_at = ? WHERE id = ?').bind(9000, a1Id).run();
 
 		const rows = await listItems(db, 10, ['a', 'b']);
 		// c is excluded; unread b1 leads, read a1 trails.
@@ -220,28 +233,28 @@ describe('listItemsByRead', () => {
 
 	it('reads only the unread section, newest-first, with LIMIT/OFFSET', async () => {
 		await seed(5);
-		const page1 = await listItemsByRead(db, { read: false, limit: 2, offset: 0 });
+		const page1 = await listItemsByRead(db, { userId: USER, read: false, limit: 2, offset: 0 });
 		expect(page1.map((r) => r.guid)).toEqual(['g0', 'g1']);
 		expect(page1.every((r) => r.read_at === null)).toBe(true);
 
-		const page2 = await listItemsByRead(db, { read: false, limit: 2, offset: 2 });
+		const page2 = await listItemsByRead(db, { userId: USER, read: false, limit: 2, offset: 2 });
 		expect(page2.map((r) => r.guid)).toEqual(['g2', 'g3']);
 
-		const page3 = await listItemsByRead(db, { read: false, limit: 2, offset: 4 });
+		const page3 = await listItemsByRead(db, { userId: USER, read: false, limit: 2, offset: 4 });
 		expect(page3.map((r) => r.guid)).toEqual(['g4']);
 	});
 
 	it('reads only the read section once items are marked read', async () => {
 		await seed(4);
-		// Mark g0 and g2 read.
+		// Mark g0 and g2 read for USER.
 		const all = await listItems(db, 10);
 		for (const r of all) {
-			if (r.guid === 'g0' || r.guid === 'g2') await setItemRead(db, r.id, 5000);
+			if (r.guid === 'g0' || r.guid === 'g2') await setItemRead(db, USER, r.id, 5000);
 		}
-		const unread = await listItemsByRead(db, { read: false, limit: 10, offset: 0 });
+		const unread = await listItemsByRead(db, { userId: USER, read: false, limit: 10, offset: 0 });
 		expect(unread.map((r) => r.guid)).toEqual(['g1', 'g3']);
 
-		const read = await listItemsByRead(db, { read: true, limit: 10, offset: 0 });
+		const read = await listItemsByRead(db, { userId: USER, read: true, limit: 10, offset: 0 });
 		expect(read.map((r) => r.guid)).toEqual(['g0', 'g2']);
 		expect(read.every((r) => r.read_at === 5000)).toBe(true);
 	});
@@ -249,7 +262,7 @@ describe('listItemsByRead', () => {
 	it('breaks ties on equal timestamps by newest id first', async () => {
 		await insertItems(db, 's', [item({ guid: 'first', publishedAt: 1000 })], 100);
 		await insertItems(db, 's', [item({ guid: 'second', publishedAt: 1000 })], 100);
-		const rows = await listItemsByRead(db, { read: false, limit: 10, offset: 0 });
+		const rows = await listItemsByRead(db, { userId: USER, read: false, limit: 10, offset: 0 });
 		expect(rows.map((r) => r.guid)).toEqual(['second', 'first']);
 	});
 
@@ -258,20 +271,28 @@ describe('listItemsByRead', () => {
 		await insertItems(db, 'b', [item({ guid: 'b1', publishedAt: 2000 })], 100);
 		await insertItems(db, 'a', [item({ guid: 'a2', publishedAt: 1000 })], 100);
 
-		const rows = await listItemsByRead(db, { read: false, limit: 10, offset: 0, sources: ['a'] });
+		const rows = await listItemsByRead(db, {
+			userId: USER,
+			read: false,
+			limit: 10,
+			offset: 0,
+			sources: ['a'],
+		});
 		expect(rows.map((r) => r.guid)).toEqual(['a1', 'a2']);
 	});
 
 	it('defaults to no source filter when sources is omitted', async () => {
 		await insertItems(db, 'a', [item({ guid: 'a1' })], 100);
 		await insertItems(db, 'b', [item({ guid: 'b1' })], 100);
-		const rows = await listItemsByRead(db, { read: false, limit: 10, offset: 0 });
+		const rows = await listItemsByRead(db, { userId: USER, read: false, limit: 10, offset: 0 });
 		expect(rows.map((r) => r.guid).sort()).toEqual(['a1', 'b1']);
 	});
 
 	it('returns an empty window past the last page', async () => {
 		await seed(3);
-		expect(await listItemsByRead(db, { read: false, limit: 50, offset: 50 })).toEqual([]);
+		expect(
+			await listItemsByRead(db, { userId: USER, read: false, limit: 50, offset: 50 }),
+		).toEqual([]);
 	});
 });
 
@@ -281,34 +302,111 @@ describe('countItemsByRead', () => {
 		await insertItems(db, 's', [item({ guid: 'g1', publishedAt: 2000 })], 100);
 		await insertItems(db, 's', [item({ guid: 'g2', publishedAt: 1000 })], 100);
 		const [g0] = await listItems(db, 1);
-		await setItemRead(db, g0.id, 5000);
+		await setItemRead(db, USER, g0.id, 5000);
 
-		expect(await countItemsByRead(db, { read: false })).toBe(2);
-		expect(await countItemsByRead(db, { read: true })).toBe(1);
+		expect(await countItemsByRead(db, { userId: USER, read: false })).toBe(2);
+		expect(await countItemsByRead(db, { userId: USER, read: true })).toBe(1);
 	});
 
 	it('respects the source filter', async () => {
 		await insertItems(db, 'a', [item({ guid: 'a1' }), item({ guid: 'a2' })], 100);
 		await insertItems(db, 'b', [item({ guid: 'b1' })], 100);
-		expect(await countItemsByRead(db, { read: false, sources: ['a'] })).toBe(2);
-		expect(await countItemsByRead(db, { read: false, sources: ['a', 'b'] })).toBe(3);
+		expect(await countItemsByRead(db, { userId: USER, read: false, sources: ['a'] })).toBe(2);
+		expect(await countItemsByRead(db, { userId: USER, read: false, sources: ['a', 'b'] })).toBe(3);
 	});
 
 	it('returns 0 for an empty section', async () => {
-		expect(await countItemsByRead(db, { read: true })).toBe(0);
+		expect(await countItemsByRead(db, { userId: USER, read: true })).toBe(0);
 	});
 });
 
 describe('setItemRead', () => {
-	it('marks an item read and clears it back to unread', async () => {
+	// read_at on an ItemRow is now per-user, so read it back through the per-user
+	// section query (item_reads join) rather than the global items column.
+	const readAtFor = async (userId: number, id: number): Promise<number | null> => {
+		const [hit] = await listItemsByRead(db, { userId, read: true, limit: 10, offset: 0 });
+		return hit?.id === id ? hit.read_at : null;
+	};
+
+	it('marks an item read and clears it back to unread for one user', async () => {
 		await insertItems(db, 's', [item({ guid: 'g1' })], 100);
 		const [before] = await listItems(db, 1);
-		expect(before.read_at).toBeNull();
+		// Nothing read yet: the read section is empty for USER.
+		expect(await listItemsByRead(db, { userId: USER, read: true, limit: 10, offset: 0 })).toEqual(
+			[],
+		);
 
-		await setItemRead(db, before.id, 1234);
-		expect((await listItems(db, 1))[0].read_at).toBe(1234);
+		await setItemRead(db, USER, before.id, 1234);
+		expect(await readAtFor(USER, before.id)).toBe(1234);
 
-		await setItemRead(db, before.id, null);
-		expect((await listItems(db, 1))[0].read_at).toBeNull();
+		await setItemRead(db, USER, before.id, null);
+		expect(await readAtFor(USER, before.id)).toBeNull();
+		// Clearing removed the join row, so the unread section sees it again.
+		const unread = await listItemsByRead(db, { userId: USER, read: false, limit: 10, offset: 0 });
+		expect(unread.map((r) => r.id)).toEqual([before.id]);
+	});
+
+	it('is idempotent: re-marking read overwrites the timestamp, never duplicates', async () => {
+		await insertItems(db, 's', [item({ guid: 'g1' })], 100);
+		const [{ id }] = await listItems(db, 1);
+
+		await setItemRead(db, USER, id, 1000);
+		await setItemRead(db, USER, id, 2000);
+		// One row in the read section, carrying the latest timestamp (ON CONFLICT).
+		const read = await listItemsByRead(db, { userId: USER, read: true, limit: 10, offset: 0 });
+		expect(read.map((r) => r.read_at)).toEqual([2000]);
+	});
+});
+
+// The core of issue #70: read state is scoped per-user, so two accounts never
+// see each other's reads. Exercised against real local D1 (the workers project).
+describe('per-user read state isolation (#70)', () => {
+	const USER_A = 1;
+	const USER_B = 2;
+
+	it('gives two users wholly independent unread/read splits over the same items', async () => {
+		// Three shared items; descending published_at so insertion == display order.
+		await insertItems(db, 's', [item({ guid: 'g0', publishedAt: 3000 })], 100);
+		await insertItems(db, 's', [item({ guid: 'g1', publishedAt: 2000 })], 100);
+		await insertItems(db, 's', [item({ guid: 'g2', publishedAt: 1000 })], 100);
+		const ids = Object.fromEntries((await listItems(db, 10)).map((r) => [r.guid, r.id]));
+
+		// A reads g0; B reads g1 and g2.
+		await setItemRead(db, USER_A, ids.g0, 5000);
+		await setItemRead(db, USER_B, ids.g1, 6000);
+		await setItemRead(db, USER_B, ids.g2, 7000);
+
+		// A: g0 read; g1, g2 still unread.
+		const aUnread = await listItemsByRead(db, { userId: USER_A, read: false, limit: 10, offset: 0 });
+		const aRead = await listItemsByRead(db, { userId: USER_A, read: true, limit: 10, offset: 0 });
+		expect(aUnread.map((r) => r.guid)).toEqual(['g1', 'g2']);
+		expect(aRead.map((r) => r.guid)).toEqual(['g0']);
+		expect(await countItemsByRead(db, { userId: USER_A, read: false })).toBe(2);
+		expect(await countItemsByRead(db, { userId: USER_A, read: true })).toBe(1);
+
+		// B: the mirror image — g1, g2 read; g0 still unread.
+		const bUnread = await listItemsByRead(db, { userId: USER_B, read: false, limit: 10, offset: 0 });
+		const bRead = await listItemsByRead(db, { userId: USER_B, read: true, limit: 10, offset: 0 });
+		expect(bUnread.map((r) => r.guid)).toEqual(['g0']);
+		expect(bRead.map((r) => r.guid)).toEqual(['g1', 'g2']);
+		expect(await countItemsByRead(db, { userId: USER_B, read: false })).toBe(1);
+		expect(await countItemsByRead(db, { userId: USER_B, read: true })).toBe(2);
+	});
+
+	it("clearing one user's read does not touch the other user's row for the same item", async () => {
+		await insertItems(db, 's', [item({ guid: 'shared', publishedAt: 1000 })], 100);
+		const [{ id }] = await listItems(db, 10);
+
+		// Both users mark the same item read, then A un-reads it.
+		await setItemRead(db, USER_A, id, 5000);
+		await setItemRead(db, USER_B, id, 5000);
+		await setItemRead(db, USER_A, id, null);
+
+		// A sees it unread again; B's read state is untouched.
+		expect(await countItemsByRead(db, { userId: USER_A, read: true })).toBe(0);
+		expect(await countItemsByRead(db, { userId: USER_A, read: false })).toBe(1);
+		const bRead = await listItemsByRead(db, { userId: USER_B, read: true, limit: 10, offset: 0 });
+		expect(bRead.map((r) => r.id)).toEqual([id]);
+		expect(bRead[0].read_at).toBe(5000);
 	});
 });

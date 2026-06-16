@@ -28,19 +28,28 @@ const returnTo = `${Astro.url.pathname}${Astro.url.search}`;
 const unreadPage = parsePage(Astro.url.searchParams.get('unread'));
 const readPage = parsePage(Astro.url.searchParams.get('read'));
 
-const unreadTotal = await countItemsByRead(env.NEWS_DB, { read: false, sources: active });
-const readTotal = await countItemsByRead(env.NEWS_DB, { read: true, sources: active });
+// Read state is per-user (issue #70). The auth middleware sets locals.userId for
+// every request that reaches this gated page, so it's always present here; the
+// `?? 0` is a typed fallback that never fires in practice (0 matches no real
+// user, so the page degrades to "everything unread" rather than crashing if the
+// guard were ever bypassed). Every read-state query is scoped to this user.
+const userId = Astro.locals.userId ?? 0;
+
+const unreadTotal = await countItemsByRead(env.NEWS_DB, { userId, read: false, sources: active });
+const readTotal = await countItemsByRead(env.NEWS_DB, { userId, read: true, sources: active });
 
 const unreadClamped = clampPage(unreadPage, unreadTotal);
 const readClamped = clampPage(readPage, readTotal);
 
 const unread = await listItemsByRead(env.NEWS_DB, {
+	userId,
 	read: false,
 	limit: PAGE_SIZE,
 	offset: offsetFor(unreadClamped),
 	sources: active,
 });
 const read = await listItemsByRead(env.NEWS_DB, {
+	userId,
 	read: true,
 	limit: PAGE_SIZE,
 	offset: offsetFor(readClamped),
