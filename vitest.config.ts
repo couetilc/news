@@ -9,8 +9,8 @@ import { defineConfig } from 'vitest/config';
 //     pulls in Astro's Vite plugins (xxhash-wasm) that can't run under the
 //     worker pool. See vitest.node.config.ts.
 // Istanbul coverage merges across both projects; V8 is unavailable in workerd
-// (no node:inspector). The 100% line/branch gate over src/** still stands —
-// every src file is exercised by one project or the other.
+// (no node:inspector). The 100% statements/branches/functions/lines gate over
+// src/** still stands — every src file is exercised by one project or the other.
 export default defineConfig({
 	test: {
 		projects: ['./vitest.workers.config.ts', './vitest.node.config.ts'],
@@ -18,8 +18,10 @@ export default defineConfig({
 			provider: 'istanbul',
 			include: ['src/**'],
 			thresholds: {
-				lines: 100,
+				statements: 100,
 				branches: 100,
+				functions: 100,
+				lines: 100,
 			},
 		},
 	},
