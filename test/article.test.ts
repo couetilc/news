@@ -17,7 +17,7 @@ const row = (over: Partial<ItemRow> = {}): ItemRow => ({
 	...over,
 });
 
-const render = async (props: { item: ItemRow; interactive?: boolean }) => {
+const render = async (props: { item: ItemRow; interactive?: boolean; returnTo?: string }) => {
 	const container = await AstroContainer.create();
 	// Article is an <li>; render it standalone to inspect just the row.
 	return container.renderToString(Article, { props });
@@ -30,6 +30,17 @@ describe('Article component', () => {
 		// The interactive row carries the POST control to /api/read.
 		expect(html).toContain('<form method="POST" action="/api/read"');
 		expect(html).toContain('aria-label="Mark as read"');
+		// With no returnTo passed, the toggle defaults to returning home.
+		expect(html).toContain('name="return" value="/"');
+	});
+
+	it('carries the current view as the toggle\'s return target (#80)', async () => {
+		// The homepage passes its current path+query so flipping this item lands
+		// the reader back on the same filtered/paginated view (validated server-side).
+		const html = await render({ item: row(), returnTo: '/?source=ieee-spectrum&unread=2&read=3' });
+		expect(html).toContain(
+			'name="return" value="/?source=ieee-spectrum&amp;unread=2&amp;read=3"',
+		);
 	});
 
 	it('omits every write control when interactive is false', async () => {

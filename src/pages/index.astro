@@ -14,6 +14,12 @@ const present = await distinctSources(env.NEWS_DB);
 const presentSet = new Set(present);
 const active = Astro.url.searchParams.getAll('source').filter((s) => presentSet.has(s));
 
+// The current view (path + query: ?source filter + ?unread/?read cursors) each
+// row's read/unread toggle returns to, so flipping an item keeps the active
+// filter/page instead of dropping back to the unfiltered home (#80). It's
+// re-validated server-side (safeReturnPath) before it becomes the redirect.
+const returnTo = `${Astro.url.pathname}${Astro.url.search}`;
+
 // Two independent cursors: ?unread and ?read each default to page 1, parsed
 // defensively (non-numeric/zero/negative -> 1). Counts drive total pages and
 // clamp a too-far page back onto the last one; the source filter applies to both
@@ -82,7 +88,7 @@ const isEmpty = unreadTotal === 0 && readTotal === 0;
 							<>
 								<ol>
 									{unread.map((item) => (
-										<Article item={item} />
+										<Article item={item} returnTo={returnTo} />
 									))}
 								</ol>
 								<Pager
@@ -104,7 +110,7 @@ const isEmpty = unreadTotal === 0 && readTotal === 0;
 								</h2>
 								<ol>
 									{read.map((item) => (
-										<Article item={item} />
+										<Article item={item} returnTo={returnTo} />
 									))}
 								</ol>
 								<Pager

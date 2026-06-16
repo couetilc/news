@@ -10,9 +10,15 @@ interface Props {
 	// row carries no control that POSTs to /api/read — there's no visitor session
 	// to own per-item read state, and the server would reject the write anyway.
 	interactive?: boolean;
+	// The current view (path + query) the toggle should return to after it flips
+	// this item, so the active ?source filter + ?unread/?read cursors survive the
+	// POST → 303 (#80). Carried as a hidden field and re-validated server-side
+	// (safeReturnPath). Defaults to '/', which preserves the old land-on-home
+	// behavior for any caller that doesn't pass the current view.
+	returnTo?: string;
 }
 
-const { item, interactive = true } = Astro.props;
+const { item, interactive = true, returnTo = '/' } = Astro.props;
 const seconds = item.published_at ?? item.fetched_at;
 const source = sourceMeta(item.source);
 // The read-state dimming is Connor's private state; on the public feed every
@@ -56,6 +62,7 @@ const nextState = isRead ? '0' : '1';
 			<form method="POST" action="/api/read">
 				<input type="hidden" name="id" value={item.id} />
 				<input type="hidden" name="read" value={nextState} />
+				<input type="hidden" name="return" value={returnTo} />
 				<button type="submit" class={square} aria-label={label}>
 					✓
 				</button>
