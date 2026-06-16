@@ -55,8 +55,13 @@ export async function getFeedStates(db: D1Database): Promise<FeedState[]> {
 	return results;
 }
 
-// Insert parsed items under one source, ignoring any whose (source, guid)
-// already exists — this is the dedupe mechanism. Returns how many were new.
+// Insert parsed items under one source, ignoring any that collide with an
+// existing row on EITHER unique key — (source, guid) or (source, url) (#191).
+// The bare `ON CONFLICT DO NOTHING` (no target) covers both: a stable-guid
+// repeat poll dedupes on (source, guid) as before, while a re-keyed item whose
+// guid drifted but whose url held steady is now caught by (source, url) — the
+// NVIDIA WordPress feed stored one post twice when its <guid> flipped between
+// the `?p=<id>` form and the <link> permalink. Returns how many rows were new.
 export async function insertItems(
 	db: D1Database,
 	source: string,
@@ -71,7 +76,7 @@ export async function insertItems(
 					`INSERT INTO items
 						(source, guid, url, title, summary, content_html, published_at, fetched_at)
 					 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-					 ON CONFLICT(source, guid) DO NOTHING`,
+					 ON CONFLICT DO NOTHING`,
 				)
 				.bind(source, it.guid, it.url, it.title, it.summary, it.contentHtml, it.publishedAt, fetchedAt),
 		),
