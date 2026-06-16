@@ -98,49 +98,32 @@ skeleton; every change should move it toward being a useful news aggregator.
 
 ## Testing policy
 
-`npm test` must pass before any commit. The suite runs as **two vitest projects**
-(`vitest.config.ts` wires them together and owns the merged coverage gate):
+Load-bearing essentials (the full detail — project-split rationale, the
+assert-don't-just-cover principle, when a change needs a unit vs an e2e test, the
+branch-gate caveat, and the parser-robustness contract — lives in the `testing`
+skill at `.claude/skills/testing/SKILL.md`):
 
-- **`workers`** (`vitest.workers.config.ts`) — runs inside workerd via
-  `@cloudflare/vitest-pool-workers`, so `cloudflare:workers` env, D1 bindings, and
-  `ON CONFLICT` semantics behave exactly as in production. A real local D1 is
-  declared inline (`miniflare.d1Databases`) and the committed `migrations/*.sql`
-  are applied per test file by `test/helpers/apply-migrations.ts` (the
-  `applyD1Migrations` helper from `cloudflare:test`). All `src/ingest/**` is
-  tested here. The worker entry's real D1 behavior is covered here too (via
-  `run.test.ts` / `db.test.ts`), but the trivial `src/worker.ts` wiring test
-  lives in the `node` project — see below.
-- **`node`** (`vitest.node.config.ts`) — node environment for the two things
-  better hosted outside the worker pool: rendering `.astro` pages via Astro's
-  Container API (Astro's Vite plugins pull in `xxhash-wasm`, which the worker
-  pool can't load), and the `src/worker.ts` entry test. `worker.ts`'s only
-  workerd-specific imports (`@astrojs/cloudflare/handler` and the ingest run)
-  are `vi.mock`ed and its DB is an opaque pass-through, so it needs no real
-  workerd — and running it under node keeps Istanbul's coverage for the async
-  `scheduled` handler deterministic. Under the worker pool that coverage was
-  intermittently dropped, red-failing the 100% gate at random (#37). Both
-  project configs keep `configFile: false` (the Cloudflare adapter's Vite plugin
-  is incompatible with the test pipeline). Pages import `cloudflare:workers`,
-  which doesn't exist outside workerd, so it's aliased to
-  `test/helpers/cloudflare-workers.ts`; a page's data access is mocked and its
-  real D1 behavior is covered by the `workers` project.
-
-Coverage is **Istanbul, not V8** (workerd has no `node:inspector`); the 100%
-statements / branches / functions / lines gate over `src/**` holds across the
-merged projects, so every src file must be exercised by one project or the other.
-
-**Tests must never hit the network** — inject `fetch` (the ingest runner takes a
-`fetchFn`) and use feed fixtures under `test/fixtures/`. This keeps `npm test`
-hermetic so it passes in CI, in claude.ai cloud sessions under the default
-Trusted network mode, and offline.
-
-**Browser/e2e tests are deliberately outside this contract.** `npm run test:e2e`
-(Playwright) loads the real local dev server, so it lives in its own entry point
-— **not** inside `npm test`, **not** counted toward the 100% `src/**` coverage
-gate. It exists for in-session UI/behavioral verification (the `verify`/`run`
-skills), which the workerd/node vitest pools can't do. A durable CI Playwright
-gate is a possible follow-up (see #46), complementary to — not a replacement for
-— the hermetic `npm test` suite.
+- **`npm test` must pass before any commit**, at **100% Istanbul statements /
+  branches / functions / lines over `src/**`** (the standing floor; merged across
+  both projects in `vitest.config.ts`). Istanbul, not V8 — workerd has no
+  `node:inspector`.
+- **Two vitest projects, because two runtimes are required:** `workers`
+  (`vitest.workers.config.ts`) runs inside workerd via
+  `@cloudflare/vitest-pool-workers` for real `cloudflare:workers` env + D1 +
+  `ON CONFLICT` semantics (all `src/ingest/**`, the worker's real D1 behavior);
+  `node` (`vitest.node.config.ts`) renders `.astro` pages via Astro's Container
+  API and hosts the `src/worker.ts` entry test. Every `src/**` file is exercised
+  by exactly one project.
+- **Hermetic — tests must never hit the network.** Inject `fetch` (the ingest
+  runner takes a `fetchFn`) and use feed fixtures under `test/fixtures/`. Keeps
+  `npm test` green in CI, in claude.ai cloud sessions (Trusted network mode), and
+  offline.
+- **Coverage is the floor, not proof of correctness.** A covered line isn't an
+  asserted one — assert observable behavior and the edges, never just execute
+  (see the `testing` skill).
+- **Browser/e2e (`npm run test:e2e`, Playwright) is deliberately outside this
+  contract** — own entry point, not in `npm test`, not in the coverage gate; for
+  full-browser behavior the hermetic pools can't exercise.
 
 ## Backlog
 
