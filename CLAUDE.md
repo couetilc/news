@@ -209,8 +209,8 @@ merge. Queue ordinary merges with `gh pr merge --auto --squash` (auto-merge is
 enabled repo-wide). **Human-gated PRs are the exception** — leave them for the
 human to review and merge rather than queueing auto-merge: skill updates (Skills
 & memory policy), dependency adds (the `dependencies` skill), README changes
-(README policy), and `.github/workflows/*` / `docker/**` changes (explicit human
-go-ahead).
+(README policy), and `.github/workflows/*` / `docker/**` / `bin/**`
+launcher-script changes (explicit human go-ahead).
 
 Manual fallback: `npm run deploy` from a machine with `.env` or wrangler OAuth
 (never from cloud sessions — `api.cloudflare.com` isn't reachable there under
