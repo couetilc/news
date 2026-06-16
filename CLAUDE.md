@@ -98,10 +98,10 @@ skeleton; every change should move it toward being a useful news aggregator.
 
 ## Testing policy
 
-Load-bearing essentials (the full detail — project split rationale, the
-assert-don't-just-cover principle, when to reach for unit vs property vs fuzz vs
-e2e, the contracts/branch-gate caveat, mutation/property/fuzz fit — lives in the
-`testing` skill at `.claude/skills/testing/SKILL.md`):
+Load-bearing essentials (the full detail — project-split rationale, the
+assert-don't-just-cover principle, when a change needs a unit vs an e2e test, the
+branch-gate caveat, and the parser-robustness contract — lives in the `testing`
+skill at `.claude/skills/testing/SKILL.md`):
 
 - **`npm test` must pass before any commit**, at **100% Istanbul statements /
   branches / functions / lines over `src/**`** (the standing floor; merged across
@@ -119,13 +119,11 @@ e2e, the contracts/branch-gate caveat, mutation/property/fuzz fit — lives in t
   `npm test` green in CI, in claude.ai cloud sessions (Trusted network mode), and
   offline.
 - **Coverage is the floor, not proof of correctness.** A covered line isn't an
-  asserted one — assert observable behavior and the edges, never just execute.
-  The skill covers property testing, fuzzing the ingest parsers, and mutation
-  testing as the layers that close that gap.
+  asserted one — assert observable behavior and the edges, never just execute
+  (see the `testing` skill).
 - **Browser/e2e (`npm run test:e2e`, Playwright) is deliberately outside this
   contract** — own entry point, not in `npm test`, not in the coverage gate; for
-  full-browser behavior the hermetic pools can't exercise (#77 tracks the CI
-  wiring; #46 baked in the browser).
+  full-browser behavior the hermetic pools can't exercise.
 
 ## Backlog
 
