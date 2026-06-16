@@ -25,15 +25,21 @@ const feed = (over: Partial<FeedConfig>): FeedConfig => ({
 	parse: noop,
 	...over,
 });
-const item = (over: Partial<ParsedItem>): ParsedItem => ({
-	guid: 'g1',
-	url: 'https://example.com/a',
-	title: 'Title',
-	summary: null,
-	contentHtml: null,
-	publishedAt: 1000,
-	...over,
-});
+const item = (over: Partial<ParsedItem>): ParsedItem => {
+	const guid = over.guid ?? 'g1';
+	return {
+		guid,
+		// Default url is derived from the guid so distinct-guid items are also
+		// distinct under the (source, url) dedup key (#191); pass an explicit url
+		// to model a guid that drifted while the url stayed the same.
+		url: `https://example.com/${guid}`,
+		title: 'Title',
+		summary: null,
+		contentHtml: null,
+		publishedAt: 1000,
+		...over,
+	};
+};
 
 // A stable user id for the single-user read-state tests; the two-user
 // independence test below uses its own pair (USER_A / USER_B).
@@ -92,6 +98,36 @@ describe('insertItems', () => {
 	it('treats the same guid under different sources as distinct', async () => {
 		await insertItems(db, 'a', [item({ guid: 'shared' })], 500);
 		const n = await insertItems(db, 'b', [item({ guid: 'shared' })], 500);
+		expect(n).toBe(1);
+	});
+
+	it('dedupes a re-keyed item whose guid drifted but url held steady (#191)', async () => {
+		// The NVIDIA bug: the same post re-ingested under a new guid — the
+		// WordPress `?p=<id>` <guid> one poll, the <link> permalink the next — but
+		// the SAME canonical url. (source, guid) saw two keys; (source, url) catches it.
+		await insertItems(
+			db,
+			'nvidia',
+			[item({ guid: 'https://blogs.nvidia.com/blog/x/', url: 'https://blogs.nvidia.com/blog/x/' })],
+			100,
+		);
+		const second = await insertItems(
+			db,
+			'nvidia',
+			[item({ guid: 'https://blogs.nvidia.com/?p=94478', url: 'https://blogs.nvidia.com/blog/x/' })],
+			200,
+		);
+		expect(second).toBe(0); // same (source, url) → not new despite the new guid
+		const rows = await listItems(db, 10);
+		expect(rows).toHaveLength(1);
+		expect(rows[0].url).toBe('https://blogs.nvidia.com/blog/x/');
+	});
+
+	it('treats the same url under different sources as distinct', async () => {
+		// The (source, url) key is per-source, so a genuine cross-source repost at
+		// the same url is not collapsed — only within-source guid drift is.
+		await insertItems(db, 'a', [item({ guid: 'g1', url: 'https://shared.example/post' })], 500);
+		const n = await insertItems(db, 'b', [item({ guid: 'g2', url: 'https://shared.example/post' })], 500);
 		expect(n).toBe(1);
 	});
 

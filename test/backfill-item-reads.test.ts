@@ -23,15 +23,20 @@ const backfillSql = (): string => {
 };
 const runBackfill = () => db.prepare(backfillSql()).run();
 
-const item = (over: Partial<ParsedItem>): ParsedItem => ({
-	guid: 'g1',
-	url: 'https://example.com/a',
-	title: 'Title',
-	summary: null,
-	contentHtml: null,
-	publishedAt: 1000,
-	...over,
-});
+const item = (over: Partial<ParsedItem>): ParsedItem => {
+	const guid = over.guid ?? 'g1';
+	return {
+		guid,
+		// Derive the default url from the guid so distinct-guid fixtures stay
+		// distinct under the (source, url) dedup key (#191).
+		url: `https://example.com/${guid}`,
+		title: 'Title',
+		summary: null,
+		contentHtml: null,
+		publishedAt: 1000,
+		...over,
+	};
+};
 
 // Insert a user with a fixed id so the backfill's "sole user" can be asserted by id.
 const addUser = async (id: number, email: string): Promise<void> => {
