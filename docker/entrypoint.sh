@@ -65,7 +65,9 @@ if [ "$AGENT_KIND" = "codex" ]; then
 			chmod 600 "$HOME/.codex/auth.json"
 		fi
 	elif command -v codex >/dev/null 2>&1 && [ -n "${OPENAI_API_KEY:-}" ]; then
-		codex login --api-key "$OPENAI_API_KEY" >/dev/null 2>&1 || true
+		# The installed Codex CLI dropped `--api-key` (it errors out, leaving the
+		# session unauthenticated); pipe the key to `--with-api-key` instead (#111).
+		printf '%s' "$OPENAI_API_KEY" | codex login --with-api-key >/dev/null 2>&1 || true
 	fi
 else
 	# Refresh the claude CLI before the session starts (native install under
