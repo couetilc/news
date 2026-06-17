@@ -1,0 +1,226 @@
+# Out-of-band ADVISORY mutation testing (Stryker) — issue #166.
+#
+# This is the first heavyweight tool wired into CI under the cadence the testing
+# skill establishes: the per-commit `npm test` + 100% coverage gate (ci.yml)
+# stays the ONLY PR-blocking check; everything heavy runs here, advisory-first,
+# graduating to a blocking threshold only once the score is stable. Nothing in
+# this file is a required status check, so it can never block a merge.
+#
+# It lives in its own workflow file (not ci.yml) on purpose: mutation testing is
+# logically separate from the deploy pipeline, and a standalone file keeps the
+# union-merge surface with sibling ci.yml PRs (#209, #77) minimal.
+#
+# Triggers:
+#   • pull_request  — a fast per-PR advisory run (mutation is ~22s over the
+#     pure-logic scope), GATED BY `paths:` so doc/skill/workflow-only PRs skip it.
+#   • schedule      — a nightly full sweep, additionally CHANGE-GATED in-job
+#     against the last successful run's SHA (skip when nothing relevant changed).
+#   • workflow_dispatch — on demand.
+name: Mutation (advisory)
+
+on:
+  pull_request:
+    # Only the inputs that can change the mutation result: the mutated source,
+    # its specs, the test/stryker configs, and the dependency lockfile. Keep this
+    # list in sync with the `git diff` path-spec in the change-gate step below.
+    paths:
+      - 'src/**'
+      - 'test/**'
+      - '**/*.config.ts'
+      - 'stryker.config.json'
+      - 'package-lock.json'
+      - '.github/workflows/mutation.yml'
+  schedule:
+    # 07:00 UTC nightly — after most days' merges, off the deploy path.
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+
+# Don't pile up advisory runs: a newer push to the same ref supersedes an
+# in-flight run. Never cancel the nightly/dispatch sweeps mid-run.
+concurrency:
+  group: mutation-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+  # Post the advisory score as a PR comment; open/update the regression issue.
+  pull-requests: write
+  issues: write
+
+jobs:
+  mutation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # fetch-depth: 0 so the scheduled change-gate can `git diff` against an
+          # arbitrary earlier SHA (the last successful run), not just HEAD~1.
+          fetch-depth: 0
+
+      # CHANGE-GATE (scheduled runs only). A nightly sweep is wasted work when no
+      # relevant code changed since the last green run. Resolve the head SHA of
+      # the most recent successful run of THIS workflow and diff against it over
+      # the same path-set as the PR `paths:` filter; if nothing changed, skip the
+      # rest of the job. pull_request/dispatch runs skip this step (PR is already
+      # path-filtered; dispatch is an explicit human request — always run).
+      - name: Change-gate (scheduled)
+        id: gate
+        if: github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          last_sha="$(gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/mutation.yml/runs?status=success&event=schedule&per_page=1" \
+            --jq '.workflow_runs[0].head_sha' 2>/dev/null || true)"
+          if [ -z "$last_sha" ] || [ "$last_sha" = "null" ]; then
+            echo "No prior successful scheduled run — running the full sweep."
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git cat-file -e "${last_sha}^{commit}" 2>/dev/null; then
+            if git diff --quiet "$last_sha" HEAD -- src test '*.config.ts' stryker.config.json package-lock.json; then
+              echo "No relevant change since $last_sha — skipping the nightly sweep."
+              echo "run=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "Relevant change since $last_sha — running."
+              echo "run=true" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "Last SHA $last_sha not in history (force-push?) — running to be safe."
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # `should_run` is true unless the scheduled change-gate explicitly skipped.
+      - name: Decide whether to run
+        id: decide
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "${{ steps.gate.outputs.run }}" = "false" ]; then
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v6
+        if: steps.decide.outputs.should_run == 'true'
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+        if: steps.decide.outputs.should_run == 'true'
+
+      # Advisory: never fail the job on a non-zero Stryker exit (no break
+      # threshold is set, but surviving mutants must not red the run regardless).
+      - name: Run Stryker mutation tests
+        id: stryker
+        if: steps.decide.outputs.should_run == 'true'
+        run: npm run test:mutation || true
+
+      # Compute the mutation score from the machine-readable report
+      # (reports/mutation/mutation.json, emitted by the `json` reporter in
+      # stryker.config.json). score = (Killed + Timeout) / (valid mutants) — the
+      # same denominator Stryker prints, excluding compile/runtime errors.
+      - name: Summarize mutation score
+        id: score
+        if: steps.decide.outputs.should_run == 'true'
+        run: |
+          report=reports/mutation/mutation.json
+          if [ ! -f "$report" ]; then
+            echo "No report produced — Stryker likely failed to run." >&2
+            echo "score=" >> "$GITHUB_OUTPUT"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          score="$(node -e '
+            const r = require("./reports/mutation/mutation.json");
+            let killed = 0, timeout = 0, survived = 0, nocov = 0;
+            for (const f of Object.values(r.files)) {
+              for (const m of f.mutants) {
+                if (m.status === "Killed") killed++;
+                else if (m.status === "Timeout") timeout++;
+                else if (m.status === "Survived") survived++;
+                else if (m.status === "NoCoverage") nocov++;
+              }
+            }
+            const valid = killed + timeout + survived + nocov;
+            process.stdout.write(valid ? (100 * (killed + timeout) / valid).toFixed(2) : "0.00");
+          ')"
+          echo "Mutation score: ${score}%"
+          echo "score=$score" >> "$GITHUB_OUTPUT"
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Mutation testing (advisory)"
+            echo ""
+            echo "**Score: ${score}%** — advisory only, not a merge gate."
+            echo ""
+            echo "Full HTML + JSON report in the run artifact. A surviving mutant is"
+            echo "a covered-but-weakly-asserted line; see the \`testing\` skill."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Machine-readable artifact for run-over-run diffing (consumed by the
+      # review-merged-prs heavy-run audit). Also bundle the HTML for humans.
+      - name: Upload mutation report
+        if: steps.decide.outputs.should_run == 'true' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report
+          path: reports/mutation/
+          if-no-files-found: warn
+          retention-days: 30
+
+      # Advisory PR feedback: post (or update) a single sticky comment with the
+      # score. Non-blocking — purely informational.
+      - name: Comment score on PR
+        if: steps.decide.outputs.should_run == 'true' && github.event_name == 'pull_request' && steps.score.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          SCORE: ${{ steps.score.outputs.score }}
+        run: |
+          marker="<!-- mutation-advisory -->"
+          body="${marker}
+          ## Mutation testing (advisory)
+
+          **Score: ${SCORE}%** — advisory only, this does **not** block the PR.
+
+          Download the \`mutation-report\` artifact from [this run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) for the per-mutant HTML/JSON. A surviving mutant is a covered-but-weakly-asserted line — see the \`testing\` skill before tightening or marking it equivalent."
+          existing="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            --jq "map(select(.body | startswith(\"$marker\"))) | .[0].id" 2>/dev/null || true)"
+          if [ -n "$existing" ] && [ "$existing" != "null" ]; then
+            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${existing}" -f body="$body" >/dev/null
+          else
+            gh api -X POST "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" -f body="$body" >/dev/null
+          fi
+
+      # Scheduled-run regression surfacing: open (or update) a single tracking
+      # issue when the nightly score drops below the baseline. Advisory — no gate.
+      # The baseline lives in the workflow env below; raise it as the score
+      # stabilizes, then eventually convert it into a Stryker break threshold (a
+      # real gate) once we trust it — the advisory→blocking path the skill names.
+      - name: Surface regression (scheduled)
+        if: steps.decide.outputs.should_run == 'true' && github.event_name == 'schedule' && steps.score.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SCORE: ${{ steps.score.outputs.score }}
+          BASELINE: '85'
+        run: |
+          below="$(node -e 'process.stdout.write(Number(process.env.SCORE) < Number(process.env.BASELINE) ? "yes" : "no")')"
+          if [ "$below" != "yes" ]; then
+            echo "Score ${SCORE}% >= baseline ${BASELINE}% — no regression issue."
+            exit 0
+          fi
+          title="Mutation score regression: ${SCORE}% (below ${BASELINE}% baseline)"
+          body="The nightly advisory mutation run scored **${SCORE}%**, below the **${BASELINE}%** baseline.
+
+          This is advisory — no PR is blocked. Inspect the surviving mutants in the \`mutation-report\` artifact of [the run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) and tighten the weak assertions (or mark genuinely-equivalent mutants), per the \`testing\` skill.
+
+          <!-- mutation-regression -->"
+          existing="$(gh issue list --state open --label testing --search 'Mutation score regression in:title' \
+            --json number,title --jq '.[0].number' 2>/dev/null || true)"
+          if [ -n "$existing" ] && [ "$existing" != "null" ]; then
+            gh issue comment "$existing" --body "$body" >/dev/null
+            echo "Updated existing regression issue #$existing."
+          else
+            gh issue create --title "$title" --body "$body" --label testing --label agent-infra >/dev/null
+            echo "Opened a new regression issue."
+          fi

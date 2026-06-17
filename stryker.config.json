@@ -23,7 +23,9 @@
     "src/ingest/parse/count.ts",
     "src/ingest/parse/dates.ts"
   ],
-  "reporters": ["html", "clear-text", "progress"],
+  "reporters": ["html", "clear-text", "progress", "json"],
+  "jsonReporter": { "fileName": "reports/mutation/mutation.json" },
+  "reporters_comment": "The `json` reporter emits a machine-readable run report to reports/mutation/mutation.json (gitignored), uploaded as the advisory CI job's artifact (.github/workflows/mutation.yml, issue #166) so review tooling can diff the mutation score run-over-run — logs are too brittle to parse. `html`/`clear-text`/`progress` are for the local interactive `npm run test:mutation`.",
   "incremental": false,
   "ignoreStatic": true,
   "tsconfigFile": "tsconfig.json",
