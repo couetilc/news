@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  #224 entity-decoding fixture for parseRss20. Each <item> title (and the first
+  item's summary) carries a different character-reference case so the test can
+  assert the decoder runs end-to-end through the RSS parser:
+
+   1. The exact live science-daily case: DOUBLE-encoded `&amp;#039;` (the XML
+      literal is `&amp;amp;#039;`, so fast-xml-parser's own decode leaves
+      `&amp;#039;` in the parsed text, which must decode to `'`). The summary
+      uses the named `&amp;amp;` (→ `&amp;` → `&`).
+   2. A decimal numeric ref (`&#039;` → `'`); XML literal `&amp;#039;`.
+   3. A hex numeric ref (`&#x27;` → `'`); XML literal `&amp;#x27;`.
+   4. A bare named ref (`&amp;` → `&`); XML literal `&amp;amp;`.
+-->
+<rss version="2.0">
+  <channel>
+    <title>Entity Decoding Test Feed</title>
+    <link>https://example.com/feed/</link>
+    <item>
+      <title>Why grandparents matter for children&amp;amp;#039;s mental health</title>
+      <description>Tips for parents &amp;amp; grandparents alike</description>
+      <link>https://example.com/a</link>
+      <guid isPermaLink="false">https://example.com/a</guid>
+      <pubDate>Fri, 12 Jun 2026 10:15:00 EDT</pubDate>
+    </item>
+    <item>
+      <title>It&amp;#039;s a decimal numeric reference</title>
+      <link>https://example.com/b</link>
+      <guid isPermaLink="false">https://example.com/b</guid>
+      <pubDate>Fri, 12 Jun 2026 09:30:00 EDT</pubDate>
+    </item>
+    <item>
+      <title>It&amp;#x27;s a hex numeric reference</title>
+      <link>https://example.com/c</link>
+      <guid isPermaLink="false">https://example.com/c</guid>
+      <pubDate>Fri, 12 Jun 2026 08:45:00 EDT</pubDate>
+    </item>
+    <item>
+      <title>Tom &amp;amp; Jerry, a named reference</title>
+      <link>https://example.com/d</link>
+      <guid isPermaLink="false">https://example.com/d</guid>
+      <pubDate>Fri, 12 Jun 2026 07:00:00 EDT</pubDate>
+    </item>
+  </channel>
+</rss>

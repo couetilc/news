@@ -1,5 +1,6 @@
 import type { ParsedItem } from '../types';
 import { parseRfc822 } from './dates';
+import { decodeEntities } from './entities';
 
 // #30 — Texas Instruments' newsroom News Releases and Company Blog pages render
 // their lists client-side from one AEM endpoint: GET /bin/ti/newsroom?page=N&
@@ -35,31 +36,8 @@ function textOf(value: unknown): string | null {
 }
 
 // The listing strings are HTML fragments (the page injects them with innerHTML),
-// so decode the handful of entities TI actually emits into plain text. Numeric
-// refs (&#39;, &#x27;) cover anything not in the named map.
-const NAMED_ENTITIES: Record<string, string> = {
-	amp: '&',
-	lt: '<',
-	gt: '>',
-	quot: '"',
-	apos: "'",
-	nbsp: ' ',
-};
-
-function decodeEntities(value: string): string {
-	return value.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (match, body: string) => {
-		if (body[0] === '#') {
-			// The regex requires ≥1 digit and admits a lowercase `x` only for hex
-			// (`&#xNN;`); a bare `&#NN;` is decimal — so parseInt always succeeds.
-			const code =
-				body[1] === 'x' ? parseInt(body.slice(2), 16) : parseInt(body.slice(1), 10);
-			return String.fromCodePoint(code);
-		}
-		const named = NAMED_ENTITIES[body.toLowerCase()];
-		return named ?? match;
-	});
-}
-
+// so decode the handful of entities TI actually emits into plain text via the
+// shared decoder (#224). Numeric refs (&#39;, &#x27;) cover anything not named.
 function cleanText(value: string | null): string | null {
 	if (value === null) return null;
 	const decoded = decodeEntities(value).trim();

@@ -9,6 +9,7 @@ import intelXml from './fixtures/intel.xml?raw';
 import nvidiaNewsroomXml from './fixtures/nvidia-newsroom.xml?raw';
 import qualcommXml from './fixtures/qualcomm.xml?raw';
 import scienceDailyXml from './fixtures/science-daily.xml?raw';
+import entitiesXml from './fixtures/entities-rss20.xml?raw';
 
 describe('parseRss20 — content:encoded mode (Cloudflare blog)', () => {
 	const items = parseRss20(cloudflareXml, { content: 'content:encoded' });
@@ -329,5 +330,38 @@ describe('parseRss20 — edge cases', () => {
 
 	it('rejects an empty payload with the documented error', () => {
 		expect(() => parseRss20('', { content: 'description' })).toThrow(/not an RSS 2.0 feed/);
+	});
+});
+
+describe('parseRss20 — decodes HTML entities in title/summary (#224)', () => {
+	// Each fixture item carries a different reference form; assert the decoded
+	// final character is stored, end-to-end through the parser (not just the
+	// helper). content:encoded mode keeps the <description> as the summary, so the
+	// first item also proves summary decoding.
+	const items = parseRss20(entitiesXml, { content: 'content:encoded' });
+
+	it('decodes the double-encoded science-daily case in the title (&amp;#039; → apostrophe)', () => {
+		// The exact bug from the issue: the stored/displayed title must read
+		// "children's mental health", not "children&#039;s mental health".
+		expect(items[0].title).toBe("Why grandparents matter for children's mental health");
+		expect(items[0].title).toContain("children's mental health");
+		expect(items[0].title).not.toContain('&#039;');
+		expect(items[0].title).not.toContain('&amp;');
+	});
+
+	it('decodes a named reference in the summary (&amp; → &)', () => {
+		expect(items[0].summary).toBe('Tips for parents & grandparents alike');
+	});
+
+	it('decodes a decimal numeric reference in the title (&#039; → apostrophe)', () => {
+		expect(items[1].title).toBe("It's a decimal numeric reference");
+	});
+
+	it('decodes a hex numeric reference in the title (&#x27; → apostrophe)', () => {
+		expect(items[2].title).toBe("It's a hex numeric reference");
+	});
+
+	it('decodes a named reference in the title (&amp; → &)', () => {
+		expect(items[3].title).toBe('Tom & Jerry, a named reference');
 	});
 });
