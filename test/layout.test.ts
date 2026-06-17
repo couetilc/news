@@ -90,6 +90,17 @@ describe('Layout masthead dateline /status link (#305)', () => {
 		return html.slice(open, close);
 	};
 
+	// The dateline link's class list, split into whitespace-delimited utility
+	// tokens. Token-exact membership is required because 'hover:underline' *contains*
+	// the substring 'underline', so a substring check can no longer tell a resting
+	// underline from a hover-only one (#308 made it hover-only).
+	const datelineLinkClasses = (html: string) => {
+		const link = datelineLink(html);
+		const m = link.match(/class="([^"]*)"/);
+		expect(m).not.toBeNull();
+		return (m as RegExpMatchArray)[1].split(/\s+/).filter(Boolean);
+	};
+
 	it('drops the colophon line entirely — no aggregator copy, no bottom footer', async () => {
 		const html = await render({ userId: 7 });
 
@@ -112,10 +123,16 @@ describe('Layout masthead dateline /status link (#305)', () => {
 		const link = datelineLink(html);
 		expect(link).toContain('>' + longDate(new Date()));
 
-		// The four #129 obligations of a text-link control: a resting underline
-		// (cursor-pointer is native to <a href>), accent on hover, and the
-		// focus-visible ring — mirroring the masthead Log in link's idiom.
-		expect(link).toContain('underline');
+		// The #129 text-link affordances minus one deliberate deviation (Connor's
+		// #308 review): accent on hover, the focus-visible ring, cursor-pointer
+		// (native to <a href>) — but the underline is HOVER-ONLY here, no resting
+		// underline. Assert token-exact (not substring): 'hover:underline' is
+		// present, and there is NO standalone resting 'underline' utility token.
+		const classes = datelineLinkClasses(html);
+		expect(classes).toContain('hover:underline');
+		expect(classes).toContain('hover:underline-offset-2');
+		expect(classes).not.toContain('underline');
+		expect(classes).not.toContain('underline-offset-2');
 		expect(link).toContain('hover:text-accent');
 		expect(link).toContain('focus-visible:outline-ink');
 
@@ -144,7 +161,10 @@ describe('Layout masthead dateline /status link (#305)', () => {
 
 		const link = datelineLink(html);
 		expect(link).toContain('>' + longDate(new Date()));
-		expect(link).toContain('underline');
+		// Same hover-only underline contract for anonymous visitors (#305/#308).
+		const classes = datelineLinkClasses(html);
+		expect(classes).toContain('hover:underline');
+		expect(classes).not.toContain('underline');
 		expect(link).toContain('hover:text-accent');
 		expect(link).toContain('focus-visible:outline-ink');
 		// Anonymous render also drops the old colophon line + footer.

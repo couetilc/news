@@ -84,13 +84,15 @@ const isAuthed = Astro.locals.userId !== undefined;
 				{/* The dateline carries today's date AND links to the public /status
 				    page (#305), folding the otherwise-orphaned /status link into the
 				    masthead so it stays discoverable without the extra colophon line
-				    that #271/#272 had added. As a navigational control it owes the four
-				    #129 obligations of the text-link idiom — a resting hairline
-				    underline (offset so it stays light at agate scale), accent on
-				    hover, a focus-visible ring, and cursor-pointer (native to <a>) —
-				    mirroring the masthead Log in link, while staying in the
-				    agate/uppercase masthead voice and not crowding the nameplate.
-				    /status is prerendered + allowlisted in the middleware's
+				    that #271/#272 had added. As a navigational control it carries the
+				    #129 text-link affordances — accent on hover, a focus-visible ring,
+				    and cursor-pointer (native to <a>) — but, by Connor's PR review on
+				    #308, the underline is HOVER-ONLY here (no resting underline), a
+				    deliberate deviation from #129's resting-underline rule for this one
+				    control: at rest the dateline reads as plain agate text, and the
+				    focus-visible ring stays the resting affordance for keyboard users.
+				    It stays in the agate/uppercase masthead voice and doesn't crowd the
+				    nameplate. /status is prerendered + allowlisted in the middleware's
 				    PUBLIC_PATHS (#287/#289), so it resolves to the status page (not a
 				    /login redirect) for anonymous and signed-in visitors alike. */}
 				<p
@@ -98,7 +100,7 @@ const isAuthed = Astro.locals.userId !== undefined;
 				>
 					<a
 						href="/status"
-						class="underline underline-offset-2 hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+						class="hover:text-accent hover:underline hover:underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
 						>{dateline}</a
 					>
 				</p>
