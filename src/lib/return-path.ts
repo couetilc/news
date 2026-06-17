@@ -6,6 +6,12 @@
 // redirect target is a classic open-redirect (an attacker crafts a link that
 // POSTs and bounces the victim off to //evil.com).
 //
+// This redirect is the NO-JS source of truth: with JS on, enhance-forms.ts (#223)
+// intercepts the toggle, fetches the POST, and updates the row in place WITHOUT a
+// navigation, so the reader's scroll is preserved and this 303 target is never
+// followed by the browser. So the return-path contract below governs only the
+// no-JS reload — where dropping ?offset is exactly right (see ALLOWED_PARAMS).
+//
 // The contract: the only safe target is a same-origin, app-relative path. We
 // reject anything that could escape the origin — protocol-relative `//host`,
 // the backslash variant `/\host`, and any `scheme:` URL — and we rebuild the
@@ -15,10 +21,12 @@
 // The homepage's query vocabulary: the source filter (#41, repeatable) and the
 // active feed tab (#151, unread|read). Any other param is dropped on the way
 // back so the return target can't be used to smuggle arbitrary state. The
-// infinite-scroll ?offset cursor is deliberately NOT carried — a toggle returns
-// to the top of the active tab (its first 50, re-rendered fresh), which the
-// scroll restarts from; smuggling a deep offset back would render a partial
-// view starting mid-list.
+// infinite-scroll ?offset cursor is deliberately NOT carried — on the no-JS
+// reload this governs, a toggle returns to the top of the active tab (its first
+// 50, re-rendered fresh), which the scroll restarts from; smuggling a deep offset
+// back would render a partial view starting mid-list. (With JS on, scroll is
+// preserved a different way — the in-place update in enhance-forms.ts, #223 —
+// which never follows this redirect, so the offset question doesn't arise there.)
 const ALLOWED_PARAMS = new Set(['source', 'tab']);
 
 export function safeReturnPath(raw: FormDataEntryValue | string | null): string {

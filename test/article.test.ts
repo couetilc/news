@@ -57,6 +57,9 @@ describe('Article component', () => {
 		expect(unread).toContain('data-read-form');
 		expect(unread).toContain('data-read-working');
 		expect(unread).toContain('Working…');
+		// data-feed-row marks the <li> the in-place read toggle (#223) removes from
+		// the active tab; the enhance-forms script targets it via closest().
+		expect(unread).toContain('data-feed-row');
 		// Both square variants (read + unread) get the affordances.
 		const read = await render({ item: row({ read_at: 4000 }) });
 		expect(read).toContain('cursor-pointer');

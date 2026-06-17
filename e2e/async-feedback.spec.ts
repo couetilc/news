@@ -88,10 +88,10 @@ test.describe('async-feedback UX in a real browser (#96)', () => {
 
 		await signUp(page);
 
-		// The read/unread form has NO data-astro-reload, so <ClientRouter /> handles
-		// it as an in-page fetch (no full navigation) — exactly the case the loading
-		// affordance is for. Hold the POST so the in-flight state is observable
-		// before the client-router swap re-renders the row.
+		// The read/unread form is INTERCEPTED by enhance-forms.ts (#223): the script
+		// fetches the POST itself and updates the row in place, no navigation — exactly
+		// the in-page async case the loading affordance is for. Hold the POST so the
+		// in-flight state is observable before the in-place update lands.
 		await page.route('**/api/read', async (route) => {
 			await new Promise((r) => setTimeout(r, 800));
 			await route.continue();
@@ -109,12 +109,13 @@ test.describe('async-feedback UX in a real browser (#96)', () => {
 		await expect(square).toBeDisabled();
 		await expect(working).toBeVisible();
 
-		await page.unroute('**/api/read');
-		// Completion: the server write lands and the toggle's returnTo round-trip
-		// (#80) reloads the active (Unread) tab. Under the tabs model (#151) a row
-		// marked read leaves the Unread tab — its sole item gone, the tab now shows
-		// its caught-up empty state. The /api/read write is idempotent server-side,
-		// so the no-JS double-POST path is harmless too.
+		// Completion: the held POST continues (the route handler resumes it after its
+		// delay), the fetch lands, and the script updates the row IN PLACE — under the
+		// tabs model (#151) a row marked read leaves the Unread tab, so its sole item
+		// is removed and the tab shows its caught-up empty state, all WITHOUT a
+		// navigation (the #223 scroll-preserving path; e2e/read-toggle-scroll.spec.ts
+		// pins the scroll itself). The /api/read write is idempotent server-side, so
+		// the no-JS double-POST path is harmless too.
 		await expect(page.getByText('All caught up — nothing unread.')).toBeVisible();
 	});
 });
