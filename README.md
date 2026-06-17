@@ -65,11 +65,15 @@ so they never step on each other.
 
 ```bash
 # terminal 1 — implement the backlog
-claude     # then invoke the issue-orchestration skill
+./bin/claude     # then invoke the issue-orchestration skill
 
 # terminal 2 — review merged PRs as they land
-codex      # then invoke the review-merged-prs skill
+./bin/codex      # then invoke the review-merged-prs skill
 ```
+
+Both launchers run container-isolated (no host mount, fresh clone of the repo)
+and pinned to their smartest model at xhigh effort — `./bin/claude` → Opus,
+`./bin/codex` → gpt-5.5.
 
 **End state:** issue filed → implemented & merged by the implement loop →
 deployed by CI → reviewed by the review loop → findings become new issues → back
