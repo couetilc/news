@@ -4,7 +4,16 @@
 #   ./bin/claude                  interactive session, permissions skipped
 #   ./bin/claude -p "fix tests"   headless one-shot, permissions skipped
 #   ./bin/claude --shell          bash inside the container instead of claude
+#   ./bin/claude --resume [name]  start -ai a kept container (default: newest);
+#                                 then run /resume INSIDE to reattach the thread
 #   ./bin/claude --clean          remove exited agent containers + rebuild image
+#
+# --resume only reopens a container's session; the conversation reattaches when
+# you run `/resume` INSIDE it. Resume is not a workspace restore — the same
+# container keeps its tree, otherwise `git fetch` first. --clean `docker rm`s
+# exited containers, destroying resumability, so resume before you --clean.
+# (Don't --resume a headless `-p` container: it replays that prompt — recover
+# from the pushed branch instead.) Full notes live in bin/_agent-common.sh.
 #
 # Auth (from .env): CLAUDE_CODE_OAUTH_TOKEN (claude CLI) + GH_TOKEN (clone/push).
 # The shared launcher logic — isolation contract, preflight, sync_main, image
