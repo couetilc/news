@@ -72,9 +72,19 @@ quality manageable. Each brief contains:
   at 100% statements/branches/functions/lines across **both** vitest projects, tests hermetic (no network — inject
   `fetch`, use fixtures).
 - **Pre-assigned shared resources** (see hazards) so parallel agents don't collide.
+- **Visual changes ship screenshots — put it in the brief, every time.** For any PR that
+  changes what a page or component *looks* like, the brief must tell the agent to capture
+  before/after screenshots against the **running app** (boot the dev server, drive the baked
+  headless Chromium) and attach them by uploading via
+  `scripts/upload-screenshot.sh <issue> <before|after> <png>`, then embed the printed
+  `news-cdn` URLs in the PR body — the design-system **"Screenshots for visual changes"**
+  convention. The agent is already in the container with the dev server, the browser, and the
+  CF token, so it **can and must do this itself** — do not leave it for the orchestrator to
+  capture by hand at review time. Say it explicitly: agents skip it otherwise, and may wrongly
+  treat the production-R2 upload as needing sign-off (it is the documented, expected path).
 - Deliverable: `gh pr create --fill` with `Fixes #N`; **do NOT merge**; report PR #/URL,
-  files changed, the coverage line, and **flag any uncertainty or deviation rather than
-  guessing silently**.
+  files changed, the coverage line, the embedded screenshot URLs (for a visual change), and
+  **flag any uncertainty or deviation rather than guessing silently**.
 
 Agents may use WebFetch to *verify* real external shapes (feeds/APIs), but the **tests
 must stay fixture-driven/hermetic**.
@@ -95,6 +105,10 @@ percentage (CI enforces 100%). Look hardest at:
   is preserved byte-for-byte and only the new branch is added.
 - **Security** — auth, hashing/constant-time compare, server-side write rejection.
 - **Core-abstraction changes** — confirm they don't regress the existing callers.
+- **Visual changes — confirm the before/after screenshots are in the PR body** (the
+  design-system convention). A markup unit test is not a substitute — the look is reviewed by
+  eye. If they're missing, bounce it back to the agent rather than capturing them yourself;
+  this is what makes the screenshot step *reliable* instead of an orchestrator chore.
 
 Two merge tiers:
 
