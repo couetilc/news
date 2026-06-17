@@ -1,19 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import {
-	hashPassword,
-	isValidEmail,
-	isValidPassword,
-	normalizeEmail,
-	verifyPassword,
-} from '../src/lib/auth';
+import { hashPassword, verifyPassword } from '../src/lib/auth-crypto';
 
-// Runs in the workers project so the KDF runs on REAL workerd Web Crypto
-// (crypto.subtle PBKDF2) — the same runtime as production. New hashes are
-// single-pass PBKDF2 at the 100k Workers cap with a 16-byte salt (issues #125,
-// #187; the pepper is the compensating control for the sub-OWASP count). The
-// verify path also accepts the legacy chained "<perPass>x<passes>" shape, which
-// we no longer write but must keep validating — exercised below with an
-// independently-derived record.
+// CRYPTO-SHELL tests for src/lib/auth-crypto.ts (#228). Runs in the workers
+// project so the KDF runs on REAL workerd Web Crypto (crypto.subtle PBKDF2) — the
+// same runtime as production — and is therefore deliberately OUT of Stryker's
+// mutation scope (each call is 100k iterations; the high-value validation lives in
+// the pure core, src/lib/auth.ts, tested in test/auth-validate.test.ts). New
+// hashes are single-pass PBKDF2 at the 100k Workers cap with a 16-byte salt
+// (issues #125, #187; the pepper is the compensating control for the sub-OWASP
+// count). The verify path also accepts the legacy chained "<perPass>x<passes>"
+// shape, which we no longer write but must keep validating — exercised below with
+// an independently-derived record. These tests also cross-check the full
+// verifyPassword orchestration (parse -> derive -> constant-time compare,
+// fail-closed) end-to-end against the pure parser's unit tests.
 
 const encoder = new TextEncoder();
 
@@ -164,24 +163,5 @@ describe('record dispatch / malformed records', () => {
 
 	it('rejects an unknown algorithm tag', async () => {
 		expect(await verifyPassword('x', 'bcrypt$10$c2FsdA==$aGFzaA==')).toBe(false);
-	});
-});
-
-describe('input validation', () => {
-	it('normalizes email (trim + lowercase)', () => {
-		expect(normalizeEmail('  Foo@Example.COM ')).toBe('foo@example.com');
-	});
-
-	it('accepts a plausible email and rejects malformed ones', () => {
-		expect(isValidEmail('a@b.co')).toBe(true);
-		expect(isValidEmail('no-at-sign')).toBe(false);
-		expect(isValidEmail('two@@at.com')).toBe(false);
-		expect(isValidEmail('no@domain')).toBe(false);
-		expect(isValidEmail('spaces in@email.com')).toBe(false);
-	});
-
-	it('enforces the minimum password length', () => {
-		expect(isValidPassword('12345678')).toBe(true);
-		expect(isValidPassword('short')).toBe(false);
 	});
 });
