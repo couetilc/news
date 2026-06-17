@@ -116,5 +116,16 @@ const isAuthed = Astro.locals.userId !== undefined;
 		<script>
 			import '../scripts/enhance-forms';
 		</script>
+		{/* Visited indicator (#263), progressive: native a:visited (global.css) is the
+		    no-JS baseline; this LAYERS the richer localStorage-backed [data-visited]
+		    "Opened" tag on top. The module self-registers a delegated document click
+		    listener (records a row's URL when its article link is opened, without
+		    preventing navigation) and re-applies stored marks on astro:page-load /
+		    DOMContentLoaded, so it cooperates with <ClientRouter /> <main> swaps and is
+		    idempotent. Pure DOM logic, unit-tested under happy-dom (test/visited.test.ts)
+		    inside the 100% src/** gate. */}
+		<script>
+			import '../scripts/visited';
+		</script>
 	</body>
 </html>
