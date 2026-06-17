@@ -27,6 +27,10 @@ pnpm-debug.log*
 # test coverage output
 coverage/
 
+# stryker mutation testing output (npm run test:mutation — see stryker.config.json)
+.stryker-tmp/
+reports/mutation/
+
 # playwright e2e run artifacts (npm run test:e2e — see playwright.config.ts)
 test-results/
 playwright-report/
