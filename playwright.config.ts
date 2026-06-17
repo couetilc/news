@@ -21,9 +21,19 @@ export default defineConfig({
 	// concurrently against the same row.
 	workers: 1,
 	fullyParallel: false,
-	// Local-iteration tool, not (yet) a CI gate — fail fast, no retries.
-	retries: 0,
-	reporter: [['list']],
+	// Local: fail fast, no retries. CI (issue #77): one retry to ride out the
+	// `astro dev`/workerd flakiness this suite still shows under sequential load —
+	// the CI run is ADVISORY (a separate non-blocking job, not the `test` gate), so
+	// a retry trims noise without masking a real regression a reviewer would read
+	// off the uploaded report.
+	retries: process.env.CI ? 1 : 0,
+	// Local: a clean `list`. CI (issue #77): also emit a machine-readable `json`
+	// report to a fixed path so the advisory e2e job can upload it as an artifact
+	// for review tooling to diff run-over-run (new failures vs. known flakes), plus
+	// `github` for inline step annotations. `list` stays for the human log either way.
+	reporter: process.env.CI
+		? [['list'], ['github'], ['json', { outputFile: 'playwright-report/results.json' }]]
+		: [['list']],
 	use: {
 		baseURL: BASE_URL,
 		trace: 'retain-on-failure',

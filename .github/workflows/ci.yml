@@ -34,6 +34,44 @@ jobs:
       - run: npm ci
       - run: npm test
 
+  # Playwright e2e smoke (issue #77). ADVISORY for now: a SEPARATE job that is NOT
+  # a `needs:` of `deploy`, and `continue-on-error: true` so a failure reports red
+  # on the run without blocking the merge/deploy. This suite still flakes under
+  # `astro dev`/workerd sequential load (config sets retries:1 in CI to trim that);
+  # graduate it to a blocking gate once it's stable and timed. The config's
+  # `webServer` builds the schema (local D1 migrations) and starts `astro dev`, so
+  # there is no separate build/serve step here — just install the browser and run.
+  e2e:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # System deps + the Chromium build the pinned @playwright/test expects. (The
+      # agent container bakes its own browser at PLAYWRIGHT_BROWSERS_PATH; CI does not.)
+      - run: npx playwright install --with-deps chromium
+      # GitHub sets CI=true, which flips playwright.config.ts to retries:1 + the
+      # json/github reporters. Chromium runs --no-sandbox via the config's launchOptions.
+      - run: npm run test:e2e
+      # Machine-readable result + traces for review tooling to diff run-over-run
+      # (new failures vs. known flakes). `always()` so it uploads even when the
+      # suite fails. `if-no-files-found: ignore` since playwright-report may be
+      # absent if the run dies before any reporter writes.
+      - name: Upload e2e report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
   deploy:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: test
