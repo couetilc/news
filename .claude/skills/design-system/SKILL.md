@@ -78,7 +78,7 @@ token into utilities automatically — use the utility, don't hardcode the hex.
 | `--color-paper-edge` | `#efece2` | `bg-paper-edge` | zebra/panel tint |
 | `--color-ink` | `#17150f` | `text-ink`, `border-ink` | body text, masthead rules |
 | `--color-ink-soft` | `#3a3730` | `text-ink-soft` | secondary text (source names) |
-| `--color-muted` | `#6b665b` | `text-muted` | datelines, metadata, footer |
+| `--color-muted` | `#6b665b` | `text-muted` | datelines, metadata, masthead colophon |
 | `--color-rule` | `#c9c3b3` | `border-rule` | hairline column/section rules |
 | `--color-accent` | `#8b1a1a` | `text-accent` | sparse accent: hover, section heads |
 | `--font-serif` | system serif stack | `font-serif` | body (the default on `body`) |
@@ -95,9 +95,10 @@ so it stays loud.
 
 - **Layout shell:** `src/layouts/Layout.astro` owns `<html>`, the masthead
   (double-ruled nameplate + dateline + tagline, kept compact so stories start
-  high), `<main>`, and the footer. Pages render their content as its `<slot>`.
+  high — plus a colophon line carrying the `/status` text-link) and `<main>`.
+  Pages render their content as its `<slot>`.
   New top-level pages should use this layout, not re-create the chrome.
-- **Container width:** the layout chrome (masthead/footer) spans
+- **Container width:** the layout chrome (the masthead) spans
   `mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8`. A reading column — the feed —
   narrows further to `mx-auto max-w-2xl` for a comfortable line length; wrap list
   content in that, don't let headlines run the full 5xl width.
