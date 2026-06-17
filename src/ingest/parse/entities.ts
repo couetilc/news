@@ -33,9 +33,18 @@ function decodeOnce(value: string): string {
 	return value.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (match, body: string) => {
 		if (body[0] === '#') {
 			// The regex requires ≥1 digit and admits a lowercase `x` only for hex
-			// (`&#xNN;`); a bare `&#NN;` is decimal — so parseInt always succeeds.
+			// (`&#xNN;`); a bare `&#NN;` is decimal — so parseInt always succeeds and
+			// yields a finite, non-negative integer (never NaN/negative).
 			const code = body[1] === 'x' ? parseInt(body.slice(2), 16) : parseInt(body.slice(1), 10);
-			return String.fromCodePoint(code);
+			// An untrusted feed can deliver an out-of-range ref (e.g. `&#x110000;` or
+			// `&#9999999999;`). String.fromCodePoint throws RangeError for any code
+			// point above U+10FFFF, which would abort the whole decode. Leave such a
+			// ref VERBATIM — consistent with how an unrecognized named ref survives
+			// untouched (`return named ?? match` below) — so malformed input degrades
+			// gracefully instead of throwing (parser robustness contract, #243). The
+			// regex guarantees a non-negative integer, so the lower bound can't be
+			// hit and isn't guarded (it would be an uncovered, unreachable branch).
+			return code > 0x10ffff ? match : String.fromCodePoint(code);
 		}
 		const named = NAMED_ENTITIES[body.toLowerCase()];
 		return named ?? match;

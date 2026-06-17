@@ -59,6 +59,33 @@ describe('decodeEntities — idempotent / lossless on already-plain text', () =>
 	});
 });
 
+describe('decodeEntities — out-of-range numeric refs degrade gracefully (#243)', () => {
+	it('leaves an out-of-range HEX numeric ref verbatim without throwing', () => {
+		// U+110000 is one past the max code point — String.fromCodePoint would throw
+		// RangeError. The ref must survive untouched, like an unrecognized named ref.
+		expect(() => decodeEntities('bad &#x110000; ref')).not.toThrow();
+		expect(decodeEntities('bad &#x110000; ref')).toBe('bad &#x110000; ref');
+	});
+
+	it('leaves an out-of-range DECIMAL numeric ref verbatim without throwing', () => {
+		expect(() => decodeEntities('bad &#9999999999; ref')).not.toThrow();
+		expect(decodeEntities('bad &#9999999999; ref')).toBe('bad &#9999999999; ref');
+	});
+
+	it('decodes the max valid code point U+10FFFF — the boundary still works', () => {
+		// 0x10FFFF is the last valid code point; it must decode, not be left verbatim.
+		const max = String.fromCodePoint(0x10ffff);
+		expect(decodeEntities('edge &#x10FFFF; case')).toBe(`edge ${max} case`);
+		expect(decodeEntities('edge &#1114111; case')).toBe(`edge ${max} case`); // 0x10FFFF in decimal
+	});
+
+	it('leaves a bad ref verbatim while surrounding valid refs in the same string still decode', () => {
+		// The one out-of-range ref must not poison the rest of the pass: the named &amp;
+		// and the in-range numeric &#x27; on either side of it still resolve.
+		expect(decodeEntities('Tom &amp; &#x110000; Jerry&#x27;s')).toBe("Tom & &#x110000; Jerry's");
+	});
+});
+
 describe('decodeText — null passthrough for optional summary fields', () => {
 	it('returns null unchanged (a missing summary stays null)', () => {
 		expect(decodeText(null)).toBeNull();
