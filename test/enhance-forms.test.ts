@@ -20,11 +20,16 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import '../src/scripts/enhance-forms';
 
 // A controllable fetch stub: each test sets `fetchImpl` to resolve a fake
-// Response (ok or not) or reject (network error). Defaults to a successful 303-
-// followed-to-200, the real /api/read shape (fetch follows the redirect, so the
-// toggle sees res.ok). The body is never read by the module.
-let fetchImpl: () => Promise<{ ok: boolean; status: number }>;
+// Response (ok or not, optionally a followed redirect) or reject (network error).
+// Defaults to a successful 303-followed-to-200 that lands back on the feed ('/'),
+// the real /api/read shape (fetch follows the redirect, so the toggle sees res.ok
+// and a final URL still on the homepage). The body is never read by the module.
+type FakeResponse = { ok: boolean; status: number; redirected?: boolean; url?: string };
+let fetchImpl: () => Promise<FakeResponse>;
 const fetchSpy = vi.fn(() => fetchImpl());
+
+// Spies on the full-page navigation the auth-redirect guard (#250) performs.
+const assignSpy = vi.fn();
 
 beforeAll(() => {
 	// happy-dom may run a submit event's default action (a real navigation); a
@@ -41,6 +46,14 @@ beforeAll(() => {
 		true,
 	);
 	vi.stubGlobal('fetch', fetchSpy);
+	// The auth-redirect guard (#250) navigates with window.location.assign; happy-dom
+	// would otherwise attempt a real navigation. Stub it so the navigation TARGET is
+	// observable (and harmless) — the read cases assert what URL the browser was sent to.
+	Object.defineProperty(window, 'location', {
+		value: { assign: assignSpy },
+		writable: true,
+		configurable: true,
+	});
 });
 
 afterEach(() => {
@@ -51,6 +64,7 @@ afterEach(() => {
 beforeEach(() => {
 	document.body.innerHTML = '';
 	fetchSpy.mockClear();
+	assignSpy.mockClear();
 	fetchImpl = () => Promise.resolve({ ok: true, status: 200 });
 });
 
@@ -116,6 +130,78 @@ function readRow(read: '0' | '1'): {
 	list.append(row);
 	document.body.append(list);
 	return { list, row, form, button, working };
+}
+
+// Build a multi-row feed list ending in an infinite-scroll sentinel, the real
+// homepage/FeedPage shape when more pages remain (#151): `count` <li data-feed-row>
+// rows each wrapping a data-read-form, then a <li data-feed-sentinel data-next-url>
+// carrying the positional ?offset cursor for the next /feed page. Returns the list,
+// the rows, and the sentinel so a case can toggle a specific row and inspect the
+// cursor. Each row's read-form posts the same NEXT state (`read`), and each row id
+// is its index so the assertions can name which row was removed.
+function readListWithSentinel(
+	count: number,
+	read: '0' | '1',
+	nextUrl: string,
+): { list: HTMLElement; rows: HTMLElement[]; sentinel: HTMLElement } {
+	const list = document.createElement('ol');
+	list.setAttribute('data-feed-list', '');
+	list.dataset.emptyMessage = 'All caught up — nothing unread.';
+
+	const rows: HTMLElement[] = [];
+	for (let i = 0; i < count; i++) {
+		const row = document.createElement('li');
+		row.setAttribute('data-feed-row', '');
+
+		const form = document.createElement('form');
+		form.setAttribute('data-read-form', '');
+		form.action = 'https://news.test/api/read';
+		form.method = 'POST';
+
+		const id = document.createElement('input');
+		id.type = 'hidden';
+		id.name = 'id';
+		id.value = String(i);
+		const readField = document.createElement('input');
+		readField.type = 'hidden';
+		readField.name = 'read';
+		readField.value = read;
+
+		const working = readWorking();
+		const button = document.createElement('button');
+		button.type = 'submit';
+
+		form.append(id, readField, working, button);
+		row.append(form);
+		list.append(row);
+		rows.push(row);
+	}
+
+	const sentinel = document.createElement('li');
+	sentinel.setAttribute('data-feed-sentinel', '');
+	sentinel.dataset.nextUrl = nextUrl;
+	sentinel.textContent = 'Loading more…';
+	list.append(sentinel);
+
+	document.body.append(list);
+	return { list, rows, sentinel };
+}
+
+// The read-form and its square inside a given row. The submit event is dispatched
+// on the form (the handler ignores a non-form target), with the square as submitter.
+function rowControls(row: HTMLElement): { form: HTMLFormElement; button: HTMLButtonElement } {
+	const form = row.querySelector<HTMLFormElement>('[data-read-form]');
+	const button = row.querySelector<HTMLButtonElement>('button[type="submit"]');
+	if (!form || !button) throw new Error('row has no read form / submit button');
+	return { form, button };
+}
+
+// Toggle a specific row: dispatch the read-form submit with its square as submitter,
+// then let the async fetch chain settle.
+async function toggleRow(row: HTMLElement): Promise<void> {
+	const { form, button } = rowControls(row);
+	dispatchSubmit(form, button);
+	await flush();
 }
 
 // Two tab-tally spans (FeedTabs shape), so the read toggle can re-count them.
@@ -337,6 +423,32 @@ describe('enhance-forms — read toggle in-place update preserves scroll (#223)'
 		expect(form.isConnected).toBe(true);
 	});
 
+	it('removes a feed row that is not inside any feed list (no list cursor/empty-state to touch)', async () => {
+		// A [data-feed-row] with no enclosing [data-feed-list] (a defensive shape): on
+		// success the row is still removed, but with no list there's no sentinel cursor
+		// to re-align and no empty state to render — those steps are simply skipped.
+		const row = document.createElement('li');
+		row.setAttribute('data-feed-row', '');
+		const form = document.createElement('form');
+		form.setAttribute('data-read-form', '');
+		form.action = 'https://news.test/api/read';
+		const readField = document.createElement('input');
+		readField.type = 'hidden';
+		readField.name = 'read';
+		readField.value = '1';
+		const button = document.createElement('button');
+		button.type = 'submit';
+		form.append(readField, button);
+		row.append(form);
+		document.body.append(row);
+
+		dispatchSubmit(form, button);
+		await flush();
+
+		expect(row.isConnected).toBe(false); // the row is removed
+		expect(document.querySelector('[data-feed-empty]')).toBeNull(); // no empty state
+	});
+
 	it('reveals "Working…" even when a read form has no submit button', async () => {
 		const list = document.createElement('ol');
 		list.setAttribute('data-feed-list', '');
@@ -464,5 +576,199 @@ describe('enhance-forms — read toggle in-place update preserves scroll (#223)'
 
 		expect(r.textContent).toBe('1'); // 0 + 1
 		expect(u.textContent).toBe('0'); // max(0, 0 - 1)
+	});
+});
+
+describe('enhance-forms — read toggle auth-redirect guard (#250)', () => {
+	it('treats a followed redirect to /login as auth-expiry: keeps the row, sends the browser to login', async () => {
+		// Session lapsed: /api/read 303s to /login, browser fetch follows it, so the
+		// response is ok:true but its FINAL url is the login page — NOT a saved toggle.
+		fetchImpl = () =>
+			Promise.resolve({
+				ok: true,
+				status: 200,
+				redirected: true,
+				url: 'https://news.cuteteal.com/login',
+			});
+		const { row, form, button } = readRow('1');
+		const tallies = tabTallies(3, 2);
+
+		dispatchSubmit(form, button);
+		await flush();
+
+		// The write never happened: the row must STAY and the tallies must not move.
+		expect(row.isConnected).toBe(true);
+		expect(tallies.unread.textContent).toBe('3');
+		expect(tallies.read.textContent).toBe('2');
+		// And the reader is handed the real login flow via a full-page navigation.
+		expect(assignSpy).toHaveBeenCalledTimes(1);
+		expect(assignSpy).toHaveBeenCalledWith('https://news.cuteteal.com/login');
+	});
+
+	it('still removes the row on a redirect that lands back on the feed (a saved toggle)', async () => {
+		// The real success shape: /api/read 303s back to the homepage ('/'), fetch
+		// follows it, so redirected:true but the final pathname is still the feed —
+		// a genuine saved toggle, so the in-place update proceeds and nothing navigates.
+		fetchImpl = () =>
+			Promise.resolve({
+				ok: true,
+				status: 200,
+				redirected: true,
+				url: 'https://news.cuteteal.com/?tab=unread',
+			});
+		const { row, form, button } = readRow('1');
+		tabTallies(3, 2);
+
+		dispatchSubmit(form, button);
+		await flush();
+
+		expect(row.isConnected).toBe(false); // removed — the toggle saved
+		expect(assignSpy).not.toHaveBeenCalled();
+	});
+});
+
+describe('enhance-forms — in-place toggle keeps infinite-scroll consistent (#249)', () => {
+	it('decrements the sentinel offset so the next page does not skip an unseen row', async () => {
+		// More than PAGE_SIZE rows loaded: 50 in the window, a sentinel pointing at
+		// /feed?tab=unread&offset=50 for the next page. Toggling one row from the
+		// first page contracts the unread query, shifting every unseen row one toward
+		// 0 — so the cursor must drop to offset=49 or the row that slid into position
+		// 49 would be skipped on the next fetch.
+		const { rows, sentinel } = readListWithSentinel(
+			50,
+			'1',
+			'/feed?tab=unread&offset=50',
+		);
+		tabTallies(120, 0);
+
+		await toggleRow(rows[2]);
+
+		// The toggled row is gone, and the cursor is re-aligned by exactly one.
+		expect(rows[2].isConnected).toBe(false);
+		expect(sentinel.dataset.nextUrl).toBe('/feed?tab=unread&offset=49');
+		// The remaining params (tab, and only the offset) are preserved.
+		const url = new URL(sentinel.dataset.nextUrl!, 'https://news.test');
+		expect(url.pathname).toBe('/feed');
+		expect(url.searchParams.get('tab')).toBe('unread');
+		expect(url.searchParams.get('offset')).toBe('49');
+	});
+
+	it('decrements again on a second removal (cursor stays aligned across toggles)', async () => {
+		const { rows, sentinel } = readListWithSentinel(
+			50,
+			'1',
+			'/feed?tab=unread&offset=50',
+		);
+		tabTallies(120, 0);
+
+		await toggleRow(rows[0]);
+		await toggleRow(rows[1]);
+
+		expect(sentinel.dataset.nextUrl).toBe('/feed?tab=unread&offset=48');
+	});
+
+	it('preserves an active source filter when decrementing the cursor', async () => {
+		const { rows, sentinel } = readListWithSentinel(
+			50,
+			'1',
+			'/feed?tab=unread&source=hn&offset=50',
+		);
+		tabTallies(120, 0);
+
+		await toggleRow(rows[0]);
+
+		const url = new URL(sentinel.dataset.nextUrl!, 'https://news.test');
+		expect(url.searchParams.get('source')).toBe('hn');
+		expect(url.searchParams.get('offset')).toBe('49');
+	});
+
+	it('does NOT show a false empty state while a sentinel still remains', async () => {
+		// Clearing every loaded row while a sentinel is still present must NOT swap in
+		// the caught-up empty state — more pages live behind the sentinel (#249).
+		const { list, rows, sentinel } = readListWithSentinel(
+			2,
+			'1',
+			'/feed?tab=unread&offset=50',
+		);
+		tabTallies(120, 0);
+
+		await toggleRow(rows[0]);
+		await toggleRow(rows[1]);
+
+		// No rows left, but the list (and its sentinel) survive — no false empty state.
+		expect(list.isConnected).toBe(true);
+		expect(document.querySelector('[data-feed-empty]')).toBeNull();
+		expect(sentinel.isConnected).toBe(true);
+		expect(list.querySelector('[data-feed-row]')).toBeNull();
+		// The cursor was still decremented once per removal (50 → 48).
+		expect(sentinel.dataset.nextUrl).toBe('/feed?tab=unread&offset=48');
+	});
+
+	it('leaves a sentinel with no offset param untouched', async () => {
+		// A defensive shape: a sentinel whose data-next-url carries no ?offset (nothing
+		// to decrement). The removal proceeds; the cursor is left as-is.
+		const { rows, sentinel } = readListWithSentinel(2, '1', '/feed?tab=unread');
+		tabTallies(120, 0);
+
+		await toggleRow(rows[0]);
+
+		expect(sentinel.dataset.nextUrl).toBe('/feed?tab=unread');
+	});
+
+	it('leaves an offset of 0 untouched (nothing before the first row to skip)', async () => {
+		const { rows, sentinel } = readListWithSentinel(2, '1', '/feed?tab=unread&offset=0');
+		tabTallies(120, 0);
+
+		await toggleRow(rows[0]);
+
+		expect(sentinel.dataset.nextUrl).toBe('/feed?tab=unread&offset=0');
+	});
+
+	it('leaves a sentinel with no data-next-url untouched (and still no false empty state)', async () => {
+		// A sentinel element with no data-next-url at all: decrementSentinelOffset finds
+		// no matching node, so there's nothing to adjust — and the empty-state guard still
+		// keys off the sentinel's presence, so clearing the rows shows no empty state.
+		const { list, rows } = readListWithSentinel(1, '1', '/feed?tab=unread&offset=50');
+		const bareSentinel = list.querySelector<HTMLElement>('[data-feed-sentinel]')!;
+		delete bareSentinel.dataset.nextUrl;
+		tabTallies(120, 0);
+
+		await toggleRow(rows[0]);
+
+		expect(list.isConnected).toBe(true);
+		expect(document.querySelector('[data-feed-empty]')).toBeNull();
+	});
+});
+
+describe('enhance-forms — retry resets the status slot to loading (#251)', () => {
+	it('clears a prior error back to "Working…" (no alert role / accent) on the next submit', async () => {
+		// First submit fails: the status slot becomes the inline error.
+		fetchImpl = () => Promise.reject(new Error('offline'));
+		const { row, form, button, working } = readRow('1');
+		tabTallies(3, 2);
+
+		dispatchSubmit(form, button);
+		await flush();
+
+		// Error rendered, button restored so the reader can retry.
+		expect(row.isConnected).toBe(true);
+		expect(button.disabled).toBe(false);
+		expect(working.getAttribute('role')).toBe('alert');
+		expect(working.classList.contains('text-accent')).toBe(true);
+		expect(working.textContent).toBe('Couldn’t save — try again.');
+
+		// Second submit, with the fetch still PENDING (never resolves) so we can inspect
+		// the in-flight status slot: the stale error must be gone, replaced by "Working…".
+		fetchImpl = () => new Promise<FakeResponse>(() => {});
+		dispatchSubmit(form, button);
+
+		// Synchronously (before the fetch settles) the slot is back to the loading state.
+		expect(working.hidden).toBe(false);
+		expect(working.getAttribute('role')).toBeNull();
+		expect(working.classList.contains('text-accent')).toBe(false);
+		expect(working.textContent).toBe('Working…');
+		// And the square is busy again for the pending save.
+		expect(button.disabled).toBe(true);
+		expect(button.getAttribute('aria-busy')).toBe('true');
 	});
 });
