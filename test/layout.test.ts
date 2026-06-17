@@ -172,3 +172,21 @@ describe('Layout masthead dateline /status link (#305)', () => {
 		expect(html).not.toContain('<footer');
 	});
 });
+
+describe('Layout favicon links (#306)', () => {
+	it('emits both the SVG and ICO brand-mark icon links', async () => {
+		// The brand mark (#306) is the "N"-shaped magnet shipped as
+		// public/favicon.svg (primary, modern) + public/favicon.ico (fallback).
+		// The asset *design* is judged by eye in PR review (per the design-system
+		// skill); this is the cheap structural guard that both <link rel="icon">
+		// references the layout owns stay wired up so neither asset is orphaned.
+		const html = await render({ userId: 7 });
+
+		// Primary: the modern SVG icon, served with the right MIME type.
+		expect(html).toContain('rel="icon" type="image/svg+xml"');
+		expect(html).toContain('href="/favicon.svg"');
+
+		// Fallback: the multi-size ICO for clients that don't take SVG favicons.
+		expect(html).toContain('href="/favicon.ico"');
+	});
+});
