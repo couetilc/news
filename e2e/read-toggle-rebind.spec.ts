@@ -3,22 +3,23 @@ import { d1Query, resetUsers } from './d1';
 
 // Browser e2e for the ClientRouter-safe read-toggle enhancement (issue #155).
 //
-// The bug this pins: the read/unread form is handled by Astro's <ClientRouter />,
-// which after each toggle swaps the row/form for fresh server-rendered DOM. The
-// original enhancement bound a submit listener once, per-form, at module-execution
-// time — so the FIRST toggle showed the async feedback (disable + aria-busy +
-// "Working…") but the swapped-in REPLACEMENT form had no listener, and the SECOND
-// toggle submitted silently. The fix is a single delegated `submit` listener on
-// `document` (src/scripts/enhance-forms.ts), which survives the swap.
+// The bug this pins: a TAB SWITCH is a navigation Astro's <ClientRouter /> handles
+// by swapping <main> for fresh server-rendered DOM. The original enhancement bound
+// a submit listener once, per-form, at module-execution time — so a form rendered
+// into the swapped-in panel had no listener and its toggle ran silently. The fix is
+// a single delegated `submit` listener on `document` (src/scripts/enhance-forms.ts),
+// which survives the swap.
 //
 // This spec is the red→green pin: it would FAIL on the old per-form binding (the
-// second toggle's busy state never appears) and PASSES with the delegated
-// listener. The companion e2e/async-feedback.spec.ts covers the FIRST toggle's
-// feedback; this one specifically asserts the SECOND, post-swap toggle.
+// post-swap toggle's busy + in-place update never happen) and PASSES with the
+// delegated listener. The companion e2e/async-feedback.spec.ts covers the FIRST
+// toggle's feedback; this one specifically asserts the SECOND, post-swap toggle is
+// still enhanced. (The toggle itself now updates the row in place rather than
+// navigating — #223; e2e/read-toggle-scroll.spec.ts pins the scroll preservation.)
 //
 // Progressive enhancement is untouched: the no-JS POST → 303 → reload remains the
 // source of truth and the /api/read write is idempotent both ways; this only
-// asserts the JS feedback layer keeps working after a client-router swap.
+// asserts the JS enhancement keeps working after a client-router swap.
 
 const EMAIL = 'connor@couetil.com'; // the default signup allowlist (issue #76)
 const PASSWORD = 'correct-horse-battery'; // >= 8 chars, a valid password
@@ -54,8 +55,8 @@ test.describe('read-toggle async feedback survives ClientRouter swaps (#155)', (
 		await signUp(page);
 
 		// Hold every /api/read POST ~800ms (one handler for the whole test) so each
-		// toggle's in-flight state is observable before its returnTo round-trip (#80)
-		// reloads the tab. It still continues, so completion lands within the
+		// toggle's in-flight state is observable before the in-place update (#223)
+		// removes the row. It still continues, so completion lands within the
 		// assertion timeout.
 		await page.route('**/api/read', async (route) => {
 			await new Promise((r) => setTimeout(r, 800));
@@ -74,8 +75,8 @@ test.describe('read-toggle async feedback survives ClientRouter swaps (#155)', (
 		await expect(working).toBeVisible();
 
 		// Completion: under the tabs model (#151) the now-read row leaves the Unread
-		// tab, which shows its caught-up empty state. The read item lives on the Read
-		// tab now.
+		// tab IN PLACE (#223 — no navigation), which shows its caught-up empty state.
+		// The read item is persisted server-side, so it lives on the Read tab now.
 		await expect(page.getByText('All caught up — nothing unread.')).toBeVisible();
 
 		// Switch to the Read tab. The tab link is a normal navigation that
@@ -98,10 +99,10 @@ test.describe('read-toggle async feedback survives ClientRouter swaps (#155)', (
 		await expect(markUnread).toBeDisabled();
 		await expect(working).toBeVisible();
 
-		// Release: the unmark write lands and the returnTo reload of the Read tab
-		// shows its now-empty state (the item moved back to Unread). The /api/read
-		// write is idempotent server-side, so the no-JS double-POST path stays
-		// harmless too.
+		// Release: the unmark write lands and the in-place update (#223) removes the
+		// row from the Read tab — its now-empty state shows (the item moved back to
+		// Unread), with no navigation. The /api/read write is idempotent server-side,
+		// so the no-JS double-POST path stays harmless too.
 		await expect(page.getByText('Nothing read yet.')).toBeVisible();
 	});
 });

@@ -46,7 +46,7 @@ const label = isRead ? 'Mark as unread' : 'Mark as read';
 const nextState = isRead ? '0' : '1';
 ---
 
-<li class={row} transition:name={`item-${item.id}`}>
+<li class={row} transition:name={`item-${item.id}`} data-feed-row>
 	<div class="min-w-0 flex-1">
 		{/* Headline link — the text-link idiom (#129/#131). Resting affordance: per
 		    the design-system call, a permanent underline reads heavy on a dense
@@ -80,9 +80,12 @@ const nextState = isRead ? '0' : '1';
 			   plain POST → 303 → reload (the source of truth); the server write is
 			   idempotent both ways (DELETE-where to unmark, INSERT…ON CONFLICT DO
 			   UPDATE to mark), so a double-POST is harmless even without the client
-			   guard. When JS is on, the inline script below disables the square on
-			   submit (double-submit defense, client layer) and reveals an in-voice
-			   "Working…" agate line where the result lands. */
+			   guard. When JS is on, the shared initializer intercepts this submit,
+			   fetches the POST, and updates the row in place — so the reader's scroll
+			   position is undisturbed instead of snapping to the top of the active tab
+			   (#223). The enclosing <li data-feed-row> is the unit it removes from the
+			   active tab (a toggled item leaves the tab it was on), keeping the busy
+			   "Working…" state below in flight. */
 			<form method="POST" action="/api/read" class="flex items-baseline gap-2" data-read-form>
 				<input type="hidden" name="id" value={item.id} />
 				<input type="hidden" name="read" value={nextState} />
@@ -106,21 +109,25 @@ const nextState = isRead ? '0' : '1';
 	}
 </li>
 
-{/* Read/unread toggle enhancement (#96), progressive: the no-JS POST → 303 →
-   reload is the source of truth (and the /api/read write is idempotent), so this
-   only LAYERS feedback on top when JS runs. On submit the shared initializer
-   disables the square so a second click can't double-POST (client layer of the
-   double-submit defense), marks it aria-busy, and reveals the in-voice "Working…"
-   agate line. The form then either does a full-page navigation
-   (JS-on-but-no-ClientRouter) or is swapped by <ClientRouter />; either way the
-   toggled row re-renders fresh from the server, which is the completion
-   confirmation. The enhancement is a single delegated `submit` listener on
-   `document` (src/scripts/enhance-forms.ts) so it survives ClientRouter's row
-   swap — the replacement form stays enhanced (#155), where the old per-form
-   binding went stale after the first toggle. The module is pure DOM logic, so
-   it's unit-tested under happy-dom (test/enhance-forms.test.ts) inside the 100%
-   src/** gate and additionally covered as a real-browser behavioral guard by the
-   Playwright e2e (e2e/read-toggle-rebind.spec.ts, e2e/async-feedback.spec.ts). */}
+{/* Read/unread toggle enhancement (#96, #223), progressive: the no-JS POST → 303
+   → reload is the source of truth (and the /api/read write is idempotent), so
+   this only LAYERS behavior on top when JS runs. On submit the shared initializer
+   intercepts the read form: it disables the square (client layer of the
+   double-submit defense), marks it aria-busy, reveals the in-voice "Working…"
+   agate line, then `fetch`es the POST itself instead of letting the browser (or
+   <ClientRouter />) navigate. On success it removes this row from the active tab
+   and re-tallies the tabs IN PLACE — no full-page navigation, so the reader's
+   scroll position is preserved (#223) rather than snapping back to the top of the
+   tab (the pre-#223 behavior, where the 303 returnTo re-rendered the tab from
+   offset 0). On a network failure it surfaces an inline error and restores the
+   square so the reader can retry. The enhancement is a single delegated `submit`
+   listener on `document` (src/scripts/enhance-forms.ts) so it survives
+   ClientRouter's <main> swaps on tab switches (#155), where the old per-form
+   binding went stale. The module is pure DOM logic, so it's unit-tested under
+   happy-dom (test/enhance-forms.test.ts) inside the 100% src/** gate and
+   additionally covered as a real-browser behavioral guard by the Playwright e2e
+   (e2e/read-toggle-scroll.spec.ts, e2e/read-toggle-rebind.spec.ts,
+   e2e/async-feedback.spec.ts). */}
 <script>
 	import '../scripts/enhance-forms';
 </script>

@@ -178,6 +178,10 @@ describe('index page', () => {
 			// The tallies render beside their labels.
 			expect(html).toMatch(/Unread\s*<span[^>]*>3</);
 			expect(html).toMatch(/Read\s*<span[^>]*>2</);
+			// Each tally carries data-tab-count so the in-place read toggle (#223) can
+			// re-count both tabs after moving a row between them.
+			expect(html).toContain('data-tab-count="unread"');
+			expect(html).toContain('data-tab-count="read"');
 		});
 
 		it('the inactive tab is not fetched for rows — only the active one', async () => {
@@ -225,6 +229,10 @@ describe('index page', () => {
 			const html = await render();
 			// The list is the infinite-scroll hook the client appends into.
 			expect(html).toContain('data-feed-list');
+			// It also carries the filter/tab-aware caught-up copy as data-empty-message
+			// so the in-place read toggle (#223) can render this tab's empty state
+			// client-side when its last row is toggled away, without reconstructing it.
+			expect(html).toContain('data-empty-message="All caught up — nothing unread."');
 			// The sentinel carries the next window's URL: the active tab + offset 50.
 			expect(html).toContain('data-feed-sentinel');
 			expect(html).toContain('data-next-url="/feed?tab=unread&amp;offset=50"');
@@ -342,6 +350,9 @@ describe('index page', () => {
 			const html = await render();
 			expect(html).not.toContain('Nothing aggregated yet');
 			expect(html).toContain('All caught up — nothing unread.');
+			// The empty <p> carries data-feed-empty — the same marker the in-place read
+			// toggle (#223) renders when it empties a tab, so server and client agree.
+			expect(html).toContain('data-feed-empty');
 			// Tabs still render so the reader can switch to Read.
 			expect(html).toContain('Feed tabs');
 		});

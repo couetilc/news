@@ -117,13 +117,18 @@ const emptyMessage = isReadTab(tab)
 							readCount={readTotal}
 						/>
 						{items.length === 0 ? (
-							<p class="py-16 text-center text-lg italic text-muted">{emptyMessage}</p>
+							<p data-feed-empty class="py-16 text-center text-lg italic text-muted">
+								{emptyMessage}
+							</p>
 						) : (
 							/* The active tab's list: the first 50 server-rendered, ending in
 							   the infinite-scroll sentinel FeedPage emits when more remain.
 							   data-feed-list is the hook the infinite-scroll script appends
-							   each fetched /feed fragment into. */
-							<ol data-feed-list>
+							   each fetched /feed fragment into. data-empty-message carries the
+							   filter-aware caught-up copy so the in-place read toggle (#223) can
+							   render this tab's empty state when its last row is toggled away,
+							   matching the server-rendered <p data-feed-empty> above. */
+							<ol data-feed-list data-empty-message={emptyMessage}>
 								<FeedPage
 									items={items}
 									offset={0}
