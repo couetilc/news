@@ -89,12 +89,21 @@ across turns/compaction, and costs zero tokens while idle. The contract:
 Run both watchers as two independent background tasks to cover merged PRs and
 heavy runs at once; each re-invokes the agent on its own delta.
 
-**Cross-surface:** background-task-re-invoke + `ScheduleWakeup` are Claude Code
-harness features. On a surface without them (the Codex agent that reaches this
-skill via `.codex/skills`, or a plain shell), run the watcher in the
-**foreground** — it blocks until a delta, then exits `2` with the payload; review,
-then relaunch it to re-arm. Same wake-on-change-only and persisted-marker
-guarantees; you just hold the turn open instead of being re-invoked.
+**Cross-surface.** Split the two halves:
+
+- **The scripts are portable.** Pure `bash` + `gh` + `jq`, reached by both
+  agents through the `.codex/skills` symlink — so the deterministic-delta
+  detectors and the persisted markers (which stop a PR/run being reviewed
+  twice) behave identically on Claude, Codex, or a plain shell.
+- **The zero-idle-cost wake is Claude-only.** `run_in_background`
+  re-invoke-on-exit and `ScheduleWakeup` are Claude Code harness features;
+  there is no known Codex equivalent that hands control back to the model when
+  a backgrounded process exits. On Codex, neither fallback is free while idle:
+  run the watcher in the **foreground** (it blocks until a delta and exits `2`
+  with the payload, but a long idle hits Codex's per-command timeout and hands
+  control back), or run the **detector once per turn** and let the model pace
+  re-checks. Either way the markers keep it idempotent — you lose the
+  zero-idle-cost guarantee, not correctness or determinism.
 
 ## Workflow
 
