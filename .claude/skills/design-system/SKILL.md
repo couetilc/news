@@ -348,3 +348,58 @@ this feel app-y?".
 `src/lib/**` count. Keep presentational helpers branch-free (see
 `src/lib/format.ts` — fixed name tables, no conditionals) and make sure any new
 component is actually rendered by a test, or the gate fails.
+
+## Screenshots for visual changes
+
+This skill governs look-and-feel by review, and a visual change is reviewed by
+eye — so the review has to *see* it. **Any PR that changes what a page or
+component looks like ships before/after screenshots in the PR body.** A unit
+test asserting markup is not a substitute; a reviewer can't tell from a diff
+whether the read square sits right or the dateline reads as agate.
+
+**Capture against the running app**, not a fixture render. In the agent
+container, drive the dev server with the baked headless Chromium (the
+`agentic-environments` skill has the container/dev-server specifics — host-port
+mapping, the baked browser path, where `$DEV_HOST_4321` comes from). Concretely:
+
+- Start the dev server on workerd and bind all interfaces:
+  `npm run dev -- --host`, then point the browser at `http://$DEV_HOST_4321/`
+  (the in-container `localhost:4321` maps to a different, randomized host port —
+  see `agentic-environments`).
+- Launch Chromium with `chromium.launch({ args: ['--no-sandbox'] })` — non-root
+  Chromium in the container can't use the sandbox (throwaway container, so it's
+  fine). The baked browser lives at `PLAYWRIGHT_BROWSERS_PATH=/ms-playwright`.
+- Seed a little local D1 so the feed isn't empty, and sign in so authenticated
+  states (read/unread, the visited tag) actually render — capture the *states
+  that matter* to the change, not just one happy shot.
+- Save before/after PNGs.
+
+**Attach by uploading the PNGs to R2**, not by committing them to git. Binaries
+must not accumulate in `main`'s history. Use the helper:
+
+```
+scripts/upload-screenshot.sh <issue-number> before docs/screenshot-before.png
+scripts/upload-screenshot.sh <issue-number> after  docs/screenshot-after.png
+```
+
+It puts each PNG to the public `news-cdn` R2 bucket (`--remote`) under the
+`pr-screenshots/<issue>/` prefix and prints the public URL. Embed those URLs in
+the PR body so GitHub renders them inline:
+
+```markdown
+**Before**
+
+![before](https://news-cdn.cuteteal.com/pr-screenshots/<issue>/before.png)
+
+**After**
+
+![after](https://news-cdn.cuteteal.com/pr-screenshots/<issue>/after.png)
+```
+
+Why this works: `news-cdn` is a public R2 bucket (the `CDN` binding in
+`wrangler.jsonc`) served at `news-cdn.cuteteal.com` via R2's native custom domain
+— CDN-cached, free egress, no Worker in the request path. The URL is public, so
+GitHub's image proxy (which fetches unauthenticated) renders it inline and the
+evidence persists on merged PRs. If the helper errors on auth or the URL doesn't
+resolve, its header documents the one-time activation (token R2 scope + the
+`wrangler r2 bucket domain add news-cdn news-cdn.cuteteal.com` step).

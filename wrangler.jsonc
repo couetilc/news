@@ -43,5 +43,21 @@
 			"database_id": "0a00559e-b8d6-41d7-80a2-bc278edd3d58",
 			"migrations_dir": "migrations"
 		}
+	],
+	"r2_buckets": [
+		{
+			// Public assets/CDN bucket — auto-provisioned on `wrangler deploy`
+			// (wrangler >= 4.45). Served at the custom domain news-cdn.cuteteal.com
+			// via R2's NATIVE custom domain (CDN-cached, free egress, no Worker in
+			// the request path). The custom domain itself is NOT declarable here
+			// (the r2_buckets binding has no domain field) — it's attached once via
+			// `wrangler r2 bucket domain add news-cdn news-cdn.cuteteal.com`.
+			// First use: PR screenshots under the pr-screenshots/<issue>/ prefix
+			// (see scripts/upload-screenshot.sh + the design-system skill).
+			// CI's CLOUDFLARE_API_TOKEN needs R2 read/write + provisioning scope so
+			// the deploy can auto-create this bucket — see .env.example.
+			"binding": "CDN",
+			"bucket_name": "news-cdn"
+		}
 	]
 }
