@@ -7,6 +7,19 @@ investor-relations feeds, SEC filings, and science — into one fresh, fast feed
 
 ![The public feed at news.cuteteal.com](docs/screenshot.png)
 
+Built by **Connor Couetil** — [GitHub](https://github.com/couetilc) ·
+[LinkedIn](https://www.linkedin.com/in/couetilc) · couetilc@gmail.com. A solo
+project: the product thesis, the architecture, and the agent-driven build
+workflow are all mine.
+
+## Try it (no install)
+
+Open **[news.cuteteal.com](https://news.cuteteal.com)** — the public feed is
+read-only and needs no signup, so you can experience the product without cloning
+anything. You're seeing the same server-rendered feed the app serves to its
+single signed-in reader, minus the personal read/unread state. (For a developer
+setup, see [Quickstart](#quickstart) below.)
+
 ## What this is
 
 A single-user news aggregator built for one reader, and a working portfolio
@@ -18,67 +31,49 @@ all rendered server-side as a clean, newspaper-styled feed.
 It runs entirely on Cloudflare's edge, and — notably — it's built almost entirely
 by AI coding agents working a disciplined, test-gated workflow.
 
-## Highlights
+## Highlights — and why
 
-- **Astro 6 SSR on Cloudflare Workers**, with local dev running inside
-  **workerd** for real production parity.
-- **Multi-source ingestion** into D1 — RSS/Atom, JSON APIs, and SEC EDGAR —
-  normalized into one feed; sessions and auth on KV.
-- **100% statements / branches / functions / lines coverage gate** over `src/**`,
-  enforced and **hermetic** — the test suite never touches the network.
-- **CI deploys on merge** — branch → PR → green checks → merge → live.
+Each line is a decision, not just a feature:
 
-## 🤖 Built by AI coding agents
+- **Reads primary sources, not aggregator middlemen.** The product bet: less
+  engagement-optimized noise, more signal. Tech-company newsrooms, IR and
+  earnings feeds, SEC EDGAR 8-K filings, and science wires, all normalized into
+  one feed.
+- **Astro 6 SSR on Cloudflare Workers, with local dev inside workerd.** Chose
+  edge server-rendering because a news feed wants fresh content over a stale
+  cache, and local-workerd parity so "works on my machine" actually means "works
+  in production."
+- **Multi-source ingestion into D1, sessions on KV.** Each source type
+  (RSS/Atom, JSON APIs, SEC EDGAR) gets its own adapter feeding one normalized
+  schema — adding a feed is a small, contained change, not a rewrite.
+- **100% hermetic test gate.** Every statement, branch, function, and line is
+  covered, and the suite never touches the network — so it's green in CI,
+  offline, and in sandboxed agent sessions alike. Discipline a teammate can
+  trust, not a vanity metric.
+- **Merge to deploy.** Branch → PR → green checks → live, with no manual release
+  step to forget or get wrong.
 
-This repo is also an experiment in agent-driven development: nearly every change
-ships through AI agents operating a real engineering workflow.
+## Built by AI coding agents
 
-- **Four execution surfaces** — local CLI, Claude Dispatch, claude.ai cloud
-  sessions, and GitHub Actions — all reading one shared instruction layer.
-- **`./bin/claude`** runs an agent full-auto inside an **isolated Docker
-  container** that clones the repo fresh from GitHub, so parallel agents never
-  collide.
-- **An issue-driven backlog**: work is filed as GitHub issues, implemented on
-  branches, and merged via CI — nothing reaches production except through a
-  reviewed PR.
-- **Two agents in parallel**: one loop drives the backlog (the
-  `issue-orchestration` skill) while another reviews merged PRs (the
-  `review-merged-prs` skill) — one ships while the other reviews (see below).
+This repo is also an experiment: nearly every change ships through AI coding
+agents running a real, test-gated engineering workflow rather than ad-hoc
+prompting. The interesting part isn't that an LLM wrote code — it's the system
+of guardrails that lets it ship safely without a human in every loop.
 
-The conventions, skills, and guardrails that keep this safe live in
+- **Two agents in parallel.** One loop drives the GitHub-issue backlog —
+  implement on a branch, open a PR, merge once CI is green; a second reviews each
+  merged PR and files its findings back as new issues. The roles are
+  model-neutral, and a human signs off on the architectural, security, and README
+  tier.
+- **One shared instruction layer across four surfaces** — local CLI, Claude
+  Dispatch, claude.ai cloud sessions, and GitHub Actions all read the same
+  [`CLAUDE.md`](CLAUDE.md) and [`.claude/skills/`](.claude/skills).
+- **Isolation by default.** `./bin/claude` runs an agent full-auto inside a
+  container that clones the repo fresh, so parallel agents never collide, and
+  nothing reaches production except through a reviewed PR and green CI.
+
+The conventions, skills, and launcher details that keep this safe live in
 [`CLAUDE.md`](CLAUDE.md) and [`.claude/skills/`](.claude/skills).
-
-### Two agents, side by side
-
-Two agent loops run in parallel, in separate terminals:
-
-- **Implement loop** (Claude today) — drives the GitHub-issue backlog: picks up
-  an issue, implements it on a branch, opens a PR, and merges once CI is green
-  (the `issue-orchestration` skill).
-- **Review loop** (Codex today) — watches for merged PRs and reviews each one
-  *post-merge*, filing any actionable findings back as GitHub issues (the
-  `review-merged-prs` skill).
-
-The roles are **model-neutral** — either agent can do either job. Both read the
-same shared instructions (`CLAUDE.md` = `AGENTS.md`) and the same skill library,
-so they never step on each other.
-
-```bash
-# terminal 1 — implement the backlog
-./bin/claude     # then invoke the issue-orchestration skill
-
-# terminal 2 — review merged PRs as they land
-./bin/codex      # then invoke the review-merged-prs skill
-```
-
-Both launchers run container-isolated (no host mount, fresh clone of the repo)
-and pinned to their smartest model at xhigh effort — `./bin/claude` → Opus,
-`./bin/codex` → gpt-5.5.
-
-**End state:** issue filed → implemented & merged by the implement loop →
-deployed by CI → reviewed by the review loop → findings become new issues → back
-into the backlog. A human signs off on the architectural/security tier and on any
-README change.
 
 ## Architecture
 
@@ -128,6 +123,15 @@ npm run deploy      # astro build && wrangler deploy
 Auth for the fallback: `npx wrangler login`, or copy `.env.example` to `.env`
 and fill in `CLOUDFLARE_API_TOKEN` (see `.env.example` for exact token scopes —
 it is the living documentation for all credentials).
+
+## Why this is relevant to Solutions Engineering
+
+It's a small system, but a complete one, and it exercises the work an SE actually
+does: starting from a clear customer thesis (primary sources over engagement-bait
+middlemen), making infrastructure trade-offs and being able to explain the *why*
+behind each one, and shipping something a non-developer can experience in one
+click rather than having to clone and build. The README itself is part of that —
+an attempt to translate technical decisions for a mixed audience.
 
 ## Learn more
 
