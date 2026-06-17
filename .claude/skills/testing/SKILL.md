@@ -296,14 +296,16 @@ Mechanics worth keeping when you touch or add an out-of-band job:
 
 - **Change-gate the scheduled run** so a nightly sweep is skipped when nothing
   relevant changed: resolve the last successful run's SHA and
-  `git diff --quiet <lastSHA> HEAD -- src test '*.config.ts' stryker.config.json package.json package-lock.json`
+  `git diff --quiet <lastSHA> HEAD -- src test '*.config.ts' stryker.config.json package.json package-lock.json .github/workflows/mutation.yml`
   → skip. Per-PR runs get the same effect from a `paths:` filter over that set,
-  so doc/skill/workflow-only changes don't trigger the heavy tool. The path-set
-  must include **`package.json`** alongside `package-lock.json` — it defines the
+  so doc/skill-only changes don't trigger the heavy tool. The path-set must
+  include **`package.json`** alongside `package-lock.json` — it defines the
   `test:mutation` script and Stryker/Vitest invocation, so a script-only edit
-  changes the mutation result without touching the lockfile. **Keep the
-  `pull_request: paths:` list and the in-job `git diff` pathspec identical** —
-  they're two copies of the same input set and must not drift.
+  changes the mutation result without touching the lockfile — and the **workflow
+  file itself** (`.github/workflows/mutation.yml`), so a scheduled-only fix to
+  the job is exercised by the next nightly. **Keep the `pull_request: paths:`
+  list and the in-job `git diff` pathspec identical** — they're two copies of
+  the same input set and must not drift.
 - **Emit a machine-readable artifact, not just logs.** Stryker's `json` reporter
   writes `reports/mutation/mutation.json` (gitignored), uploaded as the run's
   `mutation-report` artifact so review tooling can diff the score run-over-run.
