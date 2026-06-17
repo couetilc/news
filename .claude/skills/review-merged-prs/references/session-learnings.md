@@ -2,9 +2,22 @@
 
 These lessons came from the initial in-context monitoring session for this repo.
 
-- Stop the watch loop when a merge is detected. Review one batch, file any
-  finding-issues, apply the `agent-reviewed` label, verify the detector is clean,
-  then restart the loop.
+- Drive the watch as a harness background task, never a model-paced loop. The
+  original loop leaned on the model choosing to re-invoke itself — it would end
+  the turn, get compacted, or treat the task as done, and the watch silently
+  died, while every idle poll still burned a turn. Launch the watcher with
+  `run_in_background` instead: idle polls stay off the wake path (zero tokens),
+  and a delta (exit `2`) re-invokes the agent exactly once with the payload. See
+  SKILL.md "Watch mechanism".
+- When a watcher wakes you, review the one batch, file any finding-issues, apply
+  the `agent-reviewed` label (or bump the heavy-run marker with `--mark`), verify
+  the detector is clean, then **re-launch the watcher before the turn ends**.
+  Re-arming is mechanical, not a remembered choice — a disarmed watch at
+  turn-end is the failure mode this rework exists to prevent.
+- For heavy runs (mutation/e2e/fuzz) there is no PR label to mark reviewed, so
+  the idempotency marker is a per-kind last-reviewed-run-id file. First sight of
+  a kind seeds the baseline silently — a first run has nothing to diff against;
+  the signal is the *next* run's delta (baseline→delta, per #227).
 - Always fast-forward local `main` before validating. PR diffs can miss
   interactions with previously merged work.
 - If you fetched PR diffs before fast-forwarding, re-read the final files after
