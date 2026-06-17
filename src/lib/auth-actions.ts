@@ -8,7 +8,8 @@
 // so the page decides the HTTP shape and the same logic is unit-testable.
 
 import { createUser, findUserByEmail } from './users';
-import { hashPassword, isValidEmail, isValidPassword, normalizeEmail, verifyPassword } from './auth';
+import { isValidEmail, isValidPassword, normalizeEmail } from './auth';
+import { hashPassword, verifyPassword } from './auth-crypto';
 
 export type AuthResult =
 	| { ok: true; userId: number }

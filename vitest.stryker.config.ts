@@ -14,6 +14,7 @@ import { defineConfig } from 'vitest/config';
 // scoped to the pure-logic modules whose tests run in a plain node environment
 // with zero Cloudflare/D1/workerd dependencies (each spec → the module it
 // mutates; kept in lockstep with `mutate` in stryker.config.json):
+//   • src/lib/auth.ts                ← test/auth-validate.test.ts + test/auth-validate.prop.test.ts
 //   • src/lib/pagination.ts          ← test/pagination.test.ts
 //   • src/lib/return-path.ts         ← test/return-path.test.ts
 //   • src/lib/log.ts                 ← test/log.test.ts
@@ -31,13 +32,16 @@ import { defineConfig } from 'vitest/config';
 // feed fixtures — never `cloudflare:test`, D1, or WebCrypto — so they run here
 // unchanged. Modules that genuinely require the workers pool (the D1 data layer:
 // users.ts, auth-actions.ts, ingest run/db) or a page render (format/session/
-// deploy), plus auth.ts (node-runnable but slow under 100k-iter PBKDF2 mutation),
-// are out of scope — see stryker.config.json for the rationale.
+// deploy), plus auth-crypto.ts (the Web Crypto shell — node-runnable but slow
+// under 100k-iter PBKDF2 mutation, and crypto can't be meaningfully mutated;
+// #228), are out of scope — see stryker.config.json for the rationale.
 export default defineConfig({
 	test: {
 		name: 'stryker',
 		environment: 'node',
 		include: [
+			'test/auth-validate.test.ts',
+			'test/auth-validate.prop.test.ts',
 			'test/pagination.test.ts',
 			'test/return-path.test.ts',
 			'test/log.test.ts',
