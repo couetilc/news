@@ -70,6 +70,47 @@ const CORE_WITHOUT_ISOLATED_TEST: Record<string, string> = {
 	// not here.
 };
 
+// MUTATE→SPEC lockstep map (#237). The testing skill documents that bringing a
+// pure module into Stryker requires updating BOTH stryker.config.json `mutate`
+// AND the include in vitest.stryker.config.ts in lockstep. The guards above
+// enforce the source-classification side; this map closes the second half:
+// every `mutate` source file lists the plain-node spec(s) that exercise it, and
+// the test below asserts each appears in the Stryker vitest include. So a new
+// `mutate` entry whose spec was never added to that include red-fails `npm
+// test`. The map is also asserted EXHAUSTIVE over `mutate` (a `mutate` entry
+// with no mapping is itself caught), so there's no silent gap. Spec paths are
+// repo-relative, matching the include's own form.
+const MUTATE_SPECS: Record<string, string[]> = {
+	'src/lib/auth.ts': ['test/auth-validate.test.ts', 'test/auth-validate.prop.test.ts'],
+	'src/lib/deploy.ts': ['test/deploy.test.ts'],
+	'src/lib/pagination.ts': ['test/pagination.test.ts'],
+	'src/lib/return-path.ts': ['test/return-path.test.ts'],
+	'src/lib/log.ts': ['test/log.test.ts'],
+	'src/lib/email.ts': ['test/email.test.ts'],
+	'src/ingest/validate.ts': ['test/validate.test.ts'],
+	'src/ingest/sources.ts': ['test/sources.test.ts'],
+	'src/ingest/parse/atom.ts': ['test/parse-atom.test.ts'],
+	'src/ingest/parse/rss20.ts': ['test/parse-rss20.test.ts'],
+	'src/ingest/parse/aws-whats-new.ts': ['test/parse-aws-whats-new.test.ts'],
+	'src/ingest/parse/sec-edgar.ts': ['test/parse-sec-edgar.test.ts'],
+	'src/ingest/parse/ti-newsroom.ts': ['test/parse-ti-newsroom.test.ts'],
+	'src/ingest/parse/entities.ts': ['test/parse-entities.test.ts'],
+	'src/ingest/parse/count.ts': ['test/count.test.ts'],
+	'src/ingest/parse/dates.ts': ['test/dates.test.ts'],
+};
+
+// Read the include list out of vitest.stryker.config.ts itself (its default
+// export is a plain `defineConfig` object, so a dynamic import resolves it via
+// vite's transform — no network, no regex). This is the same array Stryker's
+// vitest-runner uses, so asserting against it tracks the real config, not a copy.
+async function strykerVitestInclude(): Promise<string[]> {
+	const mod = await import('../vitest.stryker.config.ts');
+	const include = (mod.default as { test?: { include?: string[] } }).test?.include;
+	if (!Array.isArray(include))
+		throw new Error('vitest.stryker.config.ts test.include is not an array');
+	return include;
+}
+
 function listSources(): string[] {
 	const out: string[] = [];
 	const walk = (absDir: string) => {
@@ -147,5 +188,26 @@ describe('Stryker mutate-scope is self-maintaining (#229)', () => {
 		for (const reason of Object.values(GLUE_ALLOWLIST)) expect(reason.length).toBeGreaterThan(0);
 		for (const reason of Object.values(CORE_WITHOUT_ISOLATED_TEST))
 			expect(reason.length).toBeGreaterThan(0);
+	});
+
+	// #237: lockstep with the vitest.stryker.config.ts include list. The guards
+	// above keep the SOURCE classification honest; these two keep the second
+	// hand-listed half (the Stryker vitest include) from drifting out of sync.
+
+	it('the MUTATE_SPECS map is exhaustive over `mutate` (no unmapped entry)', () => {
+		// Every `mutate` entry must declare its spec(s); a new `mutate` entry with
+		// no mapping red-fails here, so the include check below can't be silently
+		// bypassed. Also asserts no stale mapping for a non-`mutate` module.
+		expect(Object.keys(MUTATE_SPECS).sort()).toEqual([...mutate].sort());
+	});
+
+	it('every `mutate` module’s spec is in the vitest.stryker.config.ts include', async () => {
+		const include = await strykerVitestInclude();
+		const required = [...new Set(Object.values(MUTATE_SPECS).flat())].sort();
+		const missing = required.filter((spec) => !include.includes(spec));
+		// A pure module added to stryker `mutate` without its plain-node spec added
+		// to vitest.stryker.config.ts `include` red-fails here — close the lockstep
+		// gap the testing skill documents (#237). Add the spec to that include.
+		expect(missing).toEqual([]);
 	});
 });
