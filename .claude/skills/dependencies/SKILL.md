@@ -42,6 +42,10 @@ Judge a dependency by where it runs, because the costs differ:
   *must* still work in the relevant vitest pool(s) and preserve the **hermetic,
   no-network** rule. `msw` (mocking outbound HTTP in tests, vs. the current
   `fetchFn` injection) is a dev/test dep.
+- **Prefer a reputable dev-only dep over an undocumented config workaround —
+  leanness shouldn't buy a fragile hack.** When the alternative to a small,
+  vetted dev dep is a brittle config trick (e.g. a fake/empty tsconfig to dodge a
+  missing peer the tool would otherwise silently misread), take the dep.
 
 **Agents are encouraged to propose *either* kind when warranted.** The human gate
 (below) is the cheap backstop: a too-eager proposal costs one "no"; a *missed*

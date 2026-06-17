@@ -143,22 +143,31 @@ hermetic pools *can't* exercise, never as a substitute for a unit test.
 
 `src/scripts/**` ships to the browser, but it's **pure DOM logic**, so it's
 **unit-tested and stays inside the 100% `src/**` gate** — not carved out, not
-left to e2e. `src/scripts/enhance-forms.ts` (the ClientRouter-safe delegated
-async-feedback initializer) + `test/enhance-forms.test.ts` is the canonical
-example. The pattern:
+left to e2e. The shared setup:
 
 - The spec lives in the **node** project under a per-file
   `// @vitest-environment happy-dom` docblock (first line of the test), so
-  `document` / `HTMLFormElement` / `SubmitEvent` resolve. The workerd pool can't
-  host a DOM environment, so add the spec to **`vitest.node.config.ts`'s
-  `include` and `vitest.workers.config.ts`'s `exclude`** (`happy-dom` is a
-  devDependency).
-- `import` the module for its **side effect** — that registers its real listener
-  (`enhance-forms.ts` adds one delegated `submit` listener on `document`).
-- Assert behavior by **dispatching real events at that registered listener**
-  (`form.dispatchEvent(new Event('submit', { bubbles: true }))`) and checking the
-  resulting DOM state — not by hand-calling an exported function. Drive every
-  branch this way to hold the gate.
+  `document` / `HTMLFormElement` / `SubmitEvent` / `IntersectionObserver` resolve.
+  The workerd pool can't host a DOM environment, so add the spec to
+  **`vitest.node.config.ts`'s `include` and `vitest.workers.config.ts`'s
+  `exclude`** (`happy-dom` is a devDependency).
+
+Then drive every branch one of **two valid ways**, depending on how the module
+exposes its behavior:
+
+- **Side-effect listener modules** (`enhance-forms.ts` + `test/enhance-forms.test.ts`):
+  `import` the module for its **side effect** — that registers its real listener
+  (one delegated `submit` listener on `document`) — and assert by **dispatching
+  real events at that listener** (`form.dispatchEvent(new Event('submit', {
+  bubbles: true }))`), checking the resulting DOM state. There's no seam to call
+  directly, so the dispatch *is* the test.
+- **Modules with an intentionally exported initializer**
+  (`infinite-scroll.ts#initInfiniteScroll` + `test/infinite-scroll.test.ts`):
+  **calling the exported initializer directly is fine** for focused DOM
+  setup/branch tests (it's a clean unit seam) — while **still covering the
+  registered event path** (dispatch the real `astro:page-load` /
+  `DOMContentLoaded`) where that wiring matters. Direct invocation is not
+  forbidden; it's the right tool when the module deliberately exports the seam.
 
 This refines the unit-vs-e2e line above: **pure-DOM client logic is
 unit-testable** and belongs in the gate; only **full-browser behavior** (real
@@ -184,6 +193,80 @@ array or throws *only* the documented error. A parser returning `[]` from a
 non-empty payload is what `src/ingest/validate.ts` flags as an `ingest.anomaly`,
 so graceful-empty + that signal is the intended path, not a crash.
 
+## Beyond coverage: property + mutation testing
+
+Coverage is the floor. Two efficacy tools probe what coverage can't see — *do my
+assertions hold across inputs I didn't enumerate*, and *do they actually catch a
+fault*.
+
+### Property testing (fast-check)
+
+A devDependency. Reach for it when a function has an **invariant that should hold
+across a whole input space** the enumerated example tests can't reach — pagination
+math, the email/password validators, the record-envelope parser, and (above all)
+**fuzzing the untrusted-input parsers** for the contract above (never throws
+except the documented guard; otherwise a well-formed `ParsedItem[]`). Canonical
+examples: `test/pagination.prop.test.ts`, `test/auth-validate.prop.test.ts`,
+`test/parse-fuzz.test.ts`.
+
+- **Seed for determinism** — pass `{ seed: … }` to `fc.assert` so any failure is
+  reproducible (the repo uses `const SEED = 0x163`).
+- **Guard against vacuous properties.** A property that's trivially true catches
+  nothing. A positive roundtrip needs a **negative cross-check** (assert the
+  malformed/below-floor cases are *rejected*, not just that the good ones pass);
+  **pin canonical matches** with `toEqual` on the exact reconstructed value, not
+  `toBeDefined`. Ask the same question as for any assertion: invert it — does it
+  still pass? Then it's vacuous.
+
+### Mutation testing (Stryker)
+
+**Advisory / on-demand** — `npm run test:mutation` (~22s), **not** in the
+per-commit gate and not in `npm test`; coverage stays the floor. It injects
+faults into the in-scope modules and checks the suite **kills** them. Read a
+**survivor as a weak or missing assertion** — a covered line whose value nothing
+pinned. But **distinguish equivalent mutants** (a redundant guard, log text, or
+registry data where the mutation can't change observable behavior) from a real
+gap; only the latter is worth a new assertion. Config + rationale live in
+`stryker.config.json`.
+
+### The decision rule: workerd-parity vs mutation-reach
+
+For each `src/**` module, ask: **does this code's behavior depend on the workerd
+runtime** (D1/KV/`cloudflare:workers` env, the CPU + PBKDF2 caps, `ON CONFLICT`)?
+
+- **No → pure (functional core).** Write plain-node-runnable tests so the module
+  is **mutation-reachable**; it *still* runs in the workers pool for coverage.
+- **Yes → glue (imperative shell).** Keep its tests in the workers pool for
+  parity; it's **out of mutation scope**.
+
+This is the functional-core / imperative-shell lever: split a module so the
+mutation-worthy logic is pure. The canonical example is the **`auth.ts` ↔
+`auth-crypto.ts` split (#228)** — the validators + the password-record envelope
+parser went into pure `auth.ts` (in mutation scope, fast plain-node tests), while
+the Web Crypto PBKDF2 shell stayed in `auth-crypto.ts` (glue, out of scope).
+
+### Stryker lockstep + the M2 enforcement test
+
+Mutation scope = the **core** (`src/lib/**` + `src/ingest/**`) **minus two
+allowlists**: a **glue-allowlist** (workerd-bound modules) and a
+**core-without-isolated-test allowlist** (pure modules covered only via `.astro`
+render tests, so not yet mutation-reachable). Framework-fixed dirs
+(`pages`/`middleware`/`worker`/`components`/`scripts`) and `*.d.ts`/type-only
+modules are always out.
+
+`test/stryker-scope.test.ts` (the M2 guard, in `npm test`) keeps this
+self-maintaining: it marker-scans every source file and asserts the glue-allowlist
+**exactly equals** the detected glue set and every pure module is in `mutate` or
+the core-without-test allowlist. So scope **can't silently rot** — drift
+red-fails until you classify it:
+
+- **Adding a pure, plain-node-tested module** → add it to `mutate` in
+  `stryker.config.json` **and** to the `include` in `vitest.stryker.config.ts`
+  (keep the two in lockstep).
+- **Adding a glue module** → add it to the M2 test's glue-allowlist with a reason.
+- **Adding a pure module not yet given a dedicated plain-node spec** → add it to
+  the core-without-test allowlist with a reason (and prefer giving it one).
+
 ## Before you commit a test
 
 1. `npm test` green at **100%** (all four metrics) — must pass before any commit.
@@ -195,6 +278,10 @@ so graceful-empty + that signal is the intended path, not a crash.
 5. **No network** — fixtures under `test/fixtures/` or an injected `fetchFn`.
 6. A new conditional didn't add an **uncovered "impossible" branch** (prefer a
    type-level guarantee over an unreachable runtime guard).
+7. A new `src/lib/**` or `src/ingest/**` module is **classified for mutation
+   scope** (`test/stryker-scope.test.ts` enforces it): pure+tested → `mutate` +
+   `vitest.stryker.config.ts` `include`; glue → glue-allowlist; pure-untested →
+   core-without-test allowlist.
 
 ## Cross-references
 

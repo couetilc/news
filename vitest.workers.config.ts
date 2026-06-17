@@ -42,6 +42,9 @@ export default defineConfig({
 			// environment the workerd pool can't provide; they run in the node project.
 			'test/enhance-forms.test.ts',
 			'test/infinite-scroll.test.ts',
+			// Reads sources + stryker.config.json off disk via node:fs — runs in the
+			// node project, not the workerd pool (#229).
+			'test/stryker-scope.test.ts',
 		],
 		setupFiles: ['./test/helpers/apply-migrations.ts'],
 	},
