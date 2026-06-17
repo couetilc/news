@@ -1,5 +1,6 @@
 import type { ParsedItem } from '../types';
 import { parseRfc822 } from './dates';
+import { decodeEntities } from './entities';
 
 // The AWS What's New search API (aws.amazon.com/api/dirs/items/search) returns
 // JSON, not a feed: a top-level `items` array where each element wraps the
@@ -67,9 +68,10 @@ export function parseAwsWhatsNew(json: string): ParsedItem[] {
 		items.push({
 			guid,
 			url: headlineUrl ? absoluteUrl(headlineUrl) : guid,
-			title: textOf(fields.headline) ?? '',
-			// The What's New post body is the full announcement, not a teaser, so
-			// it's the content; there's no separate summary field.
+			// Decode HTML entities in the plain-text headline (#224), consistent with
+			// the other parsers. There is no summary; postBody is full HTML (left
+			// as-is — entity decoding is for plain-text fields, not contentHtml).
+			title: decodeEntities(textOf(fields.headline) ?? ''),
 			summary: null,
 			contentHtml: textOf(fields.postBody),
 			publishedAt: parseRfc822(textOf(fields.postDateTime)),

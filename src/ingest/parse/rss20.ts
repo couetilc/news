@@ -1,6 +1,7 @@
 import { XMLParser } from 'fast-xml-parser';
 import type { ParsedItem } from '../types';
 import { parseRfc822 } from './dates';
+import { decodeEntities, decodeText } from './entities';
 
 export interface Rss20Options {
 	// Where an item's full HTML lives. Feeds with a `content:encoded` element
@@ -68,8 +69,12 @@ export function parseRss20(xml: string, opts: Rss20Options): ParsedItem[] {
 		items.push({
 			guid,
 			url: textOf(item.link) ?? guid,
-			title: textOf(item.title) ?? '',
-			summary,
+			// Decode HTML entities in the plain-text fields (#224): some feeds
+			// (science-daily) are double-encoded, so `&amp;#039;` arrives here as
+			// `&#039;` and must become `'`. `summary` is the description routed to a
+			// summary; `contentHtml` carries markup and is deliberately left as-is.
+			title: decodeEntities(textOf(item.title) ?? ''),
+			summary: decodeText(summary),
 			contentHtml,
 			publishedAt: parseRfc822(textOf(item.pubDate)),
 		});

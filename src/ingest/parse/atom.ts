@@ -1,6 +1,7 @@
 import { XMLParser } from 'fast-xml-parser';
 import type { ParsedItem } from '../types';
 import { parseRfc822 } from './dates';
+import { decodeEntities, decodeText } from './entities';
 
 export interface AtomOptions {
 	// Where an entry's body lives, mirroring Rss20Options.content. Atom feeds vary:
@@ -121,8 +122,11 @@ export function parseAtom(xml: string, opts: AtomOptions): ParsedItem[] {
 		items.push({
 			guid,
 			url: url ?? guid,
-			title: textOf(entry.title) ?? '',
-			summary: summaryOut,
+			// Decode HTML entities in the plain-text fields (#224), consistent with
+			// the RSS parser. `summaryOut` is a teaser/summary; `contentOut` carries
+			// markup and is left as-is.
+			title: decodeEntities(textOf(entry.title) ?? ''),
+			summary: decodeText(summaryOut),
 			contentHtml: contentOut,
 			publishedAt: parseRfc822(published),
 		});

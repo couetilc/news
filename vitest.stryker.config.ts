@@ -27,6 +27,7 @@ import { defineConfig } from 'vitest/config';
 //   • src/ingest/parse/aws-whats-new.ts ← test/parse-aws-whats-new.test.ts
 //   • src/ingest/parse/sec-edgar.ts  ← test/parse-sec-edgar.test.ts
 //   • src/ingest/parse/ti-newsroom.ts ← test/parse-ti-newsroom.test.ts
+//   • src/ingest/parse/entities.ts   ← test/parse-entities.test.ts
 //   • src/ingest/parse/count.ts      ← test/count.test.ts
 //   • src/ingest/parse/dates.ts      ← test/dates.test.ts
 // These specs import only `vitest`, the module under test, and (some) `?raw`
@@ -55,6 +56,7 @@ export default defineConfig({
 			'test/parse-aws-whats-new.test.ts',
 			'test/parse-sec-edgar.test.ts',
 			'test/parse-ti-newsroom.test.ts',
+			'test/parse-entities.test.ts',
 			'test/count.test.ts',
 			'test/dates.test.ts',
 		],
