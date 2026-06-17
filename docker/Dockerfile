@@ -82,6 +82,27 @@ ENV DISABLE_AUTOUPDATER=1
 # execution surface is dropped.
 RUN npm install -g --prefix /home/node/.local @openai/codex \
 	&& codex --version
+
+# uv (Astral) — runs Python-based repo/tooling scripts without a system Python
+# or root, e.g. the Codex skill validator
+# /home/node/.codex/skills/.system/skill-creator/scripts/quick_validate.py
+# (`uv run --with pyyaml python <script>`); `uv run --with <pkg>` covers ad-hoc
+# package needs at runtime. Just the runner capability — not blanket approval
+# for other Python packages. Pinned, arch-matched static binary from upstream
+# releases (uv's own install.sh bakes in its version and can't be pinned via
+# env), extracted into the same node-owned ~/.local/bin as claude/codex
+# (already on PATH) so `--clean` rebuilds refresh it. The glibc (-gnu) build
+# matches this node:24-slim (Debian) base. Bump the pin as upstream releases.
+ARG UV_VERSION=0.11.21
+RUN arch=$(dpkg --print-architecture) && case "$arch" in \
+		amd64) uv_arch=x86_64-unknown-linux-gnu ;; \
+		arm64) uv_arch=aarch64-unknown-linux-gnu ;; \
+		*) echo "unsupported arch $arch" && exit 1 ;; esac \
+	&& curl -fsSL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${uv_arch}.tar.gz" \
+		| tar -xz -C /home/node/.local/bin --strip-components=1 \
+			"uv-${uv_arch}/uv" "uv-${uv_arch}/uvx" \
+	&& uv --version
+
 # Marks this as a sandboxed environment for claude (kept as verified
 # working config). The --dangerously-skip-permissions acceptance dialog is
 # pre-accepted via skipDangerousModePermissionPrompt in the seeded user
