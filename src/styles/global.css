@@ -97,7 +97,11 @@
 	 *      shifts the opened headline link toward the muted ink, a calm "already
 	 *      seen" cue that works with JavaScript off and needs zero stored state. The
 	 *      data-visited-link headline <a> is targeted so a visited <time>/source link
-	 *      elsewhere can't catch this. The <h2> inherits the link's color.
+	 *      elsewhere can't catch this. Only the <a> is styled — the <h2> INHERITS the
+	 *      muted link color at rest; deliberately NOT a descendant `…:visited h2` rule
+	 *      (#273), which would out-specify the headline's group-hover/group-focus-visible
+	 *      :text-accent utilities and trap an opened headline muted on hover/focus.
+	 *      Inheriting lets those interaction utilities set an explicit color and win.
 	 *
 	 *   2. [data-visited] — the richer, reliable layer src/scripts/visited.ts drives
 	 *      from localStorage (records exactly the links opened FROM the feed). It
@@ -108,8 +112,7 @@
 	 * Both stay in newsprint voice (muted ink + a hairline rule), never the accent
 	 * red (reserved for interaction) and never the read square's fill.
 	 */
-	a[data-visited-link]:visited,
-	a[data-visited-link]:visited h2 {
+	a[data-visited-link]:visited {
 		color: var(--color-muted);
 	}
 
