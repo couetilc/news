@@ -75,3 +75,53 @@ describe('Layout masthead session control (#128)', () => {
 		expect(html).toContain('absolute');
 	});
 });
+
+describe('Layout masthead colophon (#271, #272)', () => {
+	it('carries the colophon line in the always-visible masthead, not a bottom footer', async () => {
+		const html = await render({ userId: 7 });
+
+		// #271: the colophon moved out of the bottom footer (which receded below
+		// the infinite-scroll feed) into the masthead, so it reads on every page.
+		expect(html).toContain('A personal news aggregator · news.cuteteal.com');
+
+		// The bottom <footer> is gone — its content now lives in the masthead.
+		expect(html).not.toContain('<footer');
+
+		// It sits inside the masthead <header>, ahead of <main>, not after it: the
+		// colophon precedes the slotted feed body in document order.
+		const colophonAt = html.indexOf('A personal news aggregator');
+		const mainAt = html.indexOf('<main');
+		expect(colophonAt).toBeGreaterThan(-1);
+		expect(mainAt).toBeGreaterThan(colophonAt);
+	});
+
+	it('links to the public /status page from the masthead colophon (text-link idiom #129)', async () => {
+		const html = await render({ userId: 7 });
+
+		// #272: a discreet "Status" text-link surfaces the otherwise-orphaned
+		// public /status page.
+		expect(html).toContain('href="/status"');
+		expect(html).toContain('>Status</a>');
+
+		// The text-link affordance: a resting underline, accent on hover, and the
+		// focus-visible ring (#129), mirroring the masthead Log in link.
+		const statusLink = html.slice(
+			html.indexOf('href="/status"'),
+			html.indexOf('>Status</a>'),
+		);
+		expect(statusLink).toContain('underline');
+		expect(statusLink).toContain('hover:text-accent');
+		expect(statusLink).toContain('focus-visible:outline-ink');
+	});
+
+	it('shows the colophon + Status link for anonymous visitors too', async () => {
+		// /status is public (prerender=true, deploy metadata only), so the link is
+		// fine to show whether or not a user is logged in. The shared Layout means
+		// /login, /signup, /status all render it as well.
+		const html = await render({});
+
+		expect(html).toContain('A personal news aggregator · news.cuteteal.com');
+		expect(html).toContain('href="/status"');
+		expect(html).not.toContain('<footer');
+	});
+});

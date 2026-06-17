@@ -92,15 +92,30 @@ const isAuthed = Astro.locals.userId !== undefined;
 				>
 					All the feeds fit to print
 				</p>
+				{/* Colophon (#271): the bottom footer used to carry this line, but on the
+				    authenticated feed the infinite scroll (#151) keeps appending pages so
+				    the footer perpetually recedes below the fold and is effectively
+				    unreachable. Relocated into the always-visible masthead so it reads on
+				    every page, at the same agate scale as the dateline/tagline so it sits
+				    as a subtle colophon subtitle rather than crowding the nameplate. The
+				    "Status" link (#272) surfaces the otherwise-orphaned public /status
+				    page (deploy metadata only, prerendered) — the text-link idiom (#129),
+				    matching the Log in link: a resting hairline underline, accent on
+				    hover, a focus-visible ring. */}
+				<p
+					class="mt-1 font-sans text-[0.6rem] tracking-wide text-muted sm:text-xs"
+				>
+					A personal news aggregator · news.cuteteal.com ·{' '}
+					<a
+						href="/status"
+						class="text-ink-soft underline underline-offset-2 hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+						>Status</a
+					>
+				</p>
 			</header>
 			<main class="py-5 sm:py-6">
 				<slot />
 			</main>
-			<footer
-				class="border-t border-rule py-6 text-center font-sans text-xs text-muted"
-			>
-				<p>A personal news aggregator · news.cuteteal.com</p>
-			</footer>
 		</div>
 		{/* Sign-out enhancement (#96), progressive: the no-JS POST /logout → 303 →
 		    /login is the source of truth (and POST-only, so a prefetch can't fire
