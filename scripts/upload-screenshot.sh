@@ -31,7 +31,9 @@
 #      the CI deploy. See .env.example for the full scope list.
 #   2. After the first deploy auto-creates the `news-cdn` bucket, attach its
 #      custom domain (NOT declarable in wrangler.jsonc — done via the CLI once):
-#        npx wrangler r2 bucket domain add news-cdn news-cdn.cuteteal.com
+#        npx wrangler r2 bucket domain add news-cdn \
+#          --domain news-cdn.cuteteal.com \
+#          --zone-id 1413a4570fa6e193d5f224ebb5220bb5
 #      That provisions the DNS record + cert on the cuteteal.com zone, so the
 #      printed https://news-cdn.cuteteal.com/... URLs resolve.
 #

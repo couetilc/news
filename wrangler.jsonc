@@ -51,7 +51,8 @@
 			// via R2's NATIVE custom domain (CDN-cached, free egress, no Worker in
 			// the request path). The custom domain itself is NOT declarable here
 			// (the r2_buckets binding has no domain field) — it's attached once via
-			// `wrangler r2 bucket domain add news-cdn news-cdn.cuteteal.com`.
+			// `npx wrangler r2 bucket domain add news-cdn --domain
+			// news-cdn.cuteteal.com --zone-id 1413a4570fa6e193d5f224ebb5220bb5`.
 			// First use: PR screenshots under the pr-screenshots/<issue>/ prefix
 			// (see scripts/upload-screenshot.sh + the design-system skill).
 			// CI's CLOUDFLARE_API_TOKEN needs R2 read/write + provisioning scope so
