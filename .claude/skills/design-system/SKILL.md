@@ -348,3 +348,59 @@ this feel app-y?".
 `src/lib/**` count. Keep presentational helpers branch-free (see
 `src/lib/format.ts` — fixed name tables, no conditionals) and make sure any new
 component is actually rendered by a test, or the gate fails.
+
+## Screenshots for visual changes
+
+This skill governs look-and-feel by review, and a visual change is reviewed by
+eye — so the review has to *see* it. **Any PR that changes what a page or
+component looks like ships before/after screenshots in the PR body.** A unit
+test asserting markup is not a substitute; a reviewer can't tell from a diff
+whether the read square sits right or the dateline reads as agate.
+
+**Capture against the real app**, not a fixture render. Drive the running app
+with the container's baked headless Chromium the way the `verify`/`run` skills
+describe:
+
+- Start the dev server on workerd and bind all interfaces:
+  `npm run dev -- --host`, then point the browser at `http://$DEV_HOST_4321/`
+  (the in-container `localhost:4321` is a different host port — see the
+  agentic-environments skill).
+- Seed a little D1 so the feed isn't empty, and sign in so authenticated states
+  (read/unread, the visited tag) actually render — capture the *states that
+  matter* to the change, not just one happy shot.
+- Launch Chromium with `chromium.launch({ args: ['--no-sandbox'] })` — non-root
+  Chromium in the container can't use the sandbox (throwaway container, so it's
+  fine).
+
+**Attach by uploading the PNGs to R2**, not by committing them to git. Binaries
+must not accumulate in `main`'s history. Use the helper:
+
+```
+scripts/upload-screenshot.sh <issue-number> before docs/screenshot-before.png
+scripts/upload-screenshot.sh <issue-number> after  docs/screenshot-after.png
+```
+
+It puts each PNG to the `news-screenshots` R2 bucket (`--remote`) and prints the
+public URL. Embed those URLs in the PR body so GitHub renders them inline:
+
+```markdown
+**Before**
+
+![before](https://pub-<hash>.r2.dev/<issue>/before.png)
+
+**After**
+
+![after](https://pub-<hash>.r2.dev/<issue>/after.png)
+```
+
+Worked example of what good before/after shots look like: the visited-indicator
+PR #269 (issue #263) — a "before any item opened" shot and an "after the first
+two opened" shot, each showing the exact states the change touches.
+
+Why R2 and not a Worker binding: the Worker never serves these images, so the
+bucket is a **dev artifact store**, not Worker infrastructure. It is documented
+in `.env.example` and this skill rather than declared in `wrangler.jsonc` (that
+rule is for Worker-bound resources). The upload uses the local/container
+`CLOUDFLARE_API_TOKEN` (it needs the *Workers R2 Storage: Edit* scope); CI never
+uploads screenshots. If the token lacks the R2 scope or the bucket isn't set up,
+the helper's header explains the one-time activation steps.
