@@ -33,6 +33,8 @@ export default defineConfig({
 			'test/feed.test.ts',
 			'test/layout.test.ts',
 			'test/status.test.ts',
+			// Plain-node deployInfo() unit spec — runs in the node project (#236).
+			'test/deploy.test.ts',
 			'test/public.test.ts',
 			'test/article.test.ts',
 			'test/worker.test.ts',
