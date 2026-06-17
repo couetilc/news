@@ -17,7 +17,9 @@
 # Triggers:
 #   • pull_request     — a per-PR advisory smoke run.
 #   • schedule         — a nightly sweep, so the detector (default event:
-#     schedule) surfaces a baseline→delta run-over-run report.
+#     schedule) surfaces a baseline→delta run-over-run report. Additionally
+#     CHANGE-GATED in-job against the last successful run's SHA (skip when
+#     nothing relevant changed) — mirrors mutation.yml.
 #   • workflow_dispatch — on demand.
 name: E2E (advisory)
 
@@ -51,23 +53,76 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@v6
+        with:
+          # fetch-depth: 0 so the scheduled change-gate can `git diff` against an
+          # arbitrary earlier SHA (the last successful run), not just HEAD~1.
+          fetch-depth: 0
+
+      # CHANGE-GATE (scheduled runs only). A nightly sweep is wasted work when no
+      # relevant input changed since the last green run. Resolve the head SHA of
+      # the most recent successful run of THIS workflow and diff against it over
+      # the inputs that can affect e2e results; if nothing changed, skip the rest
+      # of the job. pull_request/dispatch runs skip this step (PR advisory runs
+      # always; dispatch is an explicit human request — always run). Mirrors
+      # mutation.yml's change-gate step.
+      - name: Change-gate (scheduled)
+        id: gate
+        if: github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          last_sha="$(gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/e2e.yml/runs?status=success&event=schedule&per_page=1" \
+            --jq '.workflow_runs[0].head_sha' 2>/dev/null || true)"
+          if [ -z "$last_sha" ] || [ "$last_sha" = "null" ]; then
+            echo "No prior successful scheduled run — running the full sweep."
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git cat-file -e "${last_sha}^{commit}" 2>/dev/null; then
+            if git diff --quiet "$last_sha" HEAD -- src test e2e '*.config.ts' package.json package-lock.json .github/workflows/e2e.yml; then
+              echo "No relevant change since $last_sha — skipping the nightly sweep."
+              echo "run=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "Relevant change since $last_sha — running."
+              echo "run=true" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "Last SHA $last_sha not in history (force-push?) — running to be safe."
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # `should_run` is true unless the scheduled change-gate explicitly skipped.
+      - name: Decide whether to run
+        id: decide
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "${{ steps.gate.outputs.run }}" = "false" ]; then
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/setup-node@v6
+        if: steps.decide.outputs.should_run == 'true'
         with:
           node-version: 24
           cache: npm
       - run: npm ci
+        if: steps.decide.outputs.should_run == 'true'
       # System deps + the Chromium build the pinned @playwright/test expects. (The
       # agent container bakes its own browser at PLAYWRIGHT_BROWSERS_PATH; CI does not.)
       - run: npx playwright install --with-deps chromium
+        if: steps.decide.outputs.should_run == 'true'
       # GitHub sets CI=true, which flips playwright.config.ts to retries:1 + the
       # json/github reporters. Chromium runs --no-sandbox via the config's launchOptions.
       - run: npm run test:e2e
+        if: steps.decide.outputs.should_run == 'true'
       # Machine-readable result + traces for review tooling to diff run-over-run
       # (new failures vs. known flakes). `always()` so it uploads even when the
       # suite fails. `if-no-files-found: ignore` since playwright-report may be
       # absent if the run dies before any reporter writes.
       - name: Upload e2e report
-        if: always()
+        if: steps.decide.outputs.should_run == 'true' && always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
