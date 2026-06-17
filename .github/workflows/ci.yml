@@ -5,12 +5,6 @@ on:
   push:
     branches: [main]
 
-env:
-  # GitHub forces JS actions onto Node 24 from 2026-06-16; wrangler-action@v3
-  # still declares Node 20. Opt in early so breakage surfaces in a PR, not on
-  # the forced-switch date.
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -65,6 +59,10 @@ jobs:
       # Uses the repo's wrangler from node_modules and the config redirect
       # `astro build` emits (dist/server/wrangler.json). account_id lives in
       # wrangler.jsonc; only the API token is secret.
-      - uses: cloudflare/wrangler-action@v3
+      # Pinned to v4.0.0+: its action.yml declares `runs.using: node24`, so the
+      # deploy no longer triggers GitHub's "Node.js 20 is deprecated" warning.
+      # The repo uses its own wrangler from node_modules, so v4's bumped default
+      # Wrangler CLI version doesn't affect this deploy.
+      - uses: cloudflare/wrangler-action@v4.0.0
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
