@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
-  "_comment": "Out-of-band, on-demand mutation testing (advisory) — `npm run test:mutation` (issue #164). Measures TEST EFFICACY, the axis the 100% coverage gate can't see: it injects faults into the in-scope modules and checks the suite KILLS them (a surviving mutant is a covered-but-weakly-asserted line). NOT a CI gate and NOT part of `npm test` — the nightly/workflow_dispatch advisory job is a separate, currently-blocked follow-up (#166). SCOPE: pure-logic modules only (`mutate` below). Stryker's vitest-runner re-runs vitest under instrumentation many times; the @cloudflare/vitest-pool-workers pool (live miniflare/D1 per file) is not a fit for that loop, so mutation is scoped to modules whose specs run in a plain node vitest config (vitest.stryker.config.ts — no Cloudflare plugin). EXCLUDED for now (their tests genuinely need the workers pool): src/lib/auth.ts (real workerd WebCrypto/PBKDF2), src/lib/users.ts + src/ingest/** run/db/validate (D1), and all .astro templates (logic-only per #164). Re-scope here as more pure modules become plain-node testable.",
+  "_comment": "Out-of-band, on-demand mutation testing (advisory) — `npm run test:mutation` (issue #164). Measures TEST EFFICACY, the axis the 100% coverage gate can't see: it injects faults into the in-scope modules and checks the suite KILLS them (a surviving mutant is a covered-but-weakly-asserted line). NOT a CI gate and NOT part of `npm test` — the nightly/workflow_dispatch advisory job is a separate, currently-blocked follow-up (#166). SCOPE: pure-logic modules whose specs run in a plain node vitest config (vitest.stryker.config.ts — no Cloudflare plugin), because Stryker's vitest-runner re-runs vitest under instrumentation many times and the @cloudflare/vitest-pool-workers pool (live miniflare/D1 per file) is not a fit for that loop. That covers nearly all the pure logic — the parsers, the pagination/return-path/log/email helpers, ingest validate + the source registry — since their tests import only `vitest`, the module, and (some) `?raw` fixtures, never `cloudflare:test`/D1. EXCLUDED: (1) the D1 data layer (src/lib/users.ts, src/lib/auth-actions.ts, src/ingest/db.ts + run.ts) and Astro-render-only modules (format.ts, session.ts, deploy.ts) — their tests genuinely need the workers pool or a page render; (2) src/lib/auth.ts — its tests run fine in node (Node 24 has the same Web Crypto), but each PBKDF2 call is 100k iterations, so mutating it makes the run slow for little marginal value (its high-value parts are the non-crypto validators); revisit if those are split out. Re-scope `mutate` + the include list in vitest.stryker.config.ts together.",
   "testRunner": "vitest",
   "vitest": {
     "configFile": "vitest.stryker.config.ts"
@@ -9,13 +9,22 @@
   "mutate": [
     "src/lib/pagination.ts",
     "src/lib/return-path.ts",
+    "src/lib/log.ts",
+    "src/lib/email.ts",
+    "src/ingest/validate.ts",
+    "src/ingest/sources.ts",
+    "src/ingest/parse/atom.ts",
+    "src/ingest/parse/rss20.ts",
+    "src/ingest/parse/aws-whats-new.ts",
+    "src/ingest/parse/sec-edgar.ts",
+    "src/ingest/parse/ti-newsroom.ts",
+    "src/ingest/parse/count.ts",
     "src/ingest/parse/dates.ts"
   ],
   "reporters": ["html", "clear-text", "progress"],
   "incremental": false,
   "ignoreStatic": true,
-  "tsconfigFile": "tsconfig.stryker-unused.json",
-  "tsconfigFile_comment": "Pointed at a name NOT in the project so Stryker skips its tsconfig-rewrite preprocessor. That rewrite does `import('typescript')`, but this repo has no direct `typescript` devDep (it uses Astro's bundled TS), so the default (tsconfig.json) crashes with ERR_MODULE_NOT_FOUND. The rewrite isn't needed: the vitest-runner type-strips via esbuild, and the in-scope modules have no project references / path-relative `extends` to fix up.",
+  "tsconfigFile": "tsconfig.json",
   "ignorePatterns": [
     ".codex",
     ".claude",
