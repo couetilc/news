@@ -81,7 +81,7 @@ jobs:
             exit 0
           fi
           if git cat-file -e "${last_sha}^{commit}" 2>/dev/null; then
-            if git diff --quiet "$last_sha" HEAD -- src test '*.config.ts' stryker.config.json package.json package-lock.json; then
+            if git diff --quiet "$last_sha" HEAD -- src test '*.config.ts' stryker.config.json package.json package-lock.json .github/workflows/mutation.yml; then
               echo "No relevant change since $last_sha — skipping the nightly sweep."
               echo "run=false" >> "$GITHUB_OUTPUT"
             else
