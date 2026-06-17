@@ -1,4 +1,4 @@
-# Out-of-band ADVISORY Playwright e2e smoke (issues #77, #256).
+# Out-of-band Playwright e2e smoke (issues #77, #256).
 #
 # Extracted from ci.yml into its own workflow so the heavy-run review detector
 # (.claude/skills/review-merged-prs/scripts/test-runs-needing-review.sh) can find
@@ -6,16 +6,25 @@
 # `mutation|stryker|e2e|playwright|fuzz` and defaults to `schedule` events, then
 # keys a per-kind reviewed-marker off a slug of the workflow name. As an `e2e`
 # job inside the generic `CI` workflow it was invisible to that loop; as its own
-# `E2E (advisory)` workflow it is discoverable and `--mark`-able exactly like the
-# mutation runs. Mirrors mutation.yml's advisory-out-of-band structure.
+# workflow it is discoverable and `--mark`-able exactly like the mutation runs.
+# Mirrors mutation.yml's out-of-band structure.
 #
-# Stays ADVISORY: `continue-on-error: true`, NOT a required status check, NOT a
-# `needs:` of deploy — a failure reports red on the run without blocking
-# merge/deploy. Graduate it to a blocking gate once it's stable and timed (the
-# advisory→blocking path the testing skill names).
+# BLOCKING PR GATE (issue #279, no longer advisory). #257/#277 stabilized the
+# suite (built worker via `astro preview`), so the pull_request job dropped its
+# `continue-on-error: true` mask — a real e2e failure now reports red honestly
+# and fails the check (`retries: 1` stays in playwright.config.ts as a thin
+# ride-out for residual noise during the initial promotion). NOTE the workflow
+# name is intentionally still `E2E (advisory)`: renaming it would change the
+# check-name slug (`e2e-advisory`) the heavy-run review detector keys off
+# (#227); a clean rename — which must update that detector slug too — is a
+# deliberate follow-up. ACTIVATION: a failing check only *blocks* merge once
+# `e2e` is added as a required status check in the `protect-main` ruleset, a
+# repo-admin step for Connor (recommended: watch a few green PR runs first).
+# The scheduled sweep stays out-of-band (NOT a `needs:` of deploy); its #262
+# change-gate below is unchanged.
 #
 # Triggers:
-#   • pull_request     — a per-PR advisory smoke run.
+#   • pull_request     — a per-PR smoke run (blocking once required in the ruleset).
 #   • schedule         — a nightly sweep, so the detector (default event:
 #     schedule) surfaces a baseline→delta run-over-run report. Additionally
 #     CHANGE-GATED in-job against the last successful run's SHA (skip when
@@ -41,16 +50,16 @@ permissions:
   contents: read
 
 jobs:
-  # Playwright e2e smoke (issue #77). ADVISORY for now: NOT a `needs:` of
-  # `deploy`, and `continue-on-error: true` so a failure reports red on the run
-  # without blocking the merge/deploy. This suite still flakes under
-  # `astro dev`/workerd sequential load (config sets retries:1 in CI to trim that);
-  # graduate it to a blocking gate once it's stable and timed. The config's
-  # `webServer` builds the schema (local D1 migrations) and starts `astro dev`, so
-  # there is no separate build/serve step here — just install the browser and run.
+  # Playwright e2e smoke (issue #77). BLOCKING PR gate (issue #279): NO
+  # `continue-on-error`, so a failure fails this job's check honestly. Still NOT a
+  # `needs:` of `deploy` — it gates merge (once required in the `protect-main`
+  # ruleset), not the deploy step. #257/#277 stabilized the suite by serving a
+  # built worker via `astro preview`; `retries: 1` stays in playwright.config.ts
+  # as a thin ride-out for residual noise. The config's `webServer` builds the
+  # schema (local D1 migrations) and serves the built worker, so there is no
+  # separate build/serve step here — just install the browser and run.
   e2e:
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v6
         with:
