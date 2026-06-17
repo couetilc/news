@@ -137,7 +137,10 @@ behavior literally requires a real browser or the full request/redirect/cookie
 cycle — JS-driven UI, multi-page flows, the read/unread animation, a login
 round-trip. e2e is a **separate entry point, outside `npm test` and the coverage
 gate**; it's slower and flakier, so keep it sparse. Use it for behavior the
-hermetic pools *can't* exercise, never as a substitute for a unit test.
+hermetic pools *can't* exercise, never as a substitute for a unit test. CI runs
+this suite as a separate **advisory** job (non-blocking — it reports red without
+blocking merge/deploy, and uploads a `json` report artifact); a red e2e job is a
+signal to read, not yet a merge gate (issue #77).
 
 ## Browser-only client modules (`src/scripts/**`) — happy-dom in the node project
 
