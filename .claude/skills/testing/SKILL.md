@@ -227,7 +227,8 @@ faults into the in-scope modules and checks the suite **kills** them. Read a
 pinned. But **distinguish equivalent mutants** (a redundant guard, log text, or
 registry data where the mutation can't change observable behavior) from a real
 gap; only the latter is worth a new assertion. Config + rationale live in
-`stryker.config.json`.
+`stryker.config.json`; it also runs out-of-band in CI (see *The CI cadence*
+below).
 
 ### The decision rule: workerd-parity vs mutation-reach
 
@@ -266,6 +267,38 @@ red-fails until you classify it:
 - **Adding a glue module** → add it to the M2 test's glue-allowlist with a reason.
 - **Adding a pure module not yet given a dedicated plain-node spec** → add it to
   the core-without-test allowlist with a reason (and prefer giving it one).
+
+## The CI cadence: one fast gate, the rest out-of-band and advisory
+
+CI runs on two tiers, and which tier a tool lands in is a deliberate choice:
+
+- **The per-commit gate stays fast + hermetic.** `npm test` (the two vitest
+  projects + property/in-suite-fuzz tests + the 100% coverage gate) is the
+  **only PR-blocking check** (`ci.yml`'s `test` job). It must never hit the
+  network and must stay quick — nothing heavyweight blocks a merge.
+- **Heavyweight tools run out-of-band, advisory-first.** Mutation testing
+  (`mutation.yml`) and e2e (#77) run on `schedule:` (nightly) + `workflow_dispatch:`
+  (and, since mutation is cheap, a path-filtered per-PR advisory run too). They
+  **report** — a PR comment, a step summary, an uploaded artifact, a tracking
+  issue on regression — but **do not block**. This is the standing graduation
+  path: **advisory first → blocking threshold once the signal is stable.** Only
+  promote a tool to a required check (e.g. a Stryker break threshold) after its
+  score has held steady; until then, advisory.
+
+Mechanics worth keeping when you touch or add an out-of-band job:
+
+- **Change-gate the scheduled run** so a nightly sweep is skipped when nothing
+  relevant changed: resolve the last successful run's SHA and
+  `git diff --quiet <lastSHA> HEAD -- src test '*.config.ts' stryker.config.json package-lock.json`
+  → skip. Per-PR runs get the same effect from a `paths:` filter over that set,
+  so doc/skill/workflow-only changes don't trigger the heavy tool.
+- **Emit a machine-readable artifact, not just logs.** Stryker's `json` reporter
+  writes `reports/mutation/mutation.json` (gitignored), uploaded as the run's
+  `mutation-report` artifact so review tooling can diff the score run-over-run.
+  Compute the score from that JSON, never by scraping log text.
+- **Keep these jobs in their own workflow files**, separate from `ci.yml`'s
+  deploy pipeline — they're advisory and logically distinct, and a standalone
+  file keeps union-merges with concurrent `ci.yml` PRs clean.
 
 ## Before you commit a test
 
