@@ -8,7 +8,7 @@ investor-relations feeds, SEC filings, and science — into one fresh, fast feed
 ![The public feed at news.cuteteal.com](docs/screenshot.png)
 
 Built by **Connor Couetil** — [GitHub](https://github.com/couetilc) ·
-[LinkedIn](https://www.linkedin.com/in/couetilc) · couetilc@gmail.com. A solo
+[LinkedIn](https://www.linkedin.com/in/connorcouetil). A solo
 project: the product thesis, the architecture, and the agent-driven build
 workflow are all mine.
 
@@ -124,14 +124,12 @@ Auth for the fallback: `npx wrangler login`, or copy `.env.example` to `.env`
 and fill in `CLOUDFLARE_API_TOKEN` (see `.env.example` for exact token scopes —
 it is the living documentation for all credentials).
 
-## Why this is relevant to Solutions Engineering
+## A product demoing the Cloudflare Developer Platform
 
-It's a small system, but a complete one, and it exercises the work an SE actually
-does: starting from a clear customer thesis (primary sources over engagement-bait
-middlemen), making infrastructure trade-offs and being able to explain the *why*
-behind each one, and shipping something a non-developer can experience in one
-click rather than having to clone and build. The README itself is part of that —
-an attempt to translate technical decisions for a mixed audience.
+A small but complete product built end-to-end on Cloudflare's developer stack: an
+Astro SSR app running on Workers (workerd), D1 for the article store, R2 for a
+public asset CDN, and KV-backed sessions — wired together with merge-to-deploy CI.
+It's meant to show the platform doing real work, not a toy.
 
 ## Learn more
 
