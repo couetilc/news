@@ -1,6 +1,6 @@
 ---
 name: review-merged-prs
-description: Detect newly merged GitHub pull requests, perform in-context PR reviews, file actionable findings from open or merged PRs as GitHub issues, and mark each reviewed merged PR with a label. Use when asked to watch PR merges, review merged or open PRs, route findings into the issue backlog, distinguish already-reviewed merged PRs from new ones, or help another agent pick up open review findings. Pairs with issue orchestration.
+description: Detect newly merged GitHub pull requests, perform in-context PR reviews, file actionable findings from open or merged PRs as GitHub issues, and mark each reviewed merged PR with a label. Also audits scheduled heavy-test runs (mutation/e2e/fuzz) against the last reviewed run of the same kind and files findings. Use when asked to watch PR merges, review merged or open PRs, audit a mutation/e2e/fuzz run for new surviving mutants or failures, route findings into the issue backlog, distinguish already-reviewed merged PRs from new ones, or help another agent pick up open review findings. Pairs with issue orchestration.
 ---
 
 # Review Merged PRs
@@ -193,6 +193,60 @@ Do not apply `agent-reviewed` to open PRs; that label is only the merged-PR
 detector's marker. For open PRs, report the issue URLs to the user and hold or
 merge according to the normal review tier.
 
+## Auditing scheduled heavy-test runs
+
+When `test-runs-needing-review.sh` / `watch-test-runs.sh` surfaces a completed
+heavy run (mutation / e2e / fuzz), the work is not a PR-diff review — it's an
+**artifact audit**. The fast `npm test` gate proves coverage, not efficacy, and
+can't reach production-only behavior; these runs are where test-efficacy gaps and
+#123-class production bugs surface. Apply the framework
+**baseline → delta → attribute → triage → file**, in full, from
+`references/heavy-run-audit.md`. In short:
+
+1. **Baseline → delta, never absolute.** Audit the run against the **last
+   reviewed run of the same kind** (the per-kind marker, below). The signal is the
+   *change* — new surviving mutants, a score drop, new e2e failures/flakes, a new
+   fuzz counterexample — not the standing count. Diff the two runs' artifacts.
+2. **Attribute** each new finding to the PR(s) merged **in that window** (the same
+   window `merged-prs-needing-review.sh` walks), so the filed issue names the
+   likely cause.
+3. **Triage real-vs-noise, per kind** (full rules in the reference):
+   - **Mutation** (`mutation-report` artifact → `reports/mutation/mutation.json`):
+     a new `Survived` mutant in changed code = weak/missing assertion → file a
+     test-scenario issue. Distinguish **equivalent** mutants (can't change
+     observable behavior — redundant guards, logging, registry *data* like
+     `src/ingest/sources.ts`) → suppress, don't file. New `Timeout`/runtime error
+     = possible infinite-loop/config break → file. Don't re-file the score
+     regression `mutation.yml` already tracks; file the per-mutant delta.
+   - **e2e** (`playwright-report` artifact → `playwright-report/results.json` +
+     `test-results/`): a real failure against the **served build** that the
+     hermetic suite missed = #123-class production bug → High-severity issue. A
+     *flaky* spec (passes on retry) → file as flaky, don't block.
+   - **fuzz**: no fuzz workflow exists yet (the detector reserves the slug); when
+     one lands, a new counterexample → file with the minimal repro.
+4. **Dedup against the backlog** before filing — read each candidate issue in full
+   (body AND comments), exactly as the PR-review path does.
+5. **File** one `agent-review` issue per genuine new finding (`finding-issue.md`),
+   then bump the per-kind marker (`--mark <run-id>`) — the heavy-run analogue of
+   the `agent-reviewed` label.
+
+**Suppression lists** keep the delta meaningful (otherwise known noise re-fires as
+"new" each run). `stryker.config.json` has no per-mutant ignore list, so a
+*confirmed-equivalent* mutant is suppressed with a Stryker-native inline
+`// Stryker disable next-line all: equivalent — <reason> (PR #N)` at the mutant
+site (lives next to the code, goes through PR review); a *confirmed-flaky* e2e
+spec is recorded in its filed `testing` issue (kept open as the durable record)
+and, if loud, quarantined with a Playwright annotation. The reference doc explains
+the trade-off and the alternative (a single in-repo equivalents list) flagged for
+review.
+
+**Idempotency marker.** Heavy runs can't carry a label, so the detector persists a
+**per-kind last-reviewed-run-id** marker (`--mark` into a local `--state-dir`;
+already implemented). First sight of a kind seeds the baseline silently and fires
+on the *next* run, so step 1 always has a prior run to diff against. The marker is
+*which run was last audited*; the suppression lists are *which findings are known
+noise* — both are required.
+
 ## Evaluating test quality
 
 A PR can sit at 100% coverage and still test nothing — the gate proves lines
@@ -236,6 +290,14 @@ report that no actionable findings were found.
 
 Read `references/finding-issue.md` before filing finding-issues. It defines the
 issue title/body template, severity, and which labels to apply.
+
+## Heavy-run audit framework
+
+Read `references/heavy-run-audit.md` before auditing a scheduled heavy-test run
+(mutation / e2e / fuzz). It is the full baseline → delta → attribute → triage →
+file framework summarized under "Auditing scheduled heavy-test runs" above: the
+verified artifact names, the per-kind real-vs-noise triage, the equivalent-mutant
+and known-flaky suppression mechanisms, and how the per-kind marker fits.
 
 ## Session Learnings
 

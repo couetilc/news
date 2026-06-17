@@ -23,7 +23,23 @@ These lessons came from the initial in-context monitoring session for this repo.
 - For heavy runs (mutation/e2e/fuzz) there is no PR label to mark reviewed, so
   the idempotency marker is a per-kind last-reviewed-run-id file. First sight of
   a kind seeds the baseline silently — a first run has nothing to diff against;
-  the signal is the *next* run's delta (baseline→delta, per #227).
+  the signal is the *next* run's delta (baseline→delta, per #227). The full audit
+  framework — verified artifact names, per-kind triage, suppression — is in
+  `references/heavy-run-audit.md`.
+- Audit a heavy run by **diffing two runs' machine-readable artifacts**, never by
+  scraping logs. Mutation: the `mutation-report` artifact's
+  `reports/mutation/mutation.json` (`files[path].mutants[].status`); a new
+  `Survived` in changed code is the finding, not the standing score (the score
+  regression is already tracked by `mutation.yml`'s `<!-- mutation-regression -->`
+  issue). e2e: the `playwright-report` artifact's `playwright-report/results.json`
+  + `test-results/` traces; a real served-build failure is a #123-class bug, a
+  pass-on-retry is a flaky finding.
+- Equivalent mutants have **no per-mutant ignore in `stryker.config.json`** —
+  suppress a confirmed-equivalent one with a Stryker-native inline
+  `// Stryker disable next-line all: equivalent — <reason> (PR #N)` at the mutant
+  site, so the equivalence judgment lives by the code and rides through PR review.
+  Never suppress a *genuine* gap to make the score green — file the test-scenario
+  issue instead.
 - Always fast-forward local `main` before validating. PR diffs can miss
   interactions with previously merged work.
 - If you fetched PR diffs before fast-forwarding, re-read the final files after
