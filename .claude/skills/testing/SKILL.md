@@ -132,13 +132,33 @@ mode), and offline.
 input→output, a named edge case, a D1 query's effect, an SSR render. It's cheap,
 hermetic, and counts toward the gate.
 
-Reach for an **e2e test** (`npm run test:e2e`, Playwright) **only** when the
-behavior literally requires a real browser or the full request/redirect/cookie
-cycle — JS-driven UI, multi-page flows, the read/unread animation, a login
-round-trip. e2e is a **separate entry point, outside `npm test` and the coverage
-gate**; it's slower and flakier, so keep it sparse. Use it for behavior the
-hermetic pools *can't* exercise, never as a substitute for a unit test. CI runs
-this suite out-of-band in its **own advisory workflow** (`.github/workflows/e2e.yml`,
+**Every user-facing feature must also have an e2e test** (`npm run test:e2e`,
+Playwright) — a standing requirement, not a judgment call. "User-facing" is
+anything a person navigates to, clicks, or submits: a page or route, a link, a
+form, a multi-step flow, a JS-driven interaction. The reason is structural — a
+unit test renders a component or calls a function *in isolation*, so it **cannot
+see the integration layer a real user traverses**: middleware, routing, the
+build-time prerender step, `<ClientRouter />` swaps, cookies, redirects. A green
+unit test proving a link or form is merely *present in the markup* is therefore
+**not** evidence the feature *works*. Issue #287 shipped exactly that false
+confidence — a Container API test asserted `href="/status"` rendered while the
+live link bounced every visitor (even logged-in ones) to `/login`, because the
+redirect was baked in by the prerender×middleware interaction, a layer no unit
+test exercises. The e2e drives the real path end-to-end and asserts the
+**user-observable outcome** (the page landed on, the state seen) — the only test
+that would have caught it.
+
+Write each e2e as a **red→green pin**: it must *fail* against the unfixed code
+and *pass* with the fix (verify both directions before you trust it), and state
+that pin in the spec's header comment — see `auth-signup.spec.ts` and
+`status-link.spec.ts`. Keep each feature's e2e **focused, not exhaustive**: one
+spec for the primary path plus the key regression, with the breadth of inputs
+and edge cases left to the fast unit tests. e2e is a **separate entry point,
+outside `npm test` and the coverage gate** — slower and flakier — so it earns
+its place by covering what the hermetic pools *can't*, never by duplicating a
+unit test that already holds.
+
+CI runs this suite out-of-band in its **own advisory workflow** (`.github/workflows/e2e.yml`,
 `name: E2E (advisory)`) — non-blocking (`continue-on-error: true`, reports red
 without blocking merge/deploy, uploads the `playwright-report` JSON artifact); a
 red e2e job is a signal to read, not yet a merge gate (issue #77). It lives in
