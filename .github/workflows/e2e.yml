@@ -25,8 +25,9 @@
 # its `mutation|stryker|e2e|playwright|fuzz` selector (case-insensitive), so the
 # rename is safe; because that marker is LOCAL state (not in-repo), the new slug
 # (`e2e`) simply re-baselines the marker ONCE on the first run under the new name
-# — expected, not a bug. When `e2e` is promoted to a required status check, use
-# the current name (`E2E`), not the old `E2E (advisory)`.
+# — expected, not a bug. To promote to a required status check, require the `e2e`
+# check — the JOB name (like this repo's existing required `test` check), not the
+# workflow display name `E2E` (that name is only what the detector keys off).
 #
 # Triggers:
 #   • pull_request     — a per-PR smoke run (blocking once required in the ruleset).
@@ -81,8 +82,8 @@ jobs:
       # relevant input changed since the last green run. Resolve the head SHA of
       # the most recent successful run of THIS workflow and diff against it over
       # the inputs that can affect e2e results; if nothing changed, skip the rest
-      # of the job. pull_request/dispatch runs skip this step (PR advisory runs
-      # always; dispatch is an explicit human request — always run). Mirrors
+      # of the job. pull_request/dispatch runs skip this step (PR runs always
+      # skip it; dispatch is an explicit human request — always run). Mirrors
       # mutation.yml's change-gate step.
       - name: Change-gate (scheduled)
         id: gate

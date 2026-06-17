@@ -310,8 +310,10 @@ CI runs on tiers, and which tier a tool lands in is a deliberate choice:
   (`name: E2E`) runs on every `pull_request` with **no `continue-on-error`**, so a
   genuine failure reports red and fails the check. Whether red *blocks merge*
   depends on the `protect-main` ruleset requiring the `e2e` check; when not yet
-  required, the check is honest-but-non-required. If you promote `e2e` to a
-  required status check, use the current workflow name (`E2E`).
+  required, the check is honest-but-non-required. To require it, add the `e2e`
+  check — the **job** name (like the existing required `test` check), not the
+  workflow display name `E2E` (that name is only what the heavy-run detector
+  keys off).
 - **Heavyweight tools also run out-of-band.** Mutation testing (`mutation.yml`,
   `name: Mutation (advisory)`) and the e2e **scheduled/dispatch sweeps** run on
   `schedule:` (nightly) + `workflow_dispatch:` — off the deploy path and reviewed
