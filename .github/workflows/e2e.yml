@@ -9,19 +9,24 @@
 # workflow it is discoverable and `--mark`-able exactly like the mutation runs.
 # Mirrors mutation.yml's out-of-band structure.
 #
-# BLOCKING PR GATE (issue #279, no longer advisory). #257/#277 stabilized the
-# suite (built worker via `astro preview`), so the pull_request job dropped its
-# `continue-on-error: true` mask — a real e2e failure now reports red honestly
-# and fails the check (`retries: 1` stays in playwright.config.ts as a thin
-# ride-out for residual noise during the initial promotion). NOTE the workflow
-# name is intentionally still `E2E (advisory)`: renaming it would change the
-# check-name slug (`e2e-advisory`) the heavy-run review detector keys off
-# (#227); a clean rename — which must update that detector slug too — is a
-# deliberate follow-up. ACTIVATION: a failing check only *blocks* merge once
-# `e2e` is added as a required status check in the `protect-main` ruleset, a
-# repo-admin step for Connor (recommended: watch a few green PR runs first).
+# PR GATE, not advisory. The pull_request job has NO `continue-on-error`, so a
+# real e2e failure reports red honestly and fails the check (`retries: 1` stays
+# in playwright.config.ts as a thin ride-out for residual noise). A failing
+# check only *blocks* merge once `e2e` is a required status check in the
+# `protect-main` ruleset — a repo-admin step for Connor. Until then the check is
+# honest-but-non-required: red without blocking the merge.
+#
 # The scheduled sweep stays out-of-band (NOT a `needs:` of deploy); its #262
 # change-gate below is unchanged.
+#
+# Detector note: the heavy-run review detector
+# (.claude/skills/review-merged-prs/scripts/test-runs-needing-review.sh) keys a
+# per-kind reviewed-marker off a slug of THIS workflow name. `E2E` still matches
+# its `mutation|stryker|e2e|playwright|fuzz` selector (case-insensitive), so the
+# rename is safe; because that marker is LOCAL state (not in-repo), the new slug
+# (`e2e`) simply re-baselines the marker ONCE on the first run under the new name
+# — expected, not a bug. When `e2e` is promoted to a required status check, use
+# the current name (`E2E`), not the old `E2E (advisory)`.
 #
 # Triggers:
 #   • pull_request     — a per-PR smoke run (blocking once required in the ruleset).
@@ -30,18 +35,18 @@
 #     CHANGE-GATED in-job against the last successful run's SHA (skip when
 #     nothing relevant changed) — mirrors mutation.yml.
 #   • workflow_dispatch — on demand.
-name: E2E (advisory)
+name: E2E
 
 on:
   pull_request:
   schedule:
     # 07:30 UTC nightly — after most days' merges, off the deploy path, and just
-    # after the mutation sweep (07:00) so the two advisory reports land together.
+    # after the mutation sweep (07:00) so the two out-of-band reports land together.
     - cron: '30 7 * * *'
   workflow_dispatch:
 
-# Don't pile up advisory runs: a newer push to the same ref supersedes an
-# in-flight run. Never cancel the nightly/dispatch sweeps mid-run.
+# Don't pile up runs: a newer push to the same ref supersedes an in-flight PR
+# run. Never cancel the nightly/dispatch sweeps mid-run.
 concurrency:
   group: e2e-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}

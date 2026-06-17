@@ -158,12 +158,16 @@ outside `npm test` and the coverage gate** — slower and flakier — so it earn
 its place by covering what the hermetic pools *can't*, never by duplicating a
 unit test that already holds.
 
-CI runs this suite out-of-band in its **own advisory workflow** (`.github/workflows/e2e.yml`,
-`name: E2E (advisory)`) — non-blocking (`continue-on-error: true`, reports red
-without blocking merge/deploy, uploads the `playwright-report` JSON artifact); a
-red e2e job is a signal to read, not yet a merge gate (issue #77). It lives in
-its own workflow (not `ci.yml`) so the heavy-run review detector finds it by
-workflow name — see the CI cadence section below.
+CI runs this suite in its **own workflow** (`.github/workflows/e2e.yml`,
+`name: E2E`), separate from `ci.yml`. The **per-PR run is a real gate, not
+advisory**: it has no `continue-on-error`, so a genuine e2e failure reports red
+and fails the check (it also uploads the `playwright-report` JSON artifact).
+Whether that red check *blocks merge* depends on the `protect-main` ruleset
+requiring the `e2e` check; until it's required there, the check is
+honest-but-non-required. The **scheduled/dispatch sweeps stay out-of-band** from
+deploy and are reviewed by the heavy-run detector. The workflow is separate from
+`ci.yml` so that detector finds it by workflow name — see the CI cadence section
+below.
 
 ## Browser-only client modules (`src/scripts/**`) — happy-dom in the node project
 
@@ -294,23 +298,29 @@ red-fails until you classify it:
 - **Adding a pure module not yet given a dedicated plain-node spec** → add it to
   the core-without-test allowlist with a reason (and prefer giving it one).
 
-## The CI cadence: one fast gate, the rest out-of-band and advisory
+## The CI cadence: one fast gate, plus per-PR e2e, the rest out-of-band
 
-CI runs on two tiers, and which tier a tool lands in is a deliberate choice:
+CI runs on tiers, and which tier a tool lands in is a deliberate choice:
 
 - **The per-commit gate stays fast + hermetic.** `npm test` (the two vitest
   projects + property/in-suite-fuzz tests + the 100% coverage gate) is the
-  **only PR-blocking check** (`ci.yml`'s `test` job). It must never hit the
-  network and must stay quick — nothing heavyweight blocks a merge.
-- **Heavyweight tools run out-of-band, advisory-first.** Mutation testing
-  (`mutation.yml`, `name: Mutation (advisory)`) and Playwright e2e (`e2e.yml`,
-  `name: E2E (advisory)`, issue #77) run on `schedule:` (nightly) +
-  `workflow_dispatch:` + a per-PR advisory run (mutation path-filtered since it's
-  cheap; e2e on every PR). They **report** — a PR comment, a step summary, an
-  uploaded artifact, a tracking issue on regression — but **do not block**. This
-  is the standing graduation path: **advisory first → blocking threshold once
-  the signal is stable.** Only promote a tool to a required check (e.g. a Stryker
-  break threshold) after its score has held steady; until then, advisory.
+  **fast PR-blocking check** (`ci.yml`'s `test` job). It must never hit the
+  network and must stay quick — nothing heavyweight blocks on it.
+- **Playwright e2e runs per PR as a real check, not advisory.** `e2e.yml`
+  (`name: E2E`) runs on every `pull_request` with **no `continue-on-error`**, so a
+  genuine failure reports red and fails the check. Whether red *blocks merge*
+  depends on the `protect-main` ruleset requiring the `e2e` check; when not yet
+  required, the check is honest-but-non-required. If you promote `e2e` to a
+  required status check, use the current workflow name (`E2E`).
+- **Heavyweight tools also run out-of-band.** Mutation testing (`mutation.yml`,
+  `name: Mutation (advisory)`) and the e2e **scheduled/dispatch sweeps** run on
+  `schedule:` (nightly) + `workflow_dispatch:` — off the deploy path and reviewed
+  by the heavy-run detector. **Mutation stays advisory**: its per-PR run is
+  path-filtered and it only **reports** (a step summary, an uploaded artifact, a
+  tracking issue on regression), never blocking. The standing graduation path is
+  **advisory first → required check once the signal is stable**; only promote a
+  tool to a required check (e.g. a Stryker break threshold) after its score has
+  held steady.
 
 Mechanics worth keeping when you touch or add an out-of-band job:
 
@@ -336,16 +346,20 @@ Mechanics worth keeping when you touch or add an out-of-band job:
   `bug` (a score drop records a regression in test effectiveness) plus
   `testing` + `agent-infra`; never ship a generated issue with area labels but
   no type axis, or it won't match the backlog structure agents query.
-- **Keep each advisory tool in its own workflow file**, separate from `ci.yml`'s
-  deploy pipeline — they're advisory and logically distinct, a standalone file
+- **Keep each out-of-band tool in its own workflow file**, separate from
+  `ci.yml`'s deploy pipeline — they're logically distinct, a standalone file
   keeps union-merges with concurrent `ci.yml` PRs clean, **and the heavy-run
   review detector finds runs by workflow *name*** (`mutation|stryker|e2e|playwright|fuzz`,
   defaulting to `schedule` events;
   `.claude/skills/review-merged-prs/scripts/test-runs-needing-review.sh`). A
   heavy job buried inside the generic `CI` workflow is invisible to that loop —
-  so name the workflow to match (e.g. `E2E (advisory)`) and give it a `schedule:`
-  trigger, and a completed run is then `--mark`-able with its per-kind reviewed
-  marker exactly like mutation runs.
+  so the workflow `name:` must match that selector (e.g. `E2E` matches `e2e`,
+  `Mutation (advisory)` matches `mutation`) and have a `schedule:` trigger; a
+  completed run is then `--mark`-able with its per-kind reviewed marker. The
+  detector keys that marker off a *slug of the workflow name* in **local** state
+  (an `XDG_STATE_HOME` `--state-dir`, not in-repo), so **renaming a workflow
+  re-baselines its marker once** on the next completed run under the new name —
+  expected, not a bug.
 
 ## Before you commit a test
 
