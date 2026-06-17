@@ -14,8 +14,16 @@ import { SESSION_USER_KEY } from './lib/session';
 // here so signing out works even if the session has already lapsed; /public is
 // the legacy read-only feed (issue #49), now a permanent redirect to the
 // session-adaptive `/` (#87) but still allowlisted so the redirect itself is
-// reachable logged out. Neither renders the session-aware masthead in a state
-// that needs the user id, so neither reads the session.
+// reachable logged out. /status is the public operational page (#272): it's
+// `prerender = true` (deploy metadata only, no per-user state), so it MUST be
+// allowlisted here — Astro runs this middleware while prerendering at build
+// time, where there is no session, so without the allowlist the build-time
+// render takes the unauthenticated branch below and bakes a redirect-to-/login
+// stub into the static /status/index.html. That stub then bounces EVERY
+// visitor (anonymous and logged-in alike, since the worker never runs for a
+// prerendered asset at request time) to /login — the #287 regression. None of
+// these pages render the session-aware masthead in a state that needs the user
+// id, so none reads the session.
 //
 // Crucially, write routes stay OUT of both this set and the adaptive set.
 // /api/read (the read/unread toggle, an Astro route under src/pages/api) is
@@ -25,7 +33,7 @@ import { SESSION_USER_KEY } from './lib/session';
 // refuses writes, not merely because the form isn't drawn. If a future write
 // route needs to answer JSON callers rather than redirect, check the session
 // inside that route instead.
-const PUBLIC_PATHS = new Set(['/logout', '/public']);
+const PUBLIC_PATHS = new Set(['/logout', '/public', '/status']);
 
 // Session-adaptive paths: reachable by anyone (logged in or out), but not blanket
 // public paths — the guard reads the session for them and, when one exists,

@@ -36,8 +36,9 @@ const sessionWith = (userId: number | undefined) => ({
 describe('auth middleware', () => {
 	it('lets public paths through without checking the session', async () => {
 		// /logout works even with a lapsed session; /public is the legacy read-only
-		// feed redirect (issue #49) — both reachable logged out without a session read.
-		for (const path of ['/logout', '/public']) {
+		// feed redirect (issue #49); /status is the public, prerendered operational
+		// page (#272) — all reachable logged out without a session read.
+		for (const path of ['/logout', '/public', '/status']) {
 			const { promise } = run(path, undefined);
 			expect(await promise).toBe(NEXT);
 		}
@@ -49,11 +50,28 @@ describe('auth middleware', () => {
 		// same route but leaves the slash on context.url.pathname; the guard
 		// normalizes it before the exact-match lookup (issues #81, #95), so the
 		// slash forms reach the same allowlist as their no-slash forms.
-		for (const path of ['/logout/', '/public/']) {
+		for (const path of ['/logout/', '/public/', '/status/']) {
 			const { promise } = run(path, undefined);
 			expect(await promise).toBe(NEXT);
 		}
 		expect(next).toHaveBeenCalled();
+	});
+
+	it('treats /status as public so prerendering never bakes a /login redirect (#287)', async () => {
+		// /status is `prerender = true`. Astro runs this middleware while
+		// prerendering at BUILD time, where there is no session. If /status weren't
+		// allowlisted, that build-time render would take the unauthenticated branch
+		// and `context.redirect('/login', 303)`, which Astro freezes into the static
+		// /status/index.html as a meta-refresh stub — bouncing EVERY visitor
+		// (anonymous and logged-in alike, since the prerendered asset is served
+		// without ever invoking the worker) to /login. So the public-path guarantee
+		// must hold with no session at all: pass through, never redirect.
+		const { promise, redirect, locals } = run('/status', undefined);
+		expect(await promise).toBe(NEXT);
+		expect(redirect).not.toHaveBeenCalled();
+		// Public path: the guard returns before reading the session, so it never
+		// surfaces a user id (the page is deploy metadata only — no per-user state).
+		expect(locals.userId).toBeUndefined();
 	});
 
 	it('lets anonymous requests through to the auth pages without redirecting (#150)', async () => {
