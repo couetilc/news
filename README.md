@@ -5,7 +5,7 @@ investor-relations feeds, SEC filings, and science — into one fresh, fast feed
 
 ▶ **Live:** [news.cuteteal.com](https://news.cuteteal.com)
 
-![The public feed at news.cuteteal.com/public](docs/screenshot.png)
+![The public feed at news.cuteteal.com](docs/screenshot.png)
 
 ## What this is
 
@@ -24,8 +24,8 @@ by AI coding agents working a disciplined, test-gated workflow.
   **workerd** for real production parity.
 - **Multi-source ingestion** into D1 — RSS/Atom, JSON APIs, and SEC EDGAR —
   normalized into one feed; sessions and auth on KV.
-- **100% line + branch coverage gate**, enforced and **hermetic** — the test
-  suite never touches the network.
+- **100% statements / branches / functions / lines coverage gate** over `src/**`,
+  enforced and **hermetic** — the test suite never touches the network.
 - **CI deploys on merge** — branch → PR → green checks → merge → live.
 
 ## 🤖 Built by AI coding agents
@@ -90,25 +90,26 @@ The full rationale for each choice lives in [`CLAUDE.md`](CLAUDE.md).
 ## Quickstart
 
 ```bash
-mise install        # node 24 (also auto-loads .env into project shells)
+nvm install 24      # node 24 via your version manager of choice
 npm install
 npm run dev         # http://localhost:4321, running in workerd
 ```
 
-(`mise install` is for host machines — the agent container and cloud sessions
-provision node automatically.)
+(Install node 24 on host machines with whatever version manager you use — the
+agent container and cloud sessions provision node automatically.)
 
 ## Testing
 
 `npm test` runs **two vitest projects** — one inside the **workerd** pool (real
 D1, real `cloudflare:workers` bindings) and one in **node** (Astro page
-rendering) — behind a merged **100% line/branch coverage gate** over `src/**`.
+rendering) — behind a merged **100% statements / branches / functions / lines
+coverage gate** over `src/**`.
 Tests are fixture-driven and **never hit the network**, so the suite behaves
 identically in CI, in cloud sessions, and offline. Browser/e2e checks
 (Playwright) run as a separate entry point.
 
 ```bash
-npm test            # vitest; fails below 100% line/branch coverage
+npm test            # vitest; fails below 100% statements/branches/functions/lines coverage
 ```
 
 ## Deploy
