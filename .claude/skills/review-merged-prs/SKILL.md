@@ -32,23 +32,114 @@ reached through the `.codex/skills` symlink, so an agent that reads skills from
 
 ## Scripts
 
+Detectors (deterministic delta; exit `0` when nothing changed, `2` when there is
+something to review — the wake signal):
+
 - `scripts/merged-prs-needing-review.sh`: list merged PRs that do **not** carry
-  the `agent-reviewed` label. Exits `0` when none, `2` when one or more need
-  review.
-- `scripts/watch-merged-prs.sh`: poll the detector every `INTERVAL` seconds
-  (default `60`) and stop with exit `2` when a merged PR needs review.
+  the `agent-reviewed` label. The label is the persisted marker, so the delta is
+  exactly the unreviewed set.
+- `scripts/test-runs-needing-review.sh`: list scheduled heavy-test runs
+  (mutation / e2e / fuzz) completed since the **last-reviewed run id of the same
+  kind**. The marker is a per-kind file (run ids are monotonic), since a heavy
+  run can't carry a label the way a PR can. First sight of a kind seeds the
+  baseline silently (nothing to diff against — see #227); it fires on the *next*
+  run. After auditing run `R`, bump the marker with `--mark R` (the analogue of
+  `gh pr edit --add-label agent-reviewed`). `--json` is read-only inspection.
+  Blocked on the heavy workflows existing (#166 mutation, #77 e2e); stays silent
+  until they emit runs.
+
+Watchers (the wake mechanism — see "Watch mechanism" below):
+
+- `scripts/poll-detector.sh`: generic loop that runs a detector every `INTERVAL`
+  seconds, stays **silent on stdout while idle**, and prints the payload + exits
+  `2` the instant the detector reports a delta. Both watchers are thin wrappers
+  over it. Set `WATCH_LOG` to capture idle diagnostics off the wake path.
+- `scripts/watch-merged-prs.sh`: watch for new merged PRs.
+- `scripts/watch-test-runs.sh`: watch for new scheduled heavy-test runs.
+
+Follow-ups:
+
 - `scripts/review-followups.sh`: list open `agent-review` finding-issues so a
   follow-up agent can pick them up.
 
+## Watch mechanism
+
+The scripts are portable; the wake mechanism is not. The detectors and persisted
+markers behave the same on Claude, Codex, or a plain shell, but each agent
+surface needs its own way to wait for the detector to exit `2`.
+
+### Claude Code
+
+Claude Code can drive the watch **outside the model**, so it is deterministic,
+survives across turns/compaction, and costs zero tokens while idle. Use this
+path only when the tool surface has `Bash` with `run_in_background` and
+`ScheduleWakeup`.
+
+1. **Launch the watcher as a harness background task** — the `Bash` tool with
+   `run_in_background: true`. It polls across turns on its own; the harness
+   re-invokes the agent **only when the command exits**. Idle polls are absorbed
+   by the loop's internal `sleep` and produce no stdout, so an idle watch wakes
+   the model **zero** times.
+2. **A delta wakes the agent exactly once.** The detector exits `2`, the watcher
+   prints just the payload (PR number(s) / run id(s)), and the harness re-invokes
+   the agent with that payload — nothing else. The exit-`0` "nothing changed"
+   branch never reaches the model.
+3. **Re-arm is mechanical, not a model choice.** After finishing a review batch
+   (and applying `agent-reviewed` / bumping the run marker), re-launch the
+   watcher the same way — one background `Bash` call — **before the turn ends**.
+   Do not rely on "remembering to loop"; the relaunch is a required step, like
+   the label.
+4. **`ScheduleWakeup` is only a long fallback heartbeat** (>=1800s) in case a
+   background task dies silently — never the primary pacing mechanism. Do **not**
+   use a short-interval wakeup to poll; the background-task exit is the wake
+   signal, and polling on top of it just burns turns.
+
+Run both watchers as two independent background tasks to cover merged PRs and
+heavy runs at once; each re-invokes the agent on its own delta.
+
+### Codex
+
+Codex does not expose Claude Code's `run_in_background` re-invoke-on-exit or
+`ScheduleWakeup` mechanism in this shared skill context. Current Codex surfaces
+do have foreground/ongoing command sessions, CLI background terminals, and
+Codex app automations/thread automations, but do **not** assume any of those will
+automatically hand this thread back the watcher payload when a process exits.
+
+Use one of these Codex-safe paths instead:
+
+- **Run detectors once per turn.** This is the simplest path when you are already
+  active: run `merged-prs-needing-review.sh` and, when heavy workflows exist,
+  `test-runs-needing-review.sh`. Exit `0` means no delta; exit `2` means review
+  the printed payload.
+- **Run watchers in foreground/managed sessions.** Start `watch-merged-prs.sh`
+  and `watch-test-runs.sh` as normal foreground commands or explicitly managed
+  exec sessions, optionally bounded with `timeout`. Poll or interrupt those
+  sessions yourself, and process exit `2` as the delta. Stop them before a final
+  response or workflow change.
+- **Use Codex app automations only when deliberately available.** A thread
+  automation can schedule the detector check, but it is a Codex app feature, not
+  the Claude Code background-task wake path.
+
+On Codex, the markers still keep review idempotent. You lose the zero-idle-cost
+guarantee, not correctness or determinism.
+
 ## Workflow
 
-1. Start or resume the watch loop:
+1. Start the watch using the surface-specific path above.
+
+   Claude Code: arm both watchers as background `Bash` tasks with
+   `run_in_background: true` so idle polls never reach the model:
 
    ```bash
    .codex/skills/review-merged-prs/scripts/watch-merged-prs.sh
+   .codex/skills/review-merged-prs/scripts/watch-test-runs.sh
    ```
 
-2. When the loop exits `2`, read the detector output for the PR number(s).
+   Codex: do not use `run_in_background`. Either run the detectors once per
+   turn, or run the same watcher commands in foreground/managed sessions and
+   explicitly poll/stop them.
+2. When the active watch path reports exit `2`, read its payload for the PR
+   number(s) or heavy-run id(s) to review.
 3. Fetch PR context with `gh pr view <N> --json ...` and `gh pr diff <N>`.
 4. `git fetch origin main` and fast-forward local `main` with
    `git merge --ff-only origin/main`.
@@ -78,8 +169,15 @@ reached through the `.codex/skills` symlink, so an agent that reads skills from
    gh pr edit <N> --add-label agent-reviewed
    ```
 
-10. Run the detector once. If clean, restart the watch loop. Stop running watch
-    sessions before final responses or workflow changes.
+10. **Re-arm before the turn ends when the surface supports a persistent
+    watch.** For a heavy-run audit, bump the marker
+    (`test-runs-needing-review.sh --mark <run-id>`) as the analogue of step 9's
+    label. Then run the relevant detector once to confirm it is clean. On
+    Claude Code, re-launch the watcher as a background task (step 1). On Codex,
+    restart or continue the explicit foreground/session/automation path you
+    chose, accepting that idle is not zero-token unless a Codex automation owns
+    the cadence. Stop running watch tasks before final responses or workflow
+    changes.
 
 ## Open PR Reviews
 

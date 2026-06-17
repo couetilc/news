@@ -2,26 +2,28 @@
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-detector="$script_dir/merged-prs-needing-review.sh"
+detector="$script_dir/test-runs-needing-review.sh"
 
 usage() {
   cat <<'USAGE'
-Usage: watch-merged-prs.sh [detector options]
+Usage: watch-test-runs.sh [detector options]
 
-Watch for merged PRs that still need a post-merge review (no agent-reviewed
-label). Polls quietly across turns and stays SILENT on stdout while nothing has
-changed; prints the PR payload and exits 2 the moment a new merged PR appears.
+Watch for scheduled heavy-test runs (mutation / e2e / fuzz) that have completed
+since the last reviewed run of the same kind. Polls quietly across turns and
+stays SILENT on stdout while nothing has changed; prints the run payload and
+exits 2 the moment a new reviewable run appears.
 
 Claude Code: launch it through Bash with run_in_background so idle polls cost
-zero model turns and a new merge wakes the agent exactly once with the PR
-number(s) to review.
+zero model turns and a new heavy run wakes the agent exactly once with the run
+id(s) to audit.
 
 Codex: run it in the foreground or an explicitly managed command session and
 poll/stop that session yourself; it will not automatically re-invoke the model
 when backgrounded. Re-arm using the surface-specific path in SKILL.md "Watch
-mechanism".
+mechanism". Heavy workflows (#166/#77) must exist and emit runs first; until
+then this stays silent.
 
-Detector options are passed to merged-prs-needing-review.sh.
+Detector options are passed to test-runs-needing-review.sh.
 
 Environment:
   INTERVAL  Seconds between polls. Defaults to 60.
