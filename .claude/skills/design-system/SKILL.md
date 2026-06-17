@@ -402,5 +402,4 @@ Why this works: `news-cdn` is a public R2 bucket (the `CDN` binding in
 — CDN-cached, free egress, no Worker in the request path. The URL is public, so
 GitHub's image proxy (which fetches unauthenticated) renders it inline and the
 evidence persists on merged PRs. If the helper errors on auth or the URL doesn't
-resolve, its header documents the one-time activation (token R2 scope + the
-`wrangler r2 bucket domain add news-cdn news-cdn.cuteteal.com` step).
+resolve, its header documents the one-time R2 setup.
