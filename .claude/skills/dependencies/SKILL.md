@@ -45,8 +45,7 @@ Judge a dependency by where it runs, because the costs differ:
 - **Prefer a reputable dev-only dep over an undocumented config workaround —
   leanness shouldn't buy a fragile hack.** When the alternative to a small,
   vetted dev dep is a brittle config trick (e.g. a fake/empty tsconfig to dodge a
-  missing peer), take the dep: Stryker needed `typescript` present, so adding it
-  beat hand-faking a config the tool would silently misread.
+  missing peer the tool would otherwise silently misread), take the dep.
 
 **Agents are encouraged to propose *either* kind when warranted.** The human gate
 (below) is the cheap backstop: a too-eager proposal costs one "no"; a *missed*
