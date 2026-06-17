@@ -31,6 +31,12 @@ working shape:
 - **Acceptance** — how we know it's done; gate green; tests/docs updated.
 - **Related** — cross-link issues with `#N`.
 
+**Durable spec lives in the body; comments are for discussion.** The body is the
+contract an implementer reads (and triage/review only reliably read the body) —
+keep it the single source of truth. Comments carry rationale and back-and-forth;
+when a comment settles a spec change, **edit the decision back into the body** so
+it isn't lost to anyone who reads body-only.
+
 Flag **human-gated** changes explicitly in the body: anything that edits
 `docker/**` / the agent image, adds a heavyweight tool or new devDependency, or
 touches `.github/workflows/*` or `bin/**` launcher scripts needs an explicit

@@ -68,10 +68,12 @@ reached through the `.codex/skills` symlink, so an agent that reads skills from
 8. **File an issue for each actionable finding**, following
    `references/finding-issue.md` (a `agent-review` label plus the usual type/area
    labels; reference the source `PR #N` in the body). Search existing issues
-   first. If an existing issue already covers the finding, add a comment with
-   the PR-specific context to that issue instead of filing a duplicate. Do not
-   post the finding as a PR comment or PR review. If there are no actionable
-   findings, file nothing.
+   first, and read each candidate **in full — body AND comments**
+   (`gh issue view N --json body,comments` or `--comments`), never body-only: a
+   later comment may already cover the finding or refine the spec. If an existing
+   issue already covers the finding, add a comment with the PR-specific context
+   to that issue instead of filing a duplicate. Do not post the finding as a PR
+   comment or PR review. If there are no actionable findings, file nothing.
 9. **Mark the merged PR reviewed** regardless of outcome:
 
    ```bash

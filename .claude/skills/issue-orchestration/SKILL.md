@@ -36,6 +36,10 @@ it survives context summarization. Use `addBlockedBy` for hard dependencies.
 
 ## Triage: dependencies AND file collisions (the crux)
 
+**Read the full issue — body AND comments** (`gh issue view N --json body,comments`
+or `--comments`), never body-only: a comment often refines the spec after filing,
+and body-only triage silently misses it. Pass implementers the full text too.
+
 Two graphs decide ordering — and **collisions dominate**:
 
 - **Hard dependencies** — e.g. a public page needs the auth middleware first; sources that
@@ -60,7 +64,8 @@ Then group:
 message so they run concurrently. Cap at ~3–4 to keep merge-conflict load and review
 quality manageable. Each brief contains:
 
-- The issue: tell them to `gh issue view N` and follow it exactly.
+- The issue: tell them to read it **in full — body and comments**
+  (`gh issue view N --json body,comments`) and follow it exactly.
 - Conventions: `CLAUDE.md` + the relevant skill(s) (e.g. design-system for UI).
 - The pattern to mirror: point at the **canonical example file** for this kind of change.
 - Constraints: branch off main (never commit main), `npm ci` first, `npm test` must pass

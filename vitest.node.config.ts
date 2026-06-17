@@ -59,6 +59,9 @@ export default getViteConfig(
 				// override.
 				'test/enhance-forms.test.ts',
 				'test/infinite-scroll.test.ts',
+				// Stryker mutate-scope enforcement (#229) — reads sources +
+				// stryker.config.json off disk via node:fs (the workers pool can't).
+				'test/stryker-scope.test.ts',
 			],
 		},
 	},
