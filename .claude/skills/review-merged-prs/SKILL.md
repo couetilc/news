@@ -214,8 +214,12 @@ can't reach production-only behavior; these runs are where test-efficacy gaps an
    - **Mutation** (`mutation-report` artifact → `reports/mutation/mutation.json`):
      a new `Survived` mutant in changed code = weak/missing assertion → file a
      test-scenario issue. Distinguish **equivalent** mutants (can't change
-     observable behavior — redundant guards, logging, registry *data* like
-     `src/ingest/sources.ts`) → suppress, don't file. New `Timeout`/runtime error
+     observable behavior — redundant guards, logging) → suppress, don't file.
+     Registry *data* like `src/ingest/sources.ts` is **not** automatically
+     equivalent — it's in Stryker scope with `test/sources.test.ts` pinning slugs,
+     feed URLs, poll intervals, and parser behavior; judge each registry mutant
+     against that contract, suppressing only confirmed-equivalent data mutants and
+     filing genuine gaps. New `Timeout`/runtime error
      = possible infinite-loop/config break → file. Don't re-file the score
      regression `mutation.yml` already tracks; file the per-mutant delta.
    - **e2e** (`playwright-report` artifact → `playwright-report/results.json` +

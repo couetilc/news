@@ -53,10 +53,17 @@ The Stryker `json` report lists every mutant under `files[path].mutants[]` with 
   - **But first: is it an *equivalent* mutant?** An equivalent mutant can't change
     observable behavior, so no test can kill it and filing one is noise:
     - a redundant guard (a `?? []` on a value already proven non-null upstream),
-    - logging / diagnostics whose output nothing asserts by contract,
-    - **registry *data*** like `src/ingest/sources.ts` — mutating a feed URL or a
-      label string doesn't change logic the suite is meant to pin (the data is
-      validated live, not unit-asserted).
+    - logging / diagnostics whose output nothing asserts by contract.
+
+    **Registry *data* is NOT automatically equivalent.** `src/ingest/sources.ts` is
+    deliberately in Stryker scope, and `test/sources.test.ts` pins the source-registry
+    contract — configured slugs, the exact selected feed URLs, poll intervals, and
+    parser behavior over real fixtures. A survived mutant there *may* be equivalent in
+    a specific case (e.g. mutating a field nothing asserts), but don't assume it:
+    judge each registry mutant against that contract — suppress only a
+    *confirmed-equivalent* data mutant, and **file a genuine gap** where a configured
+    URL / slug / poll interval / parser contract should be pinned but isn't.
+
     Equivalent mutants go on the **suppression list** (below) so they don't re-fire;
     only *genuine* gaps get filed.
 - **`Timeout` / runtime `RuntimeError` (new) → file it.** A mutation that turns a
