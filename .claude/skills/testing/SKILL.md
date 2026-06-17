@@ -138,9 +138,12 @@ cycle — JS-driven UI, multi-page flows, the read/unread animation, a login
 round-trip. e2e is a **separate entry point, outside `npm test` and the coverage
 gate**; it's slower and flakier, so keep it sparse. Use it for behavior the
 hermetic pools *can't* exercise, never as a substitute for a unit test. CI runs
-this suite as a separate **advisory** job (non-blocking — it reports red without
-blocking merge/deploy, and uploads a `json` report artifact); a red e2e job is a
-signal to read, not yet a merge gate (issue #77).
+this suite out-of-band in its **own advisory workflow** (`.github/workflows/e2e.yml`,
+`name: E2E (advisory)`) — non-blocking (`continue-on-error: true`, reports red
+without blocking merge/deploy, uploads the `playwright-report` JSON artifact); a
+red e2e job is a signal to read, not yet a merge gate (issue #77). It lives in
+its own workflow (not `ci.yml`) so the heavy-run review detector finds it by
+workflow name — see the CI cadence section below.
 
 ## Browser-only client modules (`src/scripts/**`) — happy-dom in the node project
 
@@ -280,28 +283,47 @@ CI runs on two tiers, and which tier a tool lands in is a deliberate choice:
   **only PR-blocking check** (`ci.yml`'s `test` job). It must never hit the
   network and must stay quick — nothing heavyweight blocks a merge.
 - **Heavyweight tools run out-of-band, advisory-first.** Mutation testing
-  (`mutation.yml`) and e2e (#77) run on `schedule:` (nightly) + `workflow_dispatch:`
-  (and, since mutation is cheap, a path-filtered per-PR advisory run too). They
-  **report** — a PR comment, a step summary, an uploaded artifact, a tracking
-  issue on regression — but **do not block**. This is the standing graduation
-  path: **advisory first → blocking threshold once the signal is stable.** Only
-  promote a tool to a required check (e.g. a Stryker break threshold) after its
-  score has held steady; until then, advisory.
+  (`mutation.yml`, `name: Mutation (advisory)`) and Playwright e2e (`e2e.yml`,
+  `name: E2E (advisory)`, issue #77) run on `schedule:` (nightly) +
+  `workflow_dispatch:` + a per-PR advisory run (mutation path-filtered since it's
+  cheap; e2e on every PR). They **report** — a PR comment, a step summary, an
+  uploaded artifact, a tracking issue on regression — but **do not block**. This
+  is the standing graduation path: **advisory first → blocking threshold once
+  the signal is stable.** Only promote a tool to a required check (e.g. a Stryker
+  break threshold) after its score has held steady; until then, advisory.
 
 Mechanics worth keeping when you touch or add an out-of-band job:
 
 - **Change-gate the scheduled run** so a nightly sweep is skipped when nothing
   relevant changed: resolve the last successful run's SHA and
-  `git diff --quiet <lastSHA> HEAD -- src test '*.config.ts' stryker.config.json package-lock.json`
+  `git diff --quiet <lastSHA> HEAD -- src test '*.config.ts' stryker.config.json package.json package-lock.json`
   → skip. Per-PR runs get the same effect from a `paths:` filter over that set,
-  so doc/skill/workflow-only changes don't trigger the heavy tool.
+  so doc/skill/workflow-only changes don't trigger the heavy tool. The path-set
+  must include **`package.json`** alongside `package-lock.json` — it defines the
+  `test:mutation` script and Stryker/Vitest invocation, so a script-only edit
+  changes the mutation result without touching the lockfile. **Keep the
+  `pull_request: paths:` list and the in-job `git diff` pathspec identical** —
+  they're two copies of the same input set and must not drift.
 - **Emit a machine-readable artifact, not just logs.** Stryker's `json` reporter
   writes `reports/mutation/mutation.json` (gitignored), uploaded as the run's
   `mutation-report` artifact so review tooling can diff the score run-over-run.
   Compute the score from that JSON, never by scraping log text.
-- **Keep these jobs in their own workflow files**, separate from `ci.yml`'s
-  deploy pipeline — they're advisory and logically distinct, and a standalone
-  file keeps union-merges with concurrent `ci.yml` PRs clean.
+- **A job that opens a backlog issue applies the full label taxonomy** — a
+  *type* label plus area labels, exactly like a hand-filed issue (see
+  `filing-issues`). The mutation workflow's sub-baseline regression issue is a
+  `bug` (a score drop records a regression in test effectiveness) plus
+  `testing` + `agent-infra`; never ship a generated issue with area labels but
+  no type axis, or it won't match the backlog structure agents query.
+- **Keep each advisory tool in its own workflow file**, separate from `ci.yml`'s
+  deploy pipeline — they're advisory and logically distinct, a standalone file
+  keeps union-merges with concurrent `ci.yml` PRs clean, **and the heavy-run
+  review detector finds runs by workflow *name*** (`mutation|stryker|e2e|playwright|fuzz`,
+  defaulting to `schedule` events;
+  `.claude/skills/review-merged-prs/scripts/test-runs-needing-review.sh`). A
+  heavy job buried inside the generic `CI` workflow is invisible to that loop —
+  so name the workflow to match (e.g. `E2E (advisory)`) and give it a `schedule:`
+  trigger, and a completed run is then `--mark`-able with its per-kind reviewed
+  marker exactly like mutation runs.
 
 ## Before you commit a test
 

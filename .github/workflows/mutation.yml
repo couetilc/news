@@ -21,13 +21,16 @@ name: Mutation (advisory)
 on:
   pull_request:
     # Only the inputs that can change the mutation result: the mutated source,
-    # its specs, the test/stryker configs, and the dependency lockfile. Keep this
-    # list in sync with the `git diff` path-spec in the change-gate step below.
+    # its specs, the test/stryker configs, package.json (it defines the
+    # `test:mutation` script + Stryker/Vitest invocation), and the dependency
+    # lockfile. Keep this list in sync with the `git diff` path-spec in the
+    # change-gate step below.
     paths:
       - 'src/**'
       - 'test/**'
       - '**/*.config.ts'
       - 'stryker.config.json'
+      - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/mutation.yml'
   schedule:
@@ -78,7 +81,7 @@ jobs:
             exit 0
           fi
           if git cat-file -e "${last_sha}^{commit}" 2>/dev/null; then
-            if git diff --quiet "$last_sha" HEAD -- src test '*.config.ts' stryker.config.json package-lock.json; then
+            if git diff --quiet "$last_sha" HEAD -- src test '*.config.ts' stryker.config.json package.json package-lock.json; then
               echo "No relevant change since $last_sha — skipping the nightly sweep."
               echo "run=false" >> "$GITHUB_OUTPUT"
             else
@@ -221,6 +224,8 @@ jobs:
             gh issue comment "$existing" --body "$body" >/dev/null
             echo "Updated existing regression issue #$existing."
           else
-            gh issue create --title "$title" --body "$body" --label testing --label agent-infra >/dev/null
+            # `bug` is the type axis: a sub-baseline score records a regression in
+            # test effectiveness (per repo issue conventions — type + area labels).
+            gh issue create --title "$title" --body "$body" --label bug --label testing --label agent-infra >/dev/null
             echo "Opened a new regression issue."
           fi
