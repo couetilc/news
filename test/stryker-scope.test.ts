@@ -65,11 +65,9 @@ const GLUE_ALLOWLIST: Record<string, string> = {
 const CORE_WITHOUT_ISOLATED_TEST: Record<string, string> = {
 	'src/lib/format.ts': 'no dedicated spec — covered only via .astro page renders',
 	'src/lib/sources.ts': 'no dedicated spec — covered only via .astro page renders',
-	// deploy.ts HAS direct deployInfo() assertions, but they live in
-	// test/status.test.ts, which also renders status.astro (Astro Container API) —
-	// so the spec is not plain-node-runnable in isolation and can't join the
-	// Stryker include without splitting it out first.
-	'src/lib/deploy.ts': 'deployInfo() assertions entangled with the status.astro render spec',
+	// deploy.ts now has a dedicated plain-node spec (test/deploy.test.ts, split
+	// out of status.test.ts in #236), so it's in `mutate` + the stryker include,
+	// not here.
 };
 
 function listSources(): string[] {
