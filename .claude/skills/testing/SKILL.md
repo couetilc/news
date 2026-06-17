@@ -158,12 +158,19 @@ outside `npm test` and the coverage gate** — slower and flakier — so it earn
 its place by covering what the hermetic pools *can't*, never by duplicating a
 unit test that already holds.
 
-CI runs this suite out-of-band in its **own advisory workflow** (`.github/workflows/e2e.yml`,
-`name: E2E (advisory)`) — non-blocking (`continue-on-error: true`, reports red
-without blocking merge/deploy, uploads the `playwright-report` JSON artifact); a
-red e2e job is a signal to read, not yet a merge gate (issue #77). It lives in
-its own workflow (not `ci.yml`) so the heavy-run review detector finds it by
-workflow name — see the CI cadence section below.
+CI runs this suite in its **own workflow** (`.github/workflows/e2e.yml`), separate
+from `ci.yml`. The per-PR run is **no longer advisory** (issue #279): it dropped
+`continue-on-error: true`, so a real e2e failure reports red and **fails the
+check honestly** (`retries: 1` in `playwright.config.ts` stays as a thin ride-out
+for residual flake). Whether a red check *blocks merge* is a separate switch — it
+blocks only once `e2e` is added as a required status check in the `protect-main`
+ruleset (a repo-admin step; promotion in progress), but treat a red e2e run as a
+real failure to fix, never as informational. The scheduled/dispatch sweeps stay
+out-of-band from deploy and are reviewed by the heavy-run detector. **The workflow
+`name:` is intentionally still `E2E (advisory)`** even though the PR run is no
+longer advisory — renaming it would change the check-name slug the heavy-run
+review detector keys off, so don't "fix" the name until a coordinated rename
+updates that detector marker too (see the CI cadence section below).
 
 ## Browser-only client modules (`src/scripts/**`) — happy-dom in the node project
 
@@ -300,17 +307,28 @@ CI runs on two tiers, and which tier a tool lands in is a deliberate choice:
 
 - **The per-commit gate stays fast + hermetic.** `npm test` (the two vitest
   projects + property/in-suite-fuzz tests + the 100% coverage gate) is the
-  **only PR-blocking check** (`ci.yml`'s `test` job). It must never hit the
-  network and must stay quick — nothing heavyweight blocks a merge.
-- **Heavyweight tools run out-of-band, advisory-first.** Mutation testing
-  (`mutation.yml`, `name: Mutation (advisory)`) and Playwright e2e (`e2e.yml`,
-  `name: E2E (advisory)`, issue #77) run on `schedule:` (nightly) +
-  `workflow_dispatch:` + a per-PR advisory run (mutation path-filtered since it's
-  cheap; e2e on every PR). They **report** — a PR comment, a step summary, an
-  uploaded artifact, a tracking issue on regression — but **do not block**. This
-  is the standing graduation path: **advisory first → blocking threshold once
-  the signal is stable.** Only promote a tool to a required check (e.g. a Stryker
-  break threshold) after its score has held steady; until then, advisory.
+  always-required PR-blocking check (`ci.yml`'s `test` job). It must never hit the
+  network and must stay quick — nothing heavyweight blocks a merge through it.
+- **Heavyweight tools run out-of-band.** Mutation testing (`mutation.yml`,
+  `name: Mutation (advisory)`) and Playwright e2e (`e2e.yml`, issue #77) both run
+  on `schedule:` (nightly) + `workflow_dispatch:` + a per-PR run (mutation
+  path-filtered since it's cheap; e2e on every PR), each in its own workflow file
+  so the heavy-run detector finds it. Their **graduation status differs**:
+  - **Mutation is still advisory.** Its runs **report** — a PR comment, a step
+    summary, an uploaded artifact, a tracking issue on regression — but **do not
+    block** merge or deploy.
+  - **e2e's per-PR run is no longer advisory** (issue #279): it dropped
+    `continue-on-error: true`, so a real failure **fails the check honestly**.
+    Merge *blocking* depends on the `protect-main` ruleset requiring the `e2e`
+    check (promotion in progress) — but treat red e2e as a real failure to fix,
+    not informational. Its scheduled/dispatch sweeps stay out-of-band from deploy
+    and are reviewed by the heavy-run detector. **Its workflow `name:` is
+    intentionally still `E2E (advisory)`** for check-name/detector-slug stability;
+    don't rename it until a coordinated change updates the detector marker too.
+  This is the standing graduation path: **advisory first → blocking once the
+  signal is stable** (e2e has begun that promotion; mutation has not). Only promote
+  a tool to a required check (e.g. a Stryker break threshold) after its score has
+  held steady; until then, advisory.
 
 Mechanics worth keeping when you touch or add an out-of-band job:
 
@@ -336,16 +354,19 @@ Mechanics worth keeping when you touch or add an out-of-band job:
   `bug` (a score drop records a regression in test effectiveness) plus
   `testing` + `agent-infra`; never ship a generated issue with area labels but
   no type axis, or it won't match the backlog structure agents query.
-- **Keep each advisory tool in its own workflow file**, separate from `ci.yml`'s
-  deploy pipeline — they're advisory and logically distinct, a standalone file
-  keeps union-merges with concurrent `ci.yml` PRs clean, **and the heavy-run
-  review detector finds runs by workflow *name*** (`mutation|stryker|e2e|playwright|fuzz`,
+- **Keep each out-of-band tool in its own workflow file**, separate from `ci.yml`'s
+  deploy pipeline — they're logically distinct, a standalone file keeps
+  union-merges with concurrent `ci.yml` PRs clean, **and the heavy-run review
+  detector finds runs by workflow *name*** (`mutation|stryker|e2e|playwright|fuzz`,
   defaulting to `schedule` events;
   `.claude/skills/review-merged-prs/scripts/test-runs-needing-review.sh`). A
   heavy job buried inside the generic `CI` workflow is invisible to that loop —
   so name the workflow to match (e.g. `E2E (advisory)`) and give it a `schedule:`
   trigger, and a completed run is then `--mark`-able with its per-kind reviewed
-  marker exactly like mutation runs.
+  marker exactly like mutation runs. This is why `e2e.yml` keeps the now-stale
+  `name: E2E (advisory)` (the slug the detector keys off) even though its PR run
+  is no longer advisory — a rename is a coordinated change that must update the
+  detector marker too.
 
 ## Before you commit a test
 
