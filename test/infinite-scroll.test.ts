@@ -175,6 +175,78 @@ describe('infinite-scroll loader (#151)', () => {
 		await vi.waitFor(() => expect(document.body.textContent).toContain('Item 2'));
 	});
 
+	it('refetches the adjusted page when a read toggle decremented the cursor mid-flight, so the row that slid into the next page is not skipped (#260)', async () => {
+		// Reproduce the in-flight cursor race: the sentinel is loading /feed…&offset=50
+		// when a read/unread toggle removes a loaded row above it, which decrements the
+		// sentinel's data-next-url to offset=49 (enhance-forms.decrementSentinelOffset,
+		// #249). The in-flight offset=50 page is now STALE — it starts at "Item 50",
+		// skipping "Item 49" which slid into position 49. Appending it would drop Item 49
+		// from the list though it's still unread in D1. The loader must instead discard
+		// the stale page and re-fetch from the now-current offset=49.
+		//
+		// Each fetch returns its own deferred promise so the test controls the
+		// interleaving: resolve the stale offset=50 page first (while the cursor already
+		// reads offset=49), then the offset=49 page.
+		const deferreds: { url: string; resolve: (r: Response) => void }[] = [];
+		const fetchMock = vi.fn((url: string) => {
+			let resolve!: (r: Response) => void;
+			const promise = new Promise<Response>((r) => (resolve = r));
+			deferreds.push({ url, resolve });
+			return promise;
+		});
+		vi.stubGlobal('fetch', fetchMock);
+
+		document.body.append(listWithSentinel('/feed?tab=unread&offset=50'));
+		initInfiniteScroll();
+		const obs = FakeIntersectionObserver.instances.at(-1)!;
+		const sentinel = obs.elements[0] as HTMLElement;
+
+		// Sentinel intersects → starts the offset=50 fetch (captured before awaiting).
+		obs.trigger(sentinel);
+		await vi.waitFor(() => expect(deferreds).toHaveLength(1));
+		expect(deferreds[0].url).toBe('/feed?tab=unread&offset=50');
+
+		// A read toggle fires while that page is in flight: a row above is removed and
+		// the sentinel's cursor is decremented to offset=49 (the #249 realignment).
+		sentinel.dataset.nextUrl = '/feed?tab=unread&offset=49';
+
+		// Resolve the now-stale offset=50 page. It starts at Item 50 — appending it would
+		// SKIP Item 49. The loader must reject it (cursor moved) and re-fetch offset=49.
+		deferreds[0].resolve(
+			okText(fragment({ ids: [50, 51], nextUrl: '/feed?tab=unread&offset=100' })),
+		);
+
+		// The loader re-fetches from the adjusted cursor rather than appending the stale
+		// page: a second fetch goes out for offset=49.
+		await vi.waitFor(() => expect(deferreds).toHaveLength(2));
+		expect(deferreds[1].url).toBe('/feed?tab=unread&offset=49');
+
+		// The stale page was discarded, so its Item 50/51 weren't appended on their own;
+		// nothing is in the list yet beyond the original row + sentinel.
+		expect(document.body.textContent).not.toContain('Item 50');
+
+		// Resolve the correct offset=49 page — it leads with Item 49 (the row that slid
+		// into position 49).
+		deferreds[1].resolve(
+			okText(fragment({ ids: [49, 50, 51], nextUrl: '/feed?tab=unread&offset=99' })),
+		);
+		await vi.waitFor(() => expect(document.body.textContent).toContain('Item 49'));
+
+		// The observable outcome: Item 49 (the first unseen row) is present and NOT
+		// skipped, and the appended page is the offset=49 page, in order, after the
+		// original Item 1.
+		const list = document.querySelector('[data-feed-list]')!;
+		const texts = [...list.children].map((c) => c.textContent?.trim());
+		expect(texts.slice(0, 4)).toEqual(['Item 1', 'Item 49', 'Item 50', 'Item 51']);
+		// Exactly two fetches happened (the stale one, then the refetch) — the stale
+		// page was never appended a second time.
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		// The fresh sentinel from the offset=49 page is now observed for the next page.
+		const freshSentinel = list.querySelector('[data-feed-sentinel]')!;
+		expect(freshSentinel.getAttribute('data-next-url')).toBe('/feed?tab=unread&offset=99');
+		expect(obs.elements).toContain(freshSentinel);
+	});
+
 	it('surfaces a fetch error in voice and keeps the sentinel so a later scroll retries', async () => {
 		const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 500 } as Response);
 		vi.stubGlobal('fetch', fetchMock);

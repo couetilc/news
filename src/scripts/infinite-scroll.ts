@@ -60,36 +60,65 @@ function parseFragment(html: string): Node[] {
 // redirected away from /feed and instead send the browser to the final URL with a
 // full-page navigation — handing the reader the real login flow rather than a
 // corrupted feed.
+//
+// In-flight cursor race (#260): the read/unread toggle's in-place removal
+// decrements THIS sentinel's data-next-url offset (enhance-forms.ts
+// decrementSentinelOffset, #249) so a row that slides into the next page's first
+// position isn't skipped. But a decrement can land while a page fetch is already
+// in flight, captured against the OLD offset (e.g. offset=50). Appending that
+// stale page starts one row too late and skips the row that slid into offset=49.
+// So after each fetch resolves, re-read the sentinel's CURRENT data-next-url: if a
+// toggle moved it, the fetched page is stale — discard it and re-fetch from the
+// adjusted cursor (loop). The cursor only ever decrements toward a stable value,
+// so the loop terminates once a fetch resolves against an unchanged data-next-url.
+// The loading guard stays held across every re-fetch so a second intersection
+// can't start a parallel load.
 async function loadNext(sentinel: HTMLElement, observer: IntersectionObserver): Promise<void> {
-	const url = sentinel.dataset.nextUrl;
 	// A sentinel with no next-url is the end of the list — nothing to load.
-	if (url === undefined || loading.has(sentinel)) return;
+	if (sentinel.dataset.nextUrl === undefined || loading.has(sentinel)) return;
 	loading.add(sentinel);
 
 	try {
-		const res = await fetch(url);
-		if (!res.ok) throw new Error(`feed page ${res.status}`);
-		// An auth-redirect (session lapsed → 303 to /login, followed by fetch) lands
-		// here as a 200 whose final URL is no longer /feed. Don't parse it as a
-		// fragment — navigate the browser to that final URL so the reader gets the
-		// login flow (#216). A full navigation, not an append.
-		if (res.redirected && new URL(res.url).pathname !== '/feed') {
-			window.location.assign(res.url);
+		// Re-fetch until the page we resolved still matches the sentinel's cursor: a
+		// read toggle decrementing data-next-url mid-flight (#260) invalidates the
+		// in-flight page, so fetch again from the adjusted offset rather than
+		// appending a stale page that starts one row too late. The cursor is defined
+		// here (guarded on entry) and the toggle only ever rewrites it, never deletes
+		// it, so the non-null assertion documents that invariant without an
+		// unreachable undefined-branch the 100% gate would flag.
+		for (;;) {
+			const url: string = sentinel.dataset.nextUrl!;
+			const res = await fetch(url);
+			if (!res.ok) throw new Error(`feed page ${res.status}`);
+			// An auth-redirect (session lapsed → 303 to /login, followed by fetch) lands
+			// here as a 200 whose final URL is no longer /feed. Don't parse it as a
+			// fragment — navigate the browser to that final URL so the reader gets the
+			// login flow (#216). A full navigation, not an append.
+			if (res.redirected && new URL(res.url).pathname !== '/feed') {
+				window.location.assign(res.url);
+				return;
+			}
+			const html = await res.text();
+			// A read toggle decremented the cursor while this page was in flight (#260):
+			// the page we hold is stale (starts one row too late). Discard it and loop to
+			// re-fetch from the now-current offset. The cursor only decrements toward a
+			// stable value, so this converges once a fetch resolves against an unchanged
+			// data-next-url.
+			if (sentinel.dataset.nextUrl !== url) continue;
+			const nodes = parseFragment(html);
+			const parent = sentinel.parentNode;
+			// The list is always still mounted here (the same <ol> the sentinel lives
+			// in), but guard the parent for the type and so a mid-navigation swap can't
+			// throw.
+			if (parent) {
+				for (const node of nodes) parent.insertBefore(node, sentinel);
+				observer.unobserve(sentinel);
+				sentinel.remove();
+				// Observe the fresh sentinel the fragment brought (if any); none means
+				// the list is exhausted, so scrolling further fires no fetch.
+				observeSentinels(parent as Element, observer);
+			}
 			return;
-		}
-		const html = await res.text();
-		const nodes = parseFragment(html);
-		const parent = sentinel.parentNode;
-		// The list is always still mounted here (the same <ol> the sentinel lives
-		// in), but guard the parent for the type and so a mid-navigation swap can't
-		// throw.
-		if (parent) {
-			for (const node of nodes) parent.insertBefore(node, sentinel);
-			observer.unobserve(sentinel);
-			sentinel.remove();
-			// Observe the fresh sentinel the fragment brought (if any); none means
-			// the list is exhausted, so scrolling further fires no fetch.
-			observeSentinels(parent as Element, observer);
 		}
 	} catch {
 		// Network/server error: keep the sentinel so a later scroll retries, and say
