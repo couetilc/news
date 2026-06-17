@@ -348,3 +348,23 @@ this feel app-y?".
 `src/lib/**` count. Keep presentational helpers branch-free (see
 `src/lib/format.ts` — fixed name tables, no conditionals) and make sure any new
 component is actually rendered by a test, or the gate fails.
+
+## Screenshots for visual changes
+
+Any PR that changes what a page or component looks like ships **before/after
+screenshots in the PR body** — standing repo policy. A visual change is reviewed
+by eye: this skill governs look-and-feel by review, so the review has to *see*
+it. No screenshots, no informed sign-off.
+
+- **Capture against the real app.** Drive the container's baked headless
+  Chromium the way the `verify`/`run` skills describe — bring up `astro dev` on
+  workerd on a free port, seed a little local D1, drive the page, and screenshot
+  the before and after states. Launch Chromium with `--no-sandbox` in the
+  container. Show the states that matter (e.g. the resting treatment vs. the new
+  one), and keep each shot scoped to the change rather than the whole page.
+- **Attach by committing.** Put the PNGs under
+  `docs/screenshots/<issue-number>/` and embed them in the PR body via a raw blob
+  URL pinned to the commit SHA —
+  `https://github.com/couetilc/news/blob/<sha>/docs/screenshots/<issue>/after.png?raw=true`
+  — so they render inline and survive the PR branch being deleted.
+- **Worked example:** the visited-indicator PR **#269** (issue #263).
