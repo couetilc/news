@@ -95,10 +95,79 @@ pick_port() {
 	done
 }
 
+# Resume a prior kept container for THIS agent kind (news-agent-<kind>-*).
+#
+#   --resume          pick the most-recent kept container of this kind and
+#                     `docker start -ai` it (one match → start it; several →
+#                     list newest-first and prompt for a choice).
+#   --resume <name>   `docker start -ai <name>` directly.
+#
+# Container names embed a `date +%m%d-%H%M%S` timestamp, so a plain reverse
+# lexical sort of the names is also newest-first — no docker date parsing needed.
+#
+# Resume RE-RUNS the container's original command (see the header note): for an
+# interactively-launched container it reopens the session — then run `/resume`
+# (Claude) / `resume` (Codex) INSIDE to reattach the prior conversation. Resume
+# is NOT a workspace restore: the same kept container keeps its tree as left, but
+# `git fetch` first if you need newer origin state. Do NOT resume a headless
+# (`-p`) container — it would replay that one-shot prompt's edits/commits/pushes;
+# recover that work from the already-pushed branch instead. `--clean` `docker
+# rm`s exited containers and so DESTROYS resumability — resume before you clean.
+agent_resume() {
+	local name="${1:-}"
+	if [ -n "$name" ]; then
+		exec docker start -ai "$name"
+	fi
+
+	# No name: list this kind's kept containers, newest first. The timestamp
+	# suffix makes a reverse lexical sort of the names newest-first.
+	local names=()
+	while IFS= read -r line; do
+		[ -n "$line" ] && names+=("$line")
+	done < <(docker ps -a --filter "label=news-agent" \
+		--filter "name=news-agent-${AGENT_KIND}-" \
+		--format '{{.Names}}' | sort -r)
+
+	if [ "${#names[@]}" -eq 0 ]; then
+		echo "no kept news-agent-${AGENT_KIND}-* containers to resume" >&2
+		echo "  (a fresh ./bin/${AGENT_KIND} launch builds a NEW container that can't see prior sessions)" >&2
+		exit 1
+	fi
+
+	if [ "${#names[@]}" -eq 1 ]; then
+		echo "Resuming ${names[0]} (the only kept ${AGENT_KIND} container)..." >&2
+		exec docker start -ai "${names[0]}"
+	fi
+
+	echo "Kept ${AGENT_KIND} containers (newest first):" >&2
+	local i
+	for i in "${!names[@]}"; do
+		printf '  %d) %s\n' "$((i + 1))" "${names[$i]}" >&2
+	done
+	local reply
+	printf 'Resume which? [1-%d, default 1]: ' "${#names[@]}" >&2
+	read -r reply
+	reply="${reply:-1}"
+	if ! [[ "$reply" =~ ^[0-9]+$ ]] || [ "$reply" -lt 1 ] || [ "$reply" -gt "${#names[@]}" ]; then
+		echo "error: '$reply' is not a choice between 1 and ${#names[@]}" >&2
+		exit 1
+	fi
+	exec docker start -ai "${names[$((reply - 1))]}"
+}
+
 # The full launch flow. cd is relative to the *wrapper* ($0 stays the sourcing
 # script through `source`), so this resolves the repo root for either entrypoint.
 agent_launch() {
 	cd "$(dirname "$0")/.." || exit 1
+
+	# --resume reattaches a kept container; list it BEFORE --clean because
+	# --clean `docker rm`s the very exited containers --resume needs. Distinct
+	# flags, but this ordering keeps the "resume before you destroy" rule legible.
+	if [ "${1:-}" = "--resume" ]; then
+		shift
+		agent_resume "${1:-}"
+		# agent_resume always exec/exits; control never returns here.
+	fi
 
 	if [ "${1:-}" = "--clean" ]; then
 		local exited

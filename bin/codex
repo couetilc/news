@@ -6,7 +6,16 @@
 #   ./bin/codex                   interactive session, approvals+sandbox bypassed
 #   ./bin/codex -p "fix tests"    headless one-shot (codex exec)
 #   ./bin/codex --shell           bash inside the container instead of codex
+#   ./bin/codex --resume [name]   start -ai a kept container (default: newest);
+#                                 then run `resume` INSIDE to reattach the thread
 #   ./bin/codex --clean           remove exited agent containers + rebuild image
+#
+# --resume only reopens a container's session; the conversation reattaches when
+# you run `resume` INSIDE it. Resume is not a workspace restore — the same
+# container keeps its tree, otherwise `git fetch` first. --clean `docker rm`s
+# exited containers, destroying resumability, so resume before you --clean.
+# (Don't --resume a headless `-p` container: it replays that prompt — recover
+# from the pushed branch instead.) Full notes live in bin/_agent-common.sh.
 #
 # Model/effort: gpt-5.5 at xhigh reasoning effort — mirrors bin/claude's
 # opus/xhigh. gpt-5.5 is OpenAI's current flagship; bump CODEX_MODEL when a
