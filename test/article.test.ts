@@ -34,6 +34,35 @@ describe('Article component', () => {
 		expect(html).toContain('name="return" value="/"');
 	});
 
+	it('carries the visited-indicator hooks, independent of read state (#263)', async () => {
+		// The row exposes its URL (data-visited-url) for the visited.ts store match,
+		// the headline link is tagged data-visited-link so the click listener finds it,
+		// and the hidden agate "Opened" tag (data-visited-tag / .visited-tag, revealed
+		// by the [data-visited] CSS) is present. These ride alongside — never replace —
+		// the read square, so the two states stay independent.
+		const unread = await render({ item: row() });
+		expect(unread).toContain('data-visited-url="https://example.com/a"');
+		expect(unread).toContain('data-visited-link');
+		expect(unread).toContain('data-visited-tag');
+		expect(unread).toContain('visited-tag');
+		expect(unread).toContain('Opened');
+		// A read item still carries the same visited hooks (visited is orthogonal to
+		// read); the read square's own markup is asserted elsewhere.
+		const read = await render({ item: row({ read_at: 4000 }) });
+		expect(read).toContain('data-visited-url="https://example.com/a"');
+		expect(read).toContain('data-visited-link');
+	});
+
+	it('omits the visited hooks on the read-only public feed (interactive=false)', async () => {
+		// The public feed still renders the row, so the URL + link hooks are harmless
+		// to keep; but assert the indicator markup is present so a future change can't
+		// silently drop it where the feed is shown. (The store/click are per-device and
+		// inert without the script; no server state is involved.)
+		const html = await render({ item: row(), interactive: false });
+		expect(html).toContain('data-visited-url="https://example.com/a"');
+		expect(html).toContain('data-visited-link');
+	});
+
 	it('headline link carries the interactive-affordance obligations (#131)', async () => {
 		// The headline is a text-link: focus-visible ring (keyboard a11y) on the <a>,
 		// and the hover/focus underline+accent on the <h2>. The resting cue is layout

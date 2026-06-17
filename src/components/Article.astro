@@ -46,7 +46,12 @@ const label = isRead ? 'Mark as unread' : 'Mark as read';
 const nextState = isRead ? '0' : '1';
 ---
 
-<li class={row} transition:name={`item-${item.id}`} data-feed-row>
+<li
+	class={row}
+	transition:name={`item-${item.id}`}
+	data-feed-row
+	data-visited-url={item.url}
+>
 	<div class="min-w-0 flex-1">
 		{/* Headline link — the text-link idiom (#129/#131). Resting affordance: per
 		    the design-system call, a permanent underline reads heavy on a dense
@@ -55,8 +60,12 @@ const nextState = isRead ? '0' : '1';
 		    link is its only serif headline. It still owes the four obligations: the
 		    focus-visible ink ring (added here) gives keyboard readers a visible focus
 		    box, hover goes accent + underlined, and <a href> supplies cursor-pointer. */}
+		{/* data-visited-link marks the article link for the visited indicator (#263):
+		    the visited.ts click listener records this row's URL on open and the
+		    a:visited / [data-visited] CSS de-emphasizes it. Independent of read state. */}
 		<a
 			href={item.url}
+			data-visited-link
 			class="group block focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
 		>
 			<h2
@@ -72,6 +81,16 @@ const nextState = isRead ? '0' : '1';
 			<span class="font-semibold text-ink-soft">{source.name}</span>
 			<span class="mx-1.5" aria-hidden="true">·</span>
 			<time datetime={isoTime(seconds)}>{shortDate(seconds)}</time>
+			{/* Visited indicator (#263): an agate "Opened" tag in the dateline voice,
+			    set in the muted ink and a hairline ruled box so it reads as a calm
+			    archival mark — NOT the accent (reserved for interaction) and NOT the
+			    read square. Hidden at rest; the `[data-visited]` CSS in global.css
+			    reveals it once visited.ts records this row's link as opened. It's
+			    independent of read state, so a row can be opened-but-unread. */}
+			<span data-visited-tag class="visited-tag">
+				<span class="mx-1.5" aria-hidden="true">·</span>
+				<span class="border border-rule px-1 not-italic text-muted">Opened</span>
+			</span>
 		</p>
 	</div>
 	{
