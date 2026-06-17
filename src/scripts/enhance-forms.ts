@@ -57,11 +57,22 @@ function restoreButton(button: HTMLButtonElement): void {
 
 // Reveal the in-voice italic agate "Working…" line where the read-toggle result
 // will land (#96) — hidden + aria-hidden at rest, shown and announced in flight.
+//
+// Also RESET the slot back to the loading state before each fetch (#251): a prior
+// failed toggle left this same line as an error (role="alert", text-accent, the
+// "Couldn’t save" copy — see showReadError). On the retry that error must not
+// linger next to a busy square, so restore the in-flight affordance: the
+// "Working…" text, no alert role, and the normal muted ink rather than the accent.
+// At rest the line already carries this state, so resetting it is a harmless no-op
+// on a first, never-failed toggle.
 function revealWorking(form: HTMLFormElement): void {
 	const working = form.querySelector<HTMLElement>('[data-read-working]');
 	if (working) {
 		working.hidden = false;
 		working.removeAttribute('aria-hidden');
+		working.removeAttribute('role');
+		working.classList.remove('text-accent');
+		working.textContent = 'Working…';
 	}
 }
 
@@ -109,21 +120,54 @@ function retallyTabs(nowRead: boolean): void {
 	}
 }
 
-// Remove the toggled row from the active tab's list and, if that empties the
-// list, replace it with the same caught-up empty state the server renders (#223).
-// The empty copy rides on the <ol data-feed-list data-empty-message> (filter- and
-// tab-aware, computed server-side), so the client never reconstructs it. The <p>'s
-// classes mirror the server-rendered <p data-feed-empty> in index.astro — keep
-// them in sync. A form not inside a [data-feed-row] (a bare test form) has no row
-// to remove, so this is a no-op there.
+// Keep the active list's infinite-scroll cursor consistent after an in-place
+// removal (#249). The sentinel's data-next-url carries a POSITIONAL ?offset over
+// the active tab's read/unread query (e.g. /feed?tab=unread&offset=50). Removing
+// a loaded row contracts that query, so every still-unseen row behind the
+// sentinel shifts one position toward 0 — the existing offset now points one row
+// PAST the next unseen one and would skip the row that slid into its place. So
+// decrement the sentinel's ?offset by one to re-align the cursor.
+//
+// Only the active list's own sentinel is touched (a row only ever leaves the tab
+// it's displayed in). A list with no sentinel (fully loaded, or no further pages)
+// has no cursor to adjust; an absent/non-numeric/zero offset is left alone —
+// there's nothing before offset 0 to skip.
+function decrementSentinelOffset(list: HTMLElement): void {
+	const sentinel = list.querySelector<HTMLElement>('[data-feed-sentinel][data-next-url]');
+	const nextUrl = sentinel?.dataset.nextUrl;
+	if (!sentinel || nextUrl === undefined) return;
+	// Resolve against a base so a path-only data-next-url ("/feed?…") parses; the
+	// base's origin is irrelevant — only pathname + search are read back out.
+	const url = new URL(nextUrl, 'https://news.cuteteal.com');
+	const offset = Number.parseInt(url.searchParams.get('offset') ?? '', 10);
+	if (Number.isNaN(offset) || offset <= 0) return;
+	url.searchParams.set('offset', String(offset - 1));
+	sentinel.dataset.nextUrl = `${url.pathname}${url.search}`;
+}
+
+// Remove the toggled row from the active tab's list, keep its infinite-scroll
+// cursor aligned, and — only when the tab is truly exhausted — replace the list
+// with the same caught-up empty state the server renders (#223, #249). The empty
+// copy rides on the <ol data-feed-list data-empty-message> (filter- and tab-aware,
+// computed server-side), so the client never reconstructs it. The <p>'s classes
+// mirror the server-rendered <p data-feed-empty> in index.astro — keep them in
+// sync. A form not inside a [data-feed-row] (a bare test form) has no row to
+// remove, so this is a no-op there.
 function removeRow(form: HTMLFormElement): void {
 	const row = form.closest<HTMLElement>('[data-feed-row]');
 	if (!row) return;
 	const list = row.closest<HTMLElement>('[data-feed-list]');
 	row.remove();
-	// If the list still holds a row, leave it; once it holds no more [data-feed-row]
-	// the tab is caught up, so swap the whole list for its empty-state paragraph.
-	if (list && !list.querySelector('[data-feed-row]')) {
+	if (!list) return;
+	// Re-align the cursor first: the removed row shifted every unseen row behind
+	// the sentinel one position toward 0 (#249).
+	decrementSentinelOffset(list);
+	// The tab is caught up only when NO row remains AND no sentinel is left to load
+	// more behind it — otherwise more pages exist and an empty state would be false
+	// (#249). When truly empty, swap the whole list for its empty-state paragraph.
+	const hasRow = list.querySelector('[data-feed-row]') !== null;
+	const hasSentinel = list.querySelector('[data-feed-sentinel]') !== null;
+	if (!hasRow && !hasSentinel) {
 		const empty = document.createElement('p');
 		empty.setAttribute('data-feed-empty', '');
 		empty.className = 'py-16 text-center text-lg italic text-muted';
@@ -135,10 +179,23 @@ function removeRow(form: HTMLFormElement): void {
 // Drive the in-place read toggle (#223): POST the form via fetch (no navigation),
 // then on success update the DOM in place — remove the row from its tab and
 // re-tally — so scroll is undisturbed. The /api/read endpoint 303-redirects back
-// to the feed; fetch follows that transparently, so a success is `res.ok`. The
-// body is irrelevant (we already know the new state from the form), so it's never
-// read. On failure the square is restored and an inline error shown so the reader
-// can retry; the server write stays idempotent, so a retry is safe.
+// to the feed (safeReturnPath only ever returns to '/' + ?source/?tab); fetch
+// follows that transparently, so a saved toggle is `res.ok` whose final URL is
+// still the homepage. The body is irrelevant (we already know the new state from
+// the form), so it's never read. On failure the square is restored and an inline
+// error shown so the reader can retry; the server write stays idempotent, so a
+// retry is safe.
+//
+// Auth-redirect guard (#250, the same failure class #216 fixed for infinite
+// scroll): /api/read is auth-gated by the middleware. If the session lapses while
+// the feed is open, an attempted toggle gets a 303 to /login; browser fetch
+// follows it, so res.ok is true and res.url is the LOGIN page — not a saved
+// toggle. Treating that as success would wrongly remove the row and change the
+// tallies while item_reads was never written, and never send the reader to log in.
+// So before mutating the DOM, detect a redirect to a non-feed path (any pathname
+// that isn't the homepage '/', e.g. /login) and instead do a full navigation to
+// res.url — handing the reader the real login flow — returning WITHOUT
+// removeRow()/retallyTabs(). The row stays, so a fresh login + retry is correct.
 async function submitReadForm(
 	form: HTMLFormElement,
 	button: HTMLButtonElement | null,
@@ -150,6 +207,13 @@ async function submitReadForm(
 			body: new FormData(form),
 		});
 		if (!res.ok) throw new Error(`read toggle ${res.status}`);
+		// A followed auth-redirect lands here as a 200 whose final URL is no longer
+		// the feed (/login). Don't treat it as a saved toggle — navigate to the login
+		// flow and leave the row/tallies untouched (#250).
+		if (res.redirected && new URL(res.url).pathname !== '/') {
+			window.location.assign(res.url);
+			return;
+		}
 		removeRow(form);
 		retallyTabs(nowRead);
 	} catch {
