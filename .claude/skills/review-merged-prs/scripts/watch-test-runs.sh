@@ -13,10 +13,13 @@ since the last reviewed run of the same kind. Polls quietly across turns and
 stays SILENT on stdout while nothing has changed; prints the run payload and
 exits 2 the moment a new reviewable run appears.
 
-Launch it through the harness background-task mechanism (the Bash tool with
-run_in_background) so idle polls cost zero model turns and a new heavy run wakes
-the agent exactly once with the run id(s) to audit. Re-launch it the same way
-after each audit batch (and after `--mark`) to re-arm. See SKILL.md "Watch
+Claude Code: launch it through Bash with run_in_background so idle polls cost
+zero model turns and a new heavy run wakes the agent exactly once with the run
+id(s) to audit.
+
+Codex: run it in the foreground or an explicitly managed command session and
+poll/stop that session yourself; it will not automatically re-invoke the model
+when backgrounded. Re-arm using the surface-specific path in SKILL.md "Watch
 mechanism". Heavy workflows (#166/#77) must exist and emit runs first; until
 then this stays silent.
 

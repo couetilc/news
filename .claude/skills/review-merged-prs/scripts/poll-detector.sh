@@ -6,12 +6,15 @@
 # detector reports a real delta (exit 2) this prints the detector's payload to
 # stdout and exits 2 itself.
 #
-# Run it via the harness's background-task mechanism (the Bash tool with
-# run_in_background): the harness re-invokes the agent only when a launched
-# command *exits*. Because idle polls are absorbed by this loop's internal
-# sleep and produce no stdout, an idle watch costs ZERO model turns; a delta
-# exits 2 and wakes the agent exactly once with the payload to review. This is
-# the canonical wake-on-change-only mechanism for the review-merged-prs watch.
+# On Claude Code, run it via the harness background-task mechanism (the Bash
+# tool with run_in_background): the harness re-invokes the agent only when a
+# launched command *exits*. Because idle polls are absorbed by this loop's
+# internal sleep and produce no stdout, an idle watch costs ZERO model turns; a
+# delta exits 2 and wakes the agent exactly once with the payload to review.
+#
+# On Codex, run this in the foreground or in an explicitly managed command
+# session. It remains quiet while idle and exits 2 on a delta, but Codex does
+# not provide Claude's run_in_background re-invoke-on-exit path here.
 #
 # Usage: poll-detector.sh <detector-command> [detector-args...]
 #
@@ -35,9 +38,11 @@ usage() {
 Usage: poll-detector.sh <detector-command> [detector-args...]
 
 Poll a detector every INTERVAL seconds. Stay silent while it exits 0 (idle);
-print its payload and exit 2 the moment it exits 2 (a real delta). Built to run
-under the harness background-task mechanism so an idle watch costs zero model
-turns and a delta wakes the agent exactly once.
+print its payload and exit 2 the moment it exits 2 (a real delta).
+
+Claude Code: launch through Bash with run_in_background for a zero-idle-token
+wake-on-exit watch. Codex: run in foreground or an explicitly managed command
+session; it will not automatically re-invoke the model when backgrounded.
 
 Environment:
   INTERVAL      Seconds between polls. Default 60.

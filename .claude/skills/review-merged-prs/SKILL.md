@@ -64,8 +64,16 @@ Follow-ups:
 
 ## Watch mechanism
 
-The watch is driven **outside the model**, so it is deterministic, survives
-across turns/compaction, and costs zero tokens while idle. The contract:
+The scripts are portable; the wake mechanism is not. The detectors and persisted
+markers behave the same on Claude, Codex, or a plain shell, but each agent
+surface needs its own way to wait for the detector to exit `2`.
+
+### Claude Code
+
+Claude Code can drive the watch **outside the model**, so it is deterministic,
+survives across turns/compaction, and costs zero tokens while idle. Use this
+path only when the tool surface has `Bash` with `run_in_background` and
+`ScheduleWakeup`.
 
 1. **Launch the watcher as a harness background task** — the `Bash` tool with
    `run_in_background: true`. It polls across turns on its own; the harness
@@ -81,7 +89,7 @@ across turns/compaction, and costs zero tokens while idle. The contract:
    watcher the same way — one background `Bash` call — **before the turn ends**.
    Do not rely on "remembering to loop"; the relaunch is a required step, like
    the label.
-4. **`ScheduleWakeup` is only a long fallback heartbeat** (≥1800s) in case a
+4. **`ScheduleWakeup` is only a long fallback heartbeat** (>=1800s) in case a
    background task dies silently — never the primary pacing mechanism. Do **not**
    use a short-interval wakeup to poll; the background-task exit is the wake
    signal, and polling on top of it just burns turns.
@@ -89,35 +97,49 @@ across turns/compaction, and costs zero tokens while idle. The contract:
 Run both watchers as two independent background tasks to cover merged PRs and
 heavy runs at once; each re-invokes the agent on its own delta.
 
-**Cross-surface.** Split the two halves:
+### Codex
 
-- **The scripts are portable.** Pure `bash` + `gh` + `jq`, reached by both
-  agents through the `.codex/skills` symlink — so the deterministic-delta
-  detectors and the persisted markers (which stop a PR/run being reviewed
-  twice) behave identically on Claude, Codex, or a plain shell.
-- **The zero-idle-cost wake is Claude-only.** `run_in_background`
-  re-invoke-on-exit and `ScheduleWakeup` are Claude Code harness features;
-  there is no known Codex equivalent that hands control back to the model when
-  a backgrounded process exits. On Codex, neither fallback is free while idle:
-  run the watcher in the **foreground** (it blocks until a delta and exits `2`
-  with the payload, but a long idle hits Codex's per-command timeout and hands
-  control back), or run the **detector once per turn** and let the model pace
-  re-checks. Either way the markers keep it idempotent — you lose the
-  zero-idle-cost guarantee, not correctness or determinism.
+Codex does not expose Claude Code's `run_in_background` re-invoke-on-exit or
+`ScheduleWakeup` mechanism in this shared skill context. Current Codex surfaces
+do have foreground/ongoing command sessions, CLI background terminals, and
+Codex app automations/thread automations, but do **not** assume any of those will
+automatically hand this thread back the watcher payload when a process exits.
+
+Use one of these Codex-safe paths instead:
+
+- **Run detectors once per turn.** This is the simplest path when you are already
+  active: run `merged-prs-needing-review.sh` and, when heavy workflows exist,
+  `test-runs-needing-review.sh`. Exit `0` means no delta; exit `2` means review
+  the printed payload.
+- **Run watchers in foreground/managed sessions.** Start `watch-merged-prs.sh`
+  and `watch-test-runs.sh` as normal foreground commands or explicitly managed
+  exec sessions, optionally bounded with `timeout`. Poll or interrupt those
+  sessions yourself, and process exit `2` as the delta. Stop them before a final
+  response or workflow change.
+- **Use Codex app automations only when deliberately available.** A thread
+  automation can schedule the detector check, but it is a Codex app feature, not
+  the Claude Code background-task wake path.
+
+On Codex, the markers still keep review idempotent. You lose the zero-idle-cost
+guarantee, not correctness or determinism.
 
 ## Workflow
 
-1. Arm the watch as a background task (see "Watch mechanism"). Launch via the
-   `Bash` tool with `run_in_background: true` so idle polls never reach the
-   model; run both watchers to cover PRs and heavy runs:
+1. Start the watch using the surface-specific path above.
+
+   Claude Code: arm both watchers as background `Bash` tasks with
+   `run_in_background: true` so idle polls never reach the model:
 
    ```bash
    .codex/skills/review-merged-prs/scripts/watch-merged-prs.sh
    .codex/skills/review-merged-prs/scripts/watch-test-runs.sh
    ```
 
-2. The harness re-invokes you when a watcher exits `2`; read its payload for the
-   PR number(s) or heavy-run id(s) to review.
+   Codex: do not use `run_in_background`. Either run the detectors once per
+   turn, or run the same watcher commands in foreground/managed sessions and
+   explicitly poll/stop them.
+2. When the active watch path reports exit `2`, read its payload for the PR
+   number(s) or heavy-run id(s) to review.
 3. Fetch PR context with `gh pr view <N> --json ...` and `gh pr diff <N>`.
 4. `git fetch origin main` and fast-forward local `main` with
    `git merge --ff-only origin/main`.
@@ -147,12 +169,14 @@ heavy runs at once; each re-invokes the agent on its own delta.
    gh pr edit <N> --add-label agent-reviewed
    ```
 
-10. **Re-arm before the turn ends.** For a heavy-run audit, bump the marker
+10. **Re-arm before the turn ends when the surface supports a persistent
+    watch.** For a heavy-run audit, bump the marker
     (`test-runs-needing-review.sh --mark <run-id>`) as the analogue of step 9's
-    label. Then run the relevant detector once to confirm it is clean, and
-    re-launch the watcher as a background task (step 1). Re-arming is a required
-    mechanical step, not a model decision — do not end the turn with the watch
-    disarmed. Stop running watch tasks only before final responses or workflow
+    label. Then run the relevant detector once to confirm it is clean. On
+    Claude Code, re-launch the watcher as a background task (step 1). On Codex,
+    restart or continue the explicit foreground/session/automation path you
+    chose, accepting that idle is not zero-token unless a Codex automation owns
+    the cadence. Stop running watch tasks before final responses or workflow
     changes.
 
 ## Open PR Reviews
