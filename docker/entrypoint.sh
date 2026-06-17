@@ -125,7 +125,9 @@ You are running inside the isolated agent container for the news repo
 - /workspace was cloned fresh from GitHub at container start — you begin on
   `main`; create a branch before committing.
 - Pre-installed: node (already matches the repo's pin), npm, git, gh,
-  gitleaks, shellcheck, actionlint, ripgrep (rg).
+  gitleaks, shellcheck, actionlint, ripgrep (rg), uv (the Python runner for
+  repo/tooling scripts without a system Python or root — e.g.
+  `uv run --with pyyaml python <script>` for ad-hoc package needs).
 - Never commit on main. Changes reach production only via PR → CI → merge.
 - The host machine is unreachable. Nothing outlives this container except
   what you push — commit and push early and often.
