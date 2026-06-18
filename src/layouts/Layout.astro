@@ -81,36 +81,34 @@ const isAuthed = Astro.locals.userId !== undefined;
 						)
 					}
 				</div>
+				{/* The dateline carries today's date AND links to the public /status
+				    page (#305), folding the otherwise-orphaned /status link into the
+				    masthead so it stays discoverable without the extra colophon line
+				    that #271/#272 had added. As a navigational control it carries the
+				    #129 text-link affordances — accent on hover, a focus-visible ring,
+				    and cursor-pointer (native to <a>) — but, by Connor's PR review on
+				    #308, the underline is HOVER-ONLY here (no resting underline), a
+				    deliberate deviation from #129's resting-underline rule for this one
+				    control: at rest the dateline reads as plain agate text, and the
+				    focus-visible ring stays the resting affordance for keyboard users.
+				    It stays in the agate/uppercase masthead voice and doesn't crowd the
+				    nameplate. /status is prerendered + allowlisted in the middleware's
+				    PUBLIC_PATHS (#287/#289), so it resolves to the status page (not a
+				    /login redirect) for anonymous and signed-in visitors alike. */}
 				<p
 					class="font-sans text-[0.6rem] uppercase tracking-[0.3em] text-muted sm:text-xs"
 				>
-					{dateline}
+					<a
+						href="/status"
+						class="hover:text-accent hover:underline hover:underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+						>{dateline}</a
+					>
 				</p>
 				<h1 class="my-0.5 text-4xl leading-none sm:text-5xl">News</h1>
 				<p
 					class="font-sans text-[0.6rem] uppercase tracking-[0.25em] text-muted sm:text-xs"
 				>
 					All the feeds fit to print
-				</p>
-				{/* Colophon (#271): the bottom footer used to carry this line, but on the
-				    authenticated feed the infinite scroll (#151) keeps appending pages so
-				    the footer perpetually recedes below the fold and is effectively
-				    unreachable. Relocated into the always-visible masthead so it reads on
-				    every page, at the same agate scale as the dateline/tagline so it sits
-				    as a subtle colophon subtitle rather than crowding the nameplate. The
-				    "Status" link (#272) surfaces the otherwise-orphaned public /status
-				    page (deploy metadata only, prerendered) — the text-link idiom (#129),
-				    matching the Log in link: a resting hairline underline, accent on
-				    hover, a focus-visible ring. */}
-				<p
-					class="mt-1 font-sans text-[0.6rem] tracking-wide text-muted sm:text-xs"
-				>
-					A personal news aggregator · news.cuteteal.com ·{' '}
-					<a
-						href="/status"
-						class="text-ink-soft underline underline-offset-2 hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
-						>Status</a
-					>
 				</p>
 			</header>
 			<main class="py-5 sm:py-6">

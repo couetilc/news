@@ -1,7 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 import { resetUsers } from './d1';
 
-// Browser e2e for the colophon "Status" link (issue #287 regression).
+// Browser e2e for the masthead dateline /status link (issue #287 regression,
+// retargeted at the dateline by #305).
 //
 // Why this exists — and why a unit test could not catch the bug it pins:
 // /status is `export const prerender = true`, and Astro runs the auth
@@ -19,18 +20,25 @@ import { resetUsers } from './d1';
 // (so being logged in cannot help). Only a real browser driving the BUILT
 // `astro preview` output exercises that build→prerender→<ClientRouter /> chain.
 //
+// #305 folded the /status link into the masthead dateline and dropped the
+// standalone colophon "Status" link, so this spec now drives the dateline link.
+// It targets the link by its DESTINATION (`header a[href="/status"]`), not the
+// visible date text — the dateline reads today's date, which changes daily, so a
+// text match would rot. The destination selector is stable across dates.
+//
 // Red→green pin (the regression-test convention from auth-signup.spec.ts): with
-// /status absent from PUBLIC_PATHS these FAIL — clicking Status lands on /login
-// — and they PASS once it is allowlisted and the page prerenders for real.
+// /status absent from PUBLIC_PATHS these FAIL — clicking the dateline lands on
+// /login — and they PASS once it is allowlisted and the page prerenders for real.
 
-// From the home feed, click the colophon Status link and return the page so the
-// caller can assert where it landed. <ClientRouter /> is mounted globally, so
-// this click is an enhanced client navigation, not a plain document load — the
-// exact path users take.
+// From the home feed, click the masthead dateline link and return so the caller
+// can assert where it landed. <ClientRouter /> is mounted globally, so this click
+// is an enhanced client navigation, not a plain document load — the exact path
+// users take. Located by destination (a stable selector) rather than the daily
+// date text.
 async function clickStatusFromHome(page: Page): Promise<void> {
 	await page.goto('/');
-	// The home feed has exactly one "Status" link — the colophon (#272).
-	await page.getByRole('link', { name: 'Status' }).click();
+	// The masthead has exactly one /status link — the dateline (#305).
+	await page.locator('header a[href="/status"]').click();
 }
 
 // Assert we reached the real, prerendered /status page (deploy metadata only),
@@ -47,7 +55,7 @@ async function expectOnStatusPage(page: Page): Promise<void> {
 	await expect(page.getByText('What is running in production right now.')).toBeVisible();
 }
 
-test.describe('colophon Status link reaches the public status page (#287)', () => {
+test.describe('masthead dateline link reaches the public status page (#287, #305)', () => {
 	test('an anonymous visitor lands on /status, not /login', async ({ page }) => {
 		await clickStatusFromHome(page);
 		await expectOnStatusPage(page);

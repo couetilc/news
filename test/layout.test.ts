@@ -2,6 +2,7 @@ import { experimental_AstroContainer as AstroContainer } from 'astro/container';
 import { describe, expect, it } from 'vitest';
 
 import Layout from '../src/layouts/Layout.astro';
+import { longDate } from '../src/lib/format';
 
 // Layout owns the masthead, and the session control lives there now (issue #128).
 // It's a shared/generic layout (/, /login, /signup…), so it reads the auth state
@@ -76,52 +77,98 @@ describe('Layout masthead session control (#128)', () => {
 	});
 });
 
-describe('Layout masthead colophon (#271, #272)', () => {
-	it('carries the colophon line in the always-visible masthead, not a bottom footer', async () => {
+describe('Layout masthead dateline /status link (#305)', () => {
+	// Extract the dateline <a href="/status">…</a> element (its open tag through
+	// its close) so each assertion can check the affordance classes on the link
+	// itself. The Layout's only /status link now is the dateline (the #271/#272
+	// colophon line was removed in #305).
+	const datelineLink = (html: string) => {
+		const open = html.indexOf('<a href="/status"');
+		expect(open).toBeGreaterThan(-1);
+		const close = html.indexOf('</a>', open);
+		expect(close).toBeGreaterThan(open);
+		return html.slice(open, close);
+	};
+
+	// The dateline link's class list, split into whitespace-delimited utility
+	// tokens. Token-exact membership is required because 'hover:underline' *contains*
+	// the substring 'underline', so a substring check can no longer tell a resting
+	// underline from a hover-only one (#308 made it hover-only).
+	const datelineLinkClasses = (html: string) => {
+		const link = datelineLink(html);
+		const m = link.match(/class="([^"]*)"/);
+		expect(m).not.toBeNull();
+		return (m as RegExpMatchArray)[1].split(/\s+/).filter(Boolean);
+	};
+
+	it('drops the colophon line entirely — no aggregator copy, no bottom footer', async () => {
 		const html = await render({ userId: 7 });
 
-		// #271: the colophon moved out of the bottom footer (which receded below
-		// the infinite-scroll feed) into the masthead, so it reads on every page.
-		expect(html).toContain('A personal news aggregator · news.cuteteal.com');
-
-		// The bottom <footer> is gone — its content now lives in the masthead.
+		// #305 reverses the #271/#272 colophon: the "A personal news aggregator ·
+		// news.cuteteal.com · Status" line is gone from the masthead.
+		expect(html).not.toContain('A personal news aggregator');
+		expect(html).not.toContain('news.cuteteal.com');
+		// There is no standalone ">Status</a>" text link anymore — the /status
+		// destination is now reached through the dateline, not a "Status" word.
+		expect(html).not.toContain('>Status</a>');
+		// The masthead never reintroduced a bottom <footer> either.
 		expect(html).not.toContain('<footer');
-
-		// It sits inside the masthead <header>, ahead of <main>, not after it: the
-		// colophon precedes the slotted feed body in document order.
-		const colophonAt = html.indexOf('A personal news aggregator');
-		const mainAt = html.indexOf('<main');
-		expect(colophonAt).toBeGreaterThan(-1);
-		expect(mainAt).toBeGreaterThan(colophonAt);
 	});
 
-	it('links to the public /status page from the masthead colophon (text-link idiom #129)', async () => {
+	it("wraps the headline dateline in an /status link carrying the #129 text-link affordance", async () => {
 		const html = await render({ userId: 7 });
 
-		// #272: a discreet "Status" text-link surfaces the otherwise-orphaned
-		// public /status page.
-		expect(html).toContain('href="/status"');
-		expect(html).toContain('>Status</a>');
+		// The dateline date itself is the link text (today's longDate), inside an
+		// <a href="/status"> — navigating it reaches the public status page.
+		const link = datelineLink(html);
+		expect(link).toContain('>' + longDate(new Date()));
 
-		// The text-link affordance: a resting underline, accent on hover, and the
-		// focus-visible ring (#129), mirroring the masthead Log in link.
-		const statusLink = html.slice(
-			html.indexOf('href="/status"'),
-			html.indexOf('>Status</a>'),
+		// The #129 text-link affordances minus one deliberate deviation (Connor's
+		// #308 review): accent on hover, the focus-visible ring, cursor-pointer
+		// (native to <a href>) — but the underline is HOVER-ONLY here, no resting
+		// underline. Assert token-exact (not substring): 'hover:underline' is
+		// present, and there is NO standalone resting 'underline' utility token.
+		const classes = datelineLinkClasses(html);
+		expect(classes).toContain('hover:underline');
+		expect(classes).toContain('hover:underline-offset-2');
+		expect(classes).not.toContain('underline');
+		expect(classes).not.toContain('underline-offset-2');
+		expect(link).toContain('hover:text-accent');
+		expect(link).toContain('focus-visible:outline-ink');
+
+		// It stays in the agate/uppercase masthead voice: the dateline <p> still
+		// carries the small-caps, letter-spaced, muted font-sans treatment.
+		const datelineP = html.slice(
+			html.lastIndexOf('<p', html.indexOf('<a href="/status"')),
+			html.indexOf('<a href="/status"'),
 		);
-		expect(statusLink).toContain('underline');
-		expect(statusLink).toContain('hover:text-accent');
-		expect(statusLink).toContain('focus-visible:outline-ink');
+		expect(datelineP).toContain('font-sans');
+		expect(datelineP).toContain('uppercase');
+		expect(datelineP).toContain('tracking-[0.3em]');
+		expect(datelineP).toContain('text-muted');
+
+		// The dateline link sits inside the masthead <header>, ahead of <main>.
+		const linkAt = html.indexOf('<a href="/status"');
+		const mainAt = html.indexOf('<main');
+		expect(mainAt).toBeGreaterThan(linkAt);
 	});
 
-	it('shows the colophon + Status link for anonymous visitors too', async () => {
+	it('shows the dateline /status link for anonymous visitors too', async () => {
 		// /status is public (prerender=true, deploy metadata only), so the link is
 		// fine to show whether or not a user is logged in. The shared Layout means
 		// /login, /signup, /status all render it as well.
 		const html = await render({});
 
-		expect(html).toContain('A personal news aggregator · news.cuteteal.com');
-		expect(html).toContain('href="/status"');
+		const link = datelineLink(html);
+		expect(link).toContain('>' + longDate(new Date()));
+		// Same hover-only underline contract for anonymous visitors (#305/#308).
+		const classes = datelineLinkClasses(html);
+		expect(classes).toContain('hover:underline');
+		expect(classes).not.toContain('underline');
+		expect(link).toContain('hover:text-accent');
+		expect(link).toContain('focus-visible:outline-ink');
+		// Anonymous render also drops the old colophon line + footer.
+		expect(html).not.toContain('A personal news aggregator');
 		expect(html).not.toContain('<footer');
 	});
 });
