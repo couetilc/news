@@ -78,10 +78,18 @@ quality manageable. Each brief contains:
   headless Chromium) and attach them by uploading via
   `scripts/upload-screenshot.sh <issue> <before|after> <png>`, then embed the printed
   `news-cdn` URLs in the PR body — the design-system **"Screenshots for visual changes"**
-  convention. The agent is already in the container with the dev server, the browser, and the
-  CF token, so it **can and must do this itself** — do not leave it for the orchestrator to
-  capture by hand at review time. Say it explicitly: agents skip it otherwise, and may wrongly
-  treat the production-R2 upload as needing sign-off (it is the documented, expected path).
+  convention. Make it **surface-aware** (the R2 upload needs `CLOUDFLARE_API_TOKEN`, which the
+  credentials matrix does NOT give every surface — see `agentic-environments`):
+  - **Credentialed surface** (the agent container, and local/Dispatch with `.env` or wrangler
+    OAuth): the agent has the dev server, the browser, and the CF token, so it **can and must
+    do the whole thing itself** — capture, upload, embed — not leave it for the orchestrator to
+    capture by hand at review time. Say it explicitly: agents skip it otherwise, and may wrongly
+    treat the production-R2 upload as needing sign-off (it is the documented, expected path).
+  - **Credential-free surface** (claude.ai cloud sessions are deliberately Cloudflare-credential-free):
+    the agent still captures the before/after PNGs, but the `scripts/upload-screenshot.sh` step
+    will fail on the missing token — so it must **report the upload as blocked** rather than
+    retry or silently skip, and the orchestrator moves the upload/embed to a credentialed
+    surface. Don't write a brief that turns an impossible upload into an agent obligation.
 - Deliverable: `gh pr create --fill` with `Fixes #N`; **do NOT merge**; report PR #/URL,
   files changed, the coverage line, the embedded screenshot URLs (for a visual change), and
   **flag any uncertainty or deviation rather than guessing silently**.
