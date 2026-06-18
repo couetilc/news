@@ -1,9 +1,63 @@
-<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 128 128">
-    <path d="M50.4 78.5a75.1 75.1 0 0 0-28.5 6.9l24.2-65.7c.7-2 1.9-3.2 3.4-3.2h29c1.5 0 2.7 1.2 3.4 3.2l24.2 65.7s-11.6-7-28.5-7L67 45.5c-.4-1.7-1.6-2.8-2.9-2.8-1.3 0-2.5 1.1-2.9 2.7L50.4 78.5Zm-1.1 28.2Zm-4.2-20.2c-2 6.6-.6 15.8 4.2 20.2a17.5 17.5 0 0 1 .2-.7 5.5 5.5 0 0 1 5.7-4.5c2.8.1 4.3 1.5 4.7 4.7.2 1.1.2 2.3.2 3.5v.4c0 2.7.7 5.2 2.2 7.4a13 13 0 0 0 5.7 4.9v-.3l-.2-.3c-1.8-5.6-.5-9.5 4.4-12.8l1.5-1a73 73 0 0 0 3.2-2.2 16 16 0 0 0 6.8-11.4c.3-2 .1-4-.6-6l-.8.6-1.6 1a37 37 0 0 1-22.4 2.7c-5-.7-9.7-2-13.2-6.2Z" />
-    <style>
-        path { fill: #000; }
-        @media (prefers-color-scheme: dark) {
-            path { fill: #FFF; }
-        }
-    </style>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="News — a lightbulb whose filament is shaped like the letter N">
+    <!--
+        Brand mark (issue #306): a lightbulb whose internal filament is bent
+        into the letter "N" — the filament IS the N, tying the icon to the
+        "News" nameplate. It reads as BOTH a lightbulb (glass dome + screw
+        base) and an "N" (the lit red filament is the focal cue). Hand-authored,
+        no generator. Tuned to stay legible at 16x16: bold even strokes, high
+        contrast, a simple bulb silhouette and minimal detail so the geometry
+        survives 16px. viewBox 0 0 32 32 so it maps cleanly to icon pixels.
+        Palette is on-brand: ink #17150f outline/base, paper #f7f5ef ground,
+        accent red #8b1a1a for the lit "N" filament.
+    -->
+    <!-- Paper-tinted plate so the mark has a defined edge on any tab background. -->
+    <rect width="32" height="32" rx="4" fill="#f7f5ef" />
+
+    <!--
+        Glass dome of the bulb: a paper-filled circle with a bold ink outline so
+        the bulb silhouette survives at 16px. Drawn slightly high so the screw
+        base fits below it.
+    -->
+    <circle cx="16" cy="13" r="9.5" fill="#f7f5ef" stroke="#17150f" stroke-width="2.5" />
+
+    <!--
+        Screw base / cap below the dome, ink-filled so the "lightbulb" read is
+        unmistakable. Neck shoulders flare from the glass down to the metal cap;
+        two thread grooves + a flat contact tip give the screw-cap cue without
+        fine detail that would smear at 16px.
+    -->
+    <g fill="#17150f">
+        <!-- metal cap body (shoulder -> base), one bold trapezoid block -->
+        <path d="M10 21.5 L22 21.5 L20.5 25 L11.5 25 Z" />
+        <!-- lower threaded band -->
+        <rect x="11.5" y="25" width="9" height="2.2" rx="0.6" />
+        <!-- contact tip -->
+        <rect x="13.5" y="27.2" width="5" height="2.2" rx="1" />
+    </g>
+    <!-- A pair of thin paper grooves break the cap into screw threads. -->
+    <g stroke="#f7f5ef" stroke-width="1" stroke-linecap="round">
+        <path d="M11 23 L21 23" />
+        <path d="M12 25.9 L20 25.9" />
+    </g>
+
+    <!--
+        The filament, bent into the letter "N", in lit accent red. This is the
+        focal cue: thick (3px on the 32 grid) red strokes — left post, diagonal,
+        right post — round-joined so they read as one continuous glowing wire.
+        Two small red "stem" dots at the base anchor the filament to the
+        bulb's interior like real filament supports.
+    -->
+    <g fill="none" stroke="#8b1a1a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+        <!-- left vertical post -->
+        <path d="M12 8.5 V17.5" />
+        <!-- diagonal limb of the N -->
+        <path d="M12 8.5 L20 17.5" />
+        <!-- right vertical post -->
+        <path d="M20 8.5 V17.5" />
+    </g>
+    <!-- Filament support stems anchoring the N to the bulb interior. -->
+    <g fill="#8b1a1a">
+        <circle cx="12" cy="18.4" r="1.1" />
+        <circle cx="20" cy="18.4" r="1.1" />
+    </g>
 </svg>
