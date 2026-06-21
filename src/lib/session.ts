@@ -29,6 +29,27 @@ export async function establishSession(
 	session.set(SESSION_USER_KEY, userId);
 }
 
+// Sliding refresh (#314): on an authenticated request, re-record the user id so
+// Astro re-issues the session cookie (with the configured 14-day maxAge) and
+// rewrites the KV record (with the configured ttl) — both expiry windows restart
+// from "now", so an active user effectively never gets logged out. The
+// middleware guard calls this right after it confirms the session.
+//
+// Unlike establishSession this deliberately does NOT regenerate the session id:
+// the id is stable for the life of a session, and minting a new one every
+// request would churn KV and serve no fixation-defense purpose (that's a
+// login/privilege-change concern). Re-`set`ting the existing value is enough —
+// Astro's session marks itself dirty and emits a fresh `Set-Cookie` the first
+// time `set` runs in a request. A no-op when sessions are unavailable (session
+// undefined), matching establishSession.
+export function refreshSession(
+	session: Pick<SessionLike, 'set'> | undefined,
+	userId: number,
+): void {
+	if (!session) return;
+	session.set(SESSION_USER_KEY, userId);
+}
+
 // The password pepper, a Worker secret (never in the DB or .env). Read off the
 // Cloudflare env; set via `wrangler secret put AUTH_PEPPER` (`.dev.vars`
 // locally). Centralized here so routes don't each reach into env.

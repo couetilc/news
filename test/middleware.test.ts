@@ -10,7 +10,9 @@ const next = vi.fn(async () => NEXT);
 
 const run = (
 	path: string,
-	session: { get: (k: string) => Promise<unknown> } | undefined,
+	session:
+		| { get: (k: string) => Promise<unknown>; set?: (k: string, v: number) => void }
+		| undefined,
 ) => {
 	next.mockClear();
 	const redirect = vi.fn(
@@ -31,6 +33,10 @@ const run = (
 
 const sessionWith = (userId: number | undefined) => ({
 	get: vi.fn(async (key: string) => (key === SESSION_USER_KEY ? userId : undefined)),
+	// The guard slides the session window forward on an authenticated request by
+	// re-recording the user id (#314); the stub captures that call so tests can
+	// assert it happened (or didn't).
+	set: vi.fn((_key: string, _value: number) => {}),
 });
 
 describe('auth middleware', () => {
@@ -169,6 +175,25 @@ describe('auth middleware', () => {
 		const { promise } = run('/', sessionWith(42));
 		expect(await promise).toBe(NEXT);
 		expect(next).toHaveBeenCalled();
+	});
+
+	it('slides the session window forward on an authenticated request (#314)', async () => {
+		// Sliding refresh: the guard re-records the user id so Astro re-issues the
+		// cookie (fresh maxAge) and rewrites the KV record (fresh ttl), keeping an
+		// active user signed in. We assert the guard re-sets the SAME id it read —
+		// it must not regenerate or change it, just touch it to trigger the refresh.
+		const session = sessionWith(42);
+		await run('/', session).promise;
+		expect(session.set).toHaveBeenCalledWith(SESSION_USER_KEY, 42);
+		expect(session.set).toHaveBeenCalledOnce();
+	});
+
+	it('does not slide the window for an anonymous request to an adaptive path', async () => {
+		// An anonymous visitor to `/` falls through before the auth block, so there
+		// is nothing to refresh — the guard must not touch the session.
+		const session = sessionWith(undefined);
+		await run('/', session).promise;
+		expect(session.set).not.toHaveBeenCalled();
 	});
 
 	it('exposes the authenticated user id on locals for per-user read state (#70)', async () => {

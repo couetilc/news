@@ -4,6 +4,7 @@ import {
 	establishSession,
 	getAllowedEmails,
 	getPepper,
+	refreshSession,
 	SESSION_USER_KEY,
 } from '../src/lib/session';
 
@@ -86,5 +87,21 @@ describe('session helpers', () => {
 
 	it('establishSession is a no-op when sessions are unavailable', async () => {
 		await expect(establishSession(undefined, 1)).resolves.toBeUndefined();
+	});
+
+	it('refreshSession re-records the user id WITHOUT regenerating the id (#314)', () => {
+		// Sliding refresh re-sets the existing user id to trigger Astro's cookie +
+		// KV rewrite, but must not regenerate the session id (that's a login-only
+		// concern) — so it touches `set` and never `regenerate`.
+		const regenerate = vi.fn();
+		const set = vi.fn();
+		refreshSession({ regenerate, set } as never, 99);
+		expect(set).toHaveBeenCalledWith(SESSION_USER_KEY, 99);
+		expect(set).toHaveBeenCalledOnce();
+		expect(regenerate).not.toHaveBeenCalled();
+	});
+
+	it('refreshSession is a no-op when sessions are unavailable', () => {
+		expect(() => refreshSession(undefined, 1)).not.toThrow();
 	});
 });
