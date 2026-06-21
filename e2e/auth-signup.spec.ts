@@ -70,4 +70,32 @@ test.describe('auth signup in a real browser', () => {
 			expect(total[0]?.n).toBe(1);
 		});
 	}
+
+	test('the session cookie is persistent, not a bare browser-session cookie (#314)', async ({
+		page,
+	}) => {
+		// The #314 acceptance signal: after login the auth cookie must carry a
+		// far-future Max-Age/Expires so it survives a (mobile) browser restart,
+		// rather than being a session cookie the OS evicts. Playwright reports a
+		// bare session cookie as `expires === -1`; a persistent one carries a real
+		// epoch timestamp. We assert it lands ~14 days out (the configured maxAge),
+		// allowing generous slack for clock + request latency.
+		await submitSignup(page, '/signup');
+		await page.waitForURL('**/');
+
+		const cookies = await page.context().cookies();
+		const session = cookies.find((c) => c.name === 'astro-session');
+		expect(session, 'expected an astro-session cookie after login').toBeTruthy();
+
+		// Not a bare session cookie.
+		expect(session?.expires).not.toBe(-1);
+		const secondsUntilExpiry = (session?.expires ?? 0) - Date.now() / 1000;
+		const fourteenDays = 60 * 60 * 24 * 14;
+		// Within a day of the 14-day target on either side (covers a slightly
+		// shorter window from latency and any minor drift).
+		expect(secondsUntilExpiry).toBeGreaterThan(fourteenDays - 60 * 60 * 24);
+		expect(secondsUntilExpiry).toBeLessThanOrEqual(fourteenDays + 60);
+		// httpOnly is preserved (Astro forces it) so the cookie stays unreadable to JS.
+		expect(session?.httpOnly).toBe(true);
+	});
 });

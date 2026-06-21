@@ -1,5 +1,5 @@
 import { defineMiddleware } from 'astro:middleware';
-import { SESSION_USER_KEY } from './lib/session';
+import { refreshSession, SESSION_USER_KEY } from './lib/session';
 
 // Auth guard (issue #40, #87, #150). The private surface is gated by default: a
 // request without a logged-in session is redirected to /login. The deliberate
@@ -81,6 +81,12 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	// page/API route via locals — the one place they read it to scope per-user
 	// read state (issue #70), rather than each re-reading the session.
 	context.locals.userId = userId;
+
+	// Sliding refresh (#314): any activity slides the 2-week window forward.
+	// Re-recording the user id makes Astro re-issue the cookie (fresh maxAge) and
+	// rewrite the KV record (fresh ttl), so a continuously active user — notably
+	// on mobile, where bare session cookies get evicted — never gets logged out.
+	refreshSession(context.session, userId);
 
 	return next();
 });
