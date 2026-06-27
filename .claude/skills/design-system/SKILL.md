@@ -78,7 +78,7 @@ token into utilities automatically — use the utility, don't hardcode the hex.
 | `--color-paper-edge` | `#efece2` | `bg-paper-edge` | zebra/panel tint |
 | `--color-ink` | `#17150f` | `text-ink`, `border-ink` | body text, masthead rules |
 | `--color-ink-soft` | `#3a3730` | `text-ink-soft` | secondary text (source names) |
-| `--color-muted` | `#6b665b` | `text-muted` | datelines, metadata, masthead colophon |
+| `--color-muted` | `#6b665b` | `text-muted` | datelines, metadata, masthead dateline + tagline |
 | `--color-rule` | `#c9c3b3` | `border-rule` | hairline column/section rules |
 | `--color-accent` | `#8b1a1a` | `text-accent` | sparse accent: hover, section heads |
 | `--font-serif` | system serif stack | `font-serif` | body (the default on `body`) |
@@ -94,10 +94,24 @@ so it stays loud.
 ## Patterns
 
 - **Layout shell:** `src/layouts/Layout.astro` owns `<html>`, the masthead
-  (double-ruled nameplate + dateline + tagline, kept compact so stories start
-  high — plus a colophon line carrying the `/status` text-link) and `<main>`.
-  Pages render their content as its `<slot>`.
-  New top-level pages should use this layout, not re-create the chrome.
+  (double-ruled nameplate "News" + dateline + tagline, kept compact so stories
+  start high) and `<main>`. There is no colophon line — the `/status` text-link
+  lives *in the dateline* (see **Masthead dateline** below). The session control
+  (Sign out / Log in) sits in the masthead's top-right corner. Pages render their
+  content as its `<slot>`. New top-level pages should use this layout, not
+  re-create the chrome.
+- **Masthead dateline (the `/status` link):** the dateline `<a href="/status">`
+  *is* the link to the public status page — there's no separate colophon, the
+  `/status` link is folded into the date so it stays discoverable in one fewer
+  line. It carries the **Interactive affordances** text-link obligations as a
+  navigational control — accent + underline on hover, a `focus-visible` ring, and
+  `cursor-pointer` (native to `<a>`) — with **one deliberate deviation**: the
+  underline is **hover-only, no resting underline**, so at rest the dateline reads
+  as plain agate masthead text and the `focus-visible` ring carries the resting
+  cue for keyboard readers. Its accessible name is **destination-oriented**: an
+  `aria-label={`Status for ${dateline}`}`, so a screen-reader user hears the
+  destination ("Status for …"), not just the date. Keep it in the agate/uppercase
+  masthead voice; don't let it crowd the nameplate.
 - **Container width:** the layout chrome (the masthead) spans
   `mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8`. A reading column — the feed —
   narrows further to `mx-auto max-w-2xl` for a comfortable line length; wrap list
@@ -182,12 +196,15 @@ Pick by *what the control does*, not by what tag is convenient.
 - **Text links (navigation).** Going somewhere — a headline, an "Already have an
   account? Sign in" link. Resting signal: a **hairline underline** in body ink,
   going **accent on hover** — `underline underline-offset-2 hover:text-accent`,
-  plus the focus ring. Not blue, not bold-as-link. Headlines are the one place a
-  *resting* underline can feel heavy on a dense digest; there it's fine to reserve
-  the underline for `hover`/`focus-visible` and let layout carry the resting cue
-  (the row is a single tap target, the link is the row's only serif headline). The
-  bar stays "a reader can tell the headline is a link," just met by layout rather
-  than a permanent rule.
+  plus the focus ring. Not blue, not bold-as-link. Two places reserve the
+  underline for `hover`/`focus-visible` rather than carrying it at rest, where a
+  permanent rule would read heavy: **headlines** in the dense digest (the row is a
+  single tap target, the link is the row's only serif headline, so layout carries
+  the resting cue) and the **masthead dateline** `/status` link (it stays plain
+  agate at rest so it doesn't read as a second nameplate rule; the `focus-visible`
+  ring is its resting affordance — see **Masthead dateline** above). The bar stays
+  "a reader can tell it's a link," just met by layout/context rather than a
+  permanent underline.
 - **Action buttons (do something here).** Triggering an action that isn't pure
   navigation — Sign out, Create account, Sign in. Resting signal: a **drawn
   control** — either a solid ink block (`border border-ink bg-ink text-paper`,
