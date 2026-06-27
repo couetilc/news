@@ -5,8 +5,10 @@ import Article from '../components/Article.astro';
 import FeedPage from '../components/FeedPage.astro';
 import FeedTabs from '../components/FeedTabs.astro';
 import FilterBar from '../components/FilterBar.astro';
+import PinnedLinks from '../components/PinnedLinks.astro';
 import Layout from '../layouts/Layout.astro';
 import { PAGE_SIZE, isReadTab, parseTab } from '../lib/pagination';
+import { PINNED } from '../lib/pinned';
 
 // The homepage is session-adaptive (issue #87): anonymous visitors get the
 // public read-only feed; logged-in visitors get their personal feed (read/unread
@@ -97,6 +99,18 @@ const emptyMessage = isReadTab(tab)
 ---
 
 <Layout title="News">
+	{/* Pinned references (#316): a short owner-curated lane between the masthead
+	    and the source FilterBar, shown for BOTH anonymous and logged-in visitors
+	    (it sits above the branch below, so it's identical in either auth state) and
+	    even when nothing is aggregated yet. It's narrowed to the same max-w-2xl
+	    reading column as the feed so it aligns with the chips + headlines beneath
+	    it. PinnedLinks self-erases when PINNED is empty, so this never leaves an
+	    orphaned rule. Decided in #316: Option A, a pinned strip above the
+	    FilterBar, built as a 1-element list (src/lib/pinned.ts) so a second link
+	    is trivial to add. */}
+	<div class="mx-auto max-w-2xl">
+		<PinnedLinks links={PINNED} />
+	</div>
 	{
 		isAuthed ? (
 			<>

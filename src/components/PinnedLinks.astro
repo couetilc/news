@@ -1,0 +1,64 @@
+---
+import type { PinnedLink } from '../lib/pinned';
+
+interface Props {
+	// The pinned reference links to surface. Empty renders nothing at all, so a
+	// future "no pinned links" state never leaves an orphaned label or rule.
+	links: PinnedLink[];
+}
+
+const { links } = Astro.props;
+---
+
+{/* Pinned references (#316): a short, owner-curated lane between the masthead and
+    the source FilterBar — always-present reference documents that don't flow
+    through ingest and never scroll away. Hidden entirely when there are none, so
+    the strip is self-erasing rather than an empty rule. A leading small-caps
+    "Pinned" label sets it apart from the source chips below without a heavy box;
+    the bottom hairline rule separates it from the FilterBar, matching the
+    ruled-lane voice of the rest of the digest. */}
+{
+	links.length > 0 && (
+		<nav
+			aria-label="Pinned references"
+			class="mb-6 flex flex-col gap-2 border-b border-rule pb-4"
+		>
+			<p class="font-sans text-[0.6rem] uppercase tracking-[0.3em] text-muted">Pinned</p>
+			<ul class="flex flex-col gap-1.5">
+				{links.map((link) => (
+					<li class="flex items-baseline gap-2">
+						{/* Text-link idiom (#129): a resting hairline underline in body ink
+						    that goes accent on hover, plus the focus-visible ink ring and
+						    cursor-pointer (native to <a href>). External target, so it opens
+						    in a new tab with the safe rel. The label reads as a serif
+						    headline-weight reference, not agate metadata, since it IS the
+						    content here (the agate voice is reserved for the "Pinned" label and
+						    the PDF / external tags around it). */}
+						<a
+							href={link.href}
+							target="_blank"
+							rel="noopener noreferrer"
+							class="group inline-flex items-baseline gap-1.5 text-base font-semibold leading-snug tracking-tight underline decoration-from-font underline-offset-2 hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink sm:text-lg"
+						>
+							<span>{link.label}</span>
+							{link.pdf && (
+								/* A small ruled "PDF" tag in the agate dateline voice (#316):
+								   muted ink, hairline box — a calm format mark, not the accent
+								   (reserved for interaction). */
+								<span class="border border-rule px-1 font-sans text-[0.55rem] font-normal uppercase tracking-wider text-muted">
+									PDF
+								</span>
+							)}
+							{/* External-link cue: the conventional ↗ glyph marks that the link
+							    leaves the site (opens a new tab). aria-hidden — the new-tab
+							    behavior is on the anchor, and the glyph is decorative. */}
+							<span aria-hidden="true" class="font-sans text-xs text-muted group-hover:text-accent">
+								↗
+							</span>
+						</a>
+					</li>
+				))}
+			</ul>
+		</nav>
+	)
+}
