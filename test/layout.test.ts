@@ -21,6 +21,17 @@ const render = (locals: App.Locals) =>
 		}),
 	);
 
+// The session-control wrapper (#317) is the masthead's one positioned-on-sm div:
+// it's the <div> whose class list carries `sm:absolute`. Find that <div>'s opening
+// tag and return its class list as whitespace-delimited utility tokens, so a test
+// can assert token-exact membership (a bare substring check can't tell `absolute`
+// from `sm:absolute`).
+const sessionControlWrapperClasses = (html: string): string[] => {
+	const m = html.match(/<div class="([^"]*\bsm:absolute\b[^"]*)"/);
+	expect(m).not.toBeNull();
+	return (m as RegExpMatchArray)[1].split(/\s+/).filter(Boolean);
+};
+
 describe('Layout masthead session control (#128)', () => {
 	it('renders Sign out (POST /logout) in the masthead when a user is logged in', async () => {
 		const html = await render({ userId: 7 });
@@ -66,14 +77,47 @@ describe('Layout masthead session control (#128)', () => {
 		expect(html).toContain('feed body');
 	});
 
-	it('keeps the nameplate centered with the control out of flow', async () => {
-		// The control is absolutely positioned in the top-right corner so it never
-		// offsets the centered dateline / "News" / tagline (the double-ruled,
-		// text-center nameplate stays centered).
+	it('keeps the nameplate centered and the session control responsive (#128, #317)', async () => {
+		// The double-ruled, text-center nameplate stays centered, and the header is
+		// `relative` so the sm:-absolute session control anchors to it.
 		const html = await render({ userId: 7 });
 		expect(html).toContain('text-center');
 		expect(html).toContain('border-double border-ink');
-		expect(html).toContain('absolute');
+
+		// The session-control wrapper is the masthead's only positioned-on-sm div.
+		// Pull its class list and assert token-exact membership (#317): on mobile the
+		// control is IN NORMAL FLOW (`flex justify-end`, its own line below the
+		// nameplate) so it can't overlap the centered text, and only at sm:+ does it
+		// switch BACK out of flow into the top-right corner (`sm:absolute …`). A bare
+		// `absolute` substring check would no longer distinguish those — `sm:absolute`
+		// contains the substring `absolute` — so split into utility tokens.
+		const wrapperClasses = sessionControlWrapperClasses(html);
+		// Mobile-first: in-flow, right-aligned, on its own line above the nameplate.
+		expect(wrapperClasses).toContain('flex');
+		expect(wrapperClasses).toContain('justify-end');
+		expect(wrapperClasses).toContain('mb-1.5');
+		// There is NO resting (unprefixed) `absolute` — the control is in flow on
+		// mobile; absolute positioning is reserved for sm:+.
+		expect(wrapperClasses).not.toContain('absolute');
+		// At sm:+ it returns to the out-of-flow top-right corner, and the flow
+		// layout is undone (`sm:block` overrides `flex`, `sm:mb-0` drops the line gap).
+		expect(wrapperClasses).toContain('sm:absolute');
+		expect(wrapperClasses).toContain('sm:right-4');
+		expect(wrapperClasses).toContain('sm:top-3');
+		expect(wrapperClasses).toContain('sm:block');
+		expect(wrapperClasses).toContain('sm:mb-0');
+	});
+
+	it('puts the anonymous Log in link in the same responsive wrapper (#317)', async () => {
+		// The Log in link shares the session-control corner, so the same mobile-flow
+		// vs sm:-absolute wrapper must apply to it too (the issue calls out both
+		// controls crowding the nameplate on mobile).
+		const html = await render({});
+		const wrapperClasses = sessionControlWrapperClasses(html);
+		expect(wrapperClasses).toContain('flex');
+		expect(wrapperClasses).toContain('justify-end');
+		expect(wrapperClasses).not.toContain('absolute');
+		expect(wrapperClasses).toContain('sm:absolute');
 	});
 });
 

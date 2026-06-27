@@ -41,14 +41,21 @@ const isAuthed = Astro.locals.userId !== undefined;
 	</head>
 	<body class="min-h-screen antialiased">
 		<div class="mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8">
-			{/* The nameplate stays centered: the session control is taken out of flow
-			    (absolute, top-right corner) so it never offsets the centered dateline /
-			    "News" / tagline. Mobile-first — it's pinned to the corner at an agate
-			    scale that doesn't crowd the narrow masthead, growing only at sm:. */}
+			{/* Session control, mobile-first (#317). On a narrow phone it sits in NORMAL
+			    FLOW on its own right-aligned line ABOVE the nameplate (`flex justify-end`,
+			    `mb-1.5`), so it can never overlap the centered dateline / "News" / tagline
+			    — the collision the absolute-only layout produced at phone width. At sm:+
+			    the masthead is wide enough for the top-right corner, so it switches BACK
+			    out of flow (`sm:absolute sm:right-4 sm:top-3`, `sm:mb-0 sm:block`); there
+			    the centered nameplate is unaffected because the control no longer occupies
+			    a row. The header stays `relative` so that sm: absolute child anchors to
+			    it. The inner Sign out / Log in affordances (#129) are unchanged. */}
 			<header
 				class="relative border-y-4 border-double border-ink py-3 text-center sm:py-4"
 			>
-				<div class="absolute right-3 top-2 sm:right-4 sm:top-3">
+				<div
+					class="mb-1.5 flex justify-end sm:absolute sm:right-4 sm:top-3 sm:mb-0 sm:block"
+				>
 					{
 						isAuthed ? (
 							/* Sign out — the action-button idiom (#129): a drawn ink-outline
