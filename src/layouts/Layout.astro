@@ -100,6 +100,7 @@ const isAuthed = Astro.locals.userId !== undefined;
 				>
 					<a
 						href="/status"
+						aria-label={`Status for ${dateline}`}
 						class="hover:text-accent hover:underline hover:underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
 						>{dateline}</a
 					>
