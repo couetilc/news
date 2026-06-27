@@ -91,8 +91,10 @@ quality manageable. Each brief contains:
     retry or silently skip, and the orchestrator moves the upload/embed to a credentialed
     surface. Don't write a brief that turns an impossible upload into an agent obligation.
 - Deliverable: `gh pr create --fill` with `Fixes #N`; **do NOT merge**; report PR #/URL,
-  files changed, the coverage line, the embedded screenshot URLs (for a visual change), and
-  **flag any uncertainty or deviation rather than guessing silently**.
+  files changed, the coverage line, and — for a visual change — **either** the embedded
+  screenshot URLs (credentialed surfaces) **or** the captured PNG paths plus an explicit
+  R2-upload-blocked handoff note (credential-free surfaces), and **flag any uncertainty or
+  deviation rather than guessing silently**.
 
 Agents may use WebFetch to *verify* real external shapes (feeds/APIs), but the **tests
 must stay fixture-driven/hermetic**.
