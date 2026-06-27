@@ -1,9 +1,16 @@
 import { parseAtom } from './parse/atom';
 import { parseAwsWhatsNew } from './parse/aws-whats-new';
+import { parseJpmEotm } from './parse/jpm-eotm';
 import { parseRss20 } from './parse/rss20';
 import { parseSecEdgar } from './parse/sec-edgar';
 import { parseTiNewsroom } from './parse/ti-newsroom';
-import { countAtom, countAwsWhatsNew, countRss20, countTiNewsroom } from './parse/count';
+import {
+	countAtom,
+	countAwsWhatsNew,
+	countJpmEotm,
+	countRss20,
+	countTiNewsroom,
+} from './parse/count';
 import type { FeedConfig } from './types';
 
 // #26 — Annapurna's silicon ships through AWS's What's New JSON search API.
@@ -251,5 +258,26 @@ export const SOURCES: FeedConfig[] = [
 		feed: 'https://data.sec.gov/submissions/CIK0000097476.json',
 		pollIntervalSeconds: 43200,
 		parse: (json) => parseSecEdgar(json, { cik: '97476', issuer: 'Texas Instruments' }),
+	},
+	{
+		// #319 — JPMorgan Asset Management's "Eye on the Market" (Michael Cembalest),
+		// the ongoing weekly/biweekly commentary stream. The landing page is a
+		// client-rendered AEM app with NO RSS/Atom and no first-party feed; its
+		// static HTML lists only a few curated annual outlooks. The full article
+		// stream is rendered client-side from the editorial-landing component's AEM
+		// `.model.json` (a JSON object whose `pages` array holds the records,
+		// newest first) — the same AEM-JSON discovery path as Texas Instruments
+		// (#30). parseJpmEotm reads `pages`, resolves the site-relative article
+		// `url` to an absolute one (the stable guid), keeps the teaser `description`
+		// as the summary, and LINKS OUT (contentHtml null) — the listing has no full
+		// body and the human page is gated behind a country/role selector + consent,
+		// but this `.model.json` endpoint serves the records directly. `sortDate` is
+		// epoch MILLISECONDS (not RFC-822), handled in the parser. Cembalest publishes
+		// ~weekly/biweekly, so a daily poll is ample.
+		source: 'eye-on-the-market',
+		feed: 'https://am.jpmorgan.com/content/jpm-am-aem/global-institutional/us/en/institutional/insights/market-insights/eye-on-the-market/jcr:content/root/responsivegrid/jpm_am_container_sec/section/jpm_am_editorial_lan.model.json',
+		pollIntervalSeconds: 86400,
+		parse: parseJpmEotm,
+		countRaw: countJpmEotm,
 	},
 ];

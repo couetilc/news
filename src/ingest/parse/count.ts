@@ -77,6 +77,17 @@ export function countTiNewsroom(payload: string): number {
 	return Array.isArray(parsed) ? Math.max(parsed.length - 1, 0) : 0;
 }
 
+// JPM "Eye on the Market" AEM editorial-landing model (#319): a JSON OBJECT whose
+// `pages` array holds the listing records — so the raw entry count is that array's
+// length. A non-object top level, or one without a `pages` array (a format switch),
+// counts as 0; `parse` will already have rejected it, so the count is just the
+// denominator.
+export function countJpmEotm(payload: string): number {
+	const parsed = parseJsonSafe(payload);
+	if (typeof parsed !== 'object' || parsed === null) return 0;
+	return arrayLength((parsed as { pages?: unknown }).pages);
+}
+
 // NOTE: SEC EDGAR deliberately has NO raw counter. `filings.recent` is the whole
 // columnar filings history (~1000 rows for TI), but parseSecEdgar keeps only the
 // configured 8-K forms within a 20-item recent window — so the columnar height

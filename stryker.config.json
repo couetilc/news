@@ -20,6 +20,7 @@
     "src/ingest/parse/aws-whats-new.ts",
     "src/ingest/parse/sec-edgar.ts",
     "src/ingest/parse/ti-newsroom.ts",
+    "src/ingest/parse/jpm-eotm.ts",
     "src/ingest/parse/entities.ts",
     "src/ingest/parse/count.ts",
     "src/ingest/parse/dates.ts"
