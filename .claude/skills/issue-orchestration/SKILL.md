@@ -72,9 +72,29 @@ quality manageable. Each brief contains:
   at 100% statements/branches/functions/lines across **both** vitest projects, tests hermetic (no network — inject
   `fetch`, use fixtures).
 - **Pre-assigned shared resources** (see hazards) so parallel agents don't collide.
+- **Visual changes ship screenshots — put it in the brief, every time.** For any PR that
+  changes what a page or component *looks* like, the brief must tell the agent to capture
+  before/after screenshots against the **running app** (boot the dev server, drive the baked
+  headless Chromium) and attach them by uploading via
+  `scripts/upload-screenshot.sh <issue> <before|after> <png>`, then embed the printed
+  `news-cdn` URLs in the PR body — the design-system **"Screenshots for visual changes"**
+  convention. Make it **surface-aware** (the R2 upload needs `CLOUDFLARE_API_TOKEN`, which the
+  credentials matrix does NOT give every surface — see `agentic-environments`):
+  - **Credentialed surface** (the agent container, and local/Dispatch with `.env` or wrangler
+    OAuth): the agent has the dev server, the browser, and the CF token, so it **can and must
+    do the whole thing itself** — capture, upload, embed — not leave it for the orchestrator to
+    capture by hand at review time. Say it explicitly: agents skip it otherwise, and may wrongly
+    treat the production-R2 upload as needing sign-off (it is the documented, expected path).
+  - **Credential-free surface** (claude.ai cloud sessions are deliberately Cloudflare-credential-free):
+    the agent still captures the before/after PNGs, but the `scripts/upload-screenshot.sh` step
+    will fail on the missing token — so it must **report the upload as blocked** rather than
+    retry or silently skip, and the orchestrator moves the upload/embed to a credentialed
+    surface. Don't write a brief that turns an impossible upload into an agent obligation.
 - Deliverable: `gh pr create --fill` with `Fixes #N`; **do NOT merge**; report PR #/URL,
-  files changed, the coverage line, and **flag any uncertainty or deviation rather than
-  guessing silently**.
+  files changed, the coverage line, and — for a visual change — **either** the embedded
+  screenshot URLs (credentialed surfaces) **or** the captured PNG paths plus an explicit
+  R2-upload-blocked handoff note (credential-free surfaces), and **flag any uncertainty or
+  deviation rather than guessing silently**.
 
 Agents may use WebFetch to *verify* real external shapes (feeds/APIs), but the **tests
 must stay fixture-driven/hermetic**.
@@ -95,6 +115,10 @@ percentage (CI enforces 100%). Look hardest at:
   is preserved byte-for-byte and only the new branch is added.
 - **Security** — auth, hashing/constant-time compare, server-side write rejection.
 - **Core-abstraction changes** — confirm they don't regress the existing callers.
+- **Visual changes — confirm the before/after screenshots are in the PR body** (the
+  design-system convention). A markup unit test is not a substitute — the look is reviewed by
+  eye. If they're missing, bounce it back to the agent rather than capturing them yourself;
+  this is what makes the screenshot step *reliable* instead of an orchestrator chore.
 
 Two merge tiers:
 
