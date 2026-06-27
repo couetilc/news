@@ -32,6 +32,8 @@ export default defineConfig({
 			'test/index.test.ts',
 			'test/feed.test.ts',
 			'test/layout.test.ts',
+			// PinnedLinks.astro render (#316) — Container API page render, node project.
+			'test/pinned-links.test.ts',
 			'test/status.test.ts',
 			// Plain-node deployInfo() unit spec — runs in the node project (#236).
 			'test/deploy.test.ts',

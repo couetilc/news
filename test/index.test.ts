@@ -295,6 +295,61 @@ describe('index page', () => {
 		});
 	});
 
+	describe('pinned references strip (#316)', () => {
+		// The Trump Policy Impact Tracker PDF is pinned above the FilterBar for both
+		// auth states. Assert it on the rendered index page (not just the component)
+		// so the placement contract — above the source filter, present in either auth
+		// state — is pinned where it actually composes.
+		const TRACKER_HREF =
+			'https://assets.jpmprivatebank.com/content/dam/jpm-pb-aem/global/en/documents/eotm/trump-tracker.pdf';
+
+		it('renders the pinned tracker above the FilterBar for a logged-in visitor', async () => {
+			vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog']);
+			feed({ unread: [row({})] });
+
+			const html = await render();
+			// The pinned PDF link is present, with its external-tab safety attributes.
+			expect(html).toContain(`href="${TRACKER_HREF}"`);
+			expect(html).toContain('Trump Policy Impact Tracker');
+			expect(html).toContain('aria-label="Pinned references"');
+			// It sits ABOVE the source FilterBar (the decided Option A placement).
+			const pinnedAt = html.indexOf('aria-label="Pinned references"');
+			const filterAt = html.indexOf('aria-label="Filter by source"');
+			expect(pinnedAt).toBeGreaterThan(-1);
+			expect(filterAt).toBeGreaterThan(-1);
+			expect(pinnedAt).toBeLessThan(filterAt);
+		});
+
+		it('renders the pinned tracker for an anonymous visitor too', async () => {
+			vi.mocked(listItems).mockResolvedValue([row({})]);
+			const container = await AstroContainer.create();
+			const html = await container.renderToString(Index, {
+				request: new Request('https://news.test/'),
+				locals: {},
+			});
+			// Visible to anonymous visitors (no FilterBar in this branch, but the strip
+			// still shows above the public feed).
+			expect(html).toContain(`href="${TRACKER_HREF}"`);
+			expect(html).toContain('Trump Policy Impact Tracker');
+			expect(html).toContain('aria-label="Pinned references"');
+			// The pinned strip precedes the feed list.
+			const pinnedAt = html.indexOf('aria-label="Pinned references"');
+			const feedAt = html.indexOf('<ol');
+			expect(pinnedAt).toBeGreaterThan(-1);
+			expect(pinnedAt).toBeLessThan(feedAt);
+		});
+
+		it('shows the pinned tracker even when nothing has been aggregated', async () => {
+			// The strip is its own lane, independent of feed state — it must survive the
+			// empty homepage so the reference is reachable from day one.
+			vi.mocked(distinctSources).mockResolvedValue([]);
+			feed({});
+			const html = await render();
+			expect(html).toContain('Nothing aggregated yet');
+			expect(html).toContain(`href="${TRACKER_HREF}"`);
+		});
+	});
+
 	it('falls back to the raw slug and the neutral flag for an unregistered source', async () => {
 		vi.mocked(distinctSources).mockResolvedValue(['mystery-wire']);
 		feed({ unread: [row({ source: 'mystery-wire', title: 'Unknown source' })] });

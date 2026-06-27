@@ -46,6 +46,9 @@ export default getViteConfig(
 				'test/index.test.ts',
 				'test/feed.test.ts',
 				'test/layout.test.ts',
+				// PinnedLinks.astro render (#316) — Container API, needs Astro's Vite
+				// plugins the worker pool can't load (same as the other .astro specs).
+				'test/pinned-links.test.ts',
 				'test/status.test.ts',
 				// Pure-node deployInfo() unit spec (imports only vitest + deploy.ts) —
 				// split out of status.test.ts so deploy.ts is mutation-reachable (#236).

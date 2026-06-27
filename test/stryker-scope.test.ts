@@ -65,6 +65,7 @@ const GLUE_ALLOWLIST: Record<string, string> = {
 const CORE_WITHOUT_ISOLATED_TEST: Record<string, string> = {
 	'src/lib/format.ts': 'no dedicated spec — covered only via .astro page renders',
 	'src/lib/sources.ts': 'no dedicated spec — covered only via .astro page renders',
+	'src/lib/pinned.ts': 'flat data registry — covered only via the .astro PinnedLinks render',
 	// deploy.ts now has a dedicated plain-node spec (test/deploy.test.ts, split
 	// out of status.test.ts in #236), so it's in `mutate` + the stryker include,
 	// not here.
