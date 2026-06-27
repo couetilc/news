@@ -18,10 +18,18 @@
 # Usage:
 #   scripts/upload-screenshot.sh <issue-number> <before|after|name> <path-to-png>
 #
+# The object key is CONTENT-ADDRESSED: a short hash of the PNG's bytes is
+# appended to the name (pr-screenshots/<issue>/<name>-<sha8>.png). This is the
+# durable fix for GitHub's image proxy (camo) caching proxied images by URL
+# essentially permanently: re-capturing under the same logical name now yields a
+# NEW URL (different bytes ⇒ different hash), so camo fetches the fresh image
+# instead of serving a stale one. Re-uploading identical bytes is idempotent
+# (same hash ⇒ same URL ⇒ no churn).
+#
 # Example:
 #   scripts/upload-screenshot.sh 263 before docs/screenshot.png
-#   → puts pr-screenshots/263/before.png and prints
-#     https://news-cdn.cuteteal.com/pr-screenshots/263/before.png
+#   → puts pr-screenshots/263/before-1a2b3c4d.png and prints
+#     https://news-cdn.cuteteal.com/pr-screenshots/263/before-1a2b3c4d.png
 #
 # Requirements (ONE-TIME HUMAN ACTIVATION — until done, this script is inert):
 #   1. CLOUDFLARE_API_TOKEN with R2 read/write + provisioning scope
@@ -59,12 +67,26 @@ bucket="${R2_CDN_BUCKET:-news-cdn}"
 base="${R2_CDN_BASEURL:-https://news-cdn.cuteteal.com}"
 base="${base%/}"
 
-# Key layout: pr-screenshots/<issue>/<name>.png so the bucket stays browsable
-# per issue under the PR-screenshots prefix. Strip any directory from $name and
-# force a single .png extension.
+# Content-address the key so every distinct upload yields a unique URL: hash the
+# PNG's bytes and append the first 8 hex chars to the name. Same bytes ⇒ same
+# URL (idempotent); changed bytes ⇒ new URL ⇒ GitHub's camo proxy fetches fresh
+# instead of serving its permanently-cached stale copy. Prefer sha256sum
+# (coreutils); fall back to `shasum -a 256` (e.g. macOS without coreutils).
+if command -v sha256sum >/dev/null 2>&1; then
+  sha="$(sha256sum "$file")"
+elif command -v shasum >/dev/null 2>&1; then
+  sha="$(shasum -a 256 "$file")"
+else
+  die "need sha256sum or shasum to content-address the key (install coreutils)"
+fi
+sha8="${sha:0:8}"
+
+# Key layout: pr-screenshots/<issue>/<name>-<sha8>.png so the bucket stays
+# browsable per issue under the PR-screenshots prefix. Strip any directory from
+# $name and force a single .png extension.
 key_name="$(basename "$name")"
 key_name="${key_name%.png}"
-key="pr-screenshots/${issue}/${key_name}.png"
+key="pr-screenshots/${issue}/${key_name}-${sha8}.png"
 
 echo "Uploading $file → r2://$bucket/$key (remote) ..." >&2
 # --remote targets the real account bucket (not local persistence); wrangler
