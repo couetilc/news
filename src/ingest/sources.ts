@@ -173,6 +173,31 @@ export const SOURCES: FeedConfig[] = [
 		countRaw: countRss20,
 	},
 	{
+		// #318 — Citadel Securities "Market Insights". The site IS WordPress (Yoast
+		// sitemap_index.xml + a detected <link rel="alternate"> to the category
+		// feed .../market-insights/feed/), so a native RSS feed exists — BUT the
+		// whole origin sits behind a Cloudflare MANAGED challenge: every non-browser
+		// request (the WP /feed/, /wp-json/, and the HTML category page itself)
+		// returns 403 with `cf-mitigated: challenge`, regardless of User-Agent
+		// (Googlebot / feed-reader / browser strings are all blocked). A Worker
+		// can't solve a JS challenge, so options 1 (native feed), 2 (WP REST JSON)
+		// and 4 (HTML scrape) are all unreachable. So we read it through the OpenRSS
+		// proxy like Anthropic (#22): same RSS 2.0 shape (content/dc/ofeed root,
+		// full rendered article HTML in the <description> CDATA, no content:encoded),
+		// so `description` mode routes that body into contentHtml and leaves summary
+		// null. GOTCHA: at time of writing OpenRSS detects the WP feed link and tries
+		// to PROXY it (itself Cloudflare-challenged), so the feed can come back with
+		// 0 items even though OpenRSS's own page-scrape can see the posts; the #78
+		// shape-drift check surfaces a persistent 0-of-N as an `ingest.anomaly` (the
+		// watch signal here). Market-insights posts are infrequent and OpenRSS caches
+		// ~9h, so poll daily.
+		source: 'citadel-securities',
+		feed: 'https://openrss.org/feed/www.citadelsecurities.com/news-and-insights/category/market-insights/',
+		pollIntervalSeconds: 86400,
+		parse: (xml) => parseRss20(xml, { content: 'description' }),
+		countRaw: countRss20,
+	},
+	{
 		// #31 — Cisco IR press releases (Q4 Inc RSS 2.0), the PRIMARY earnings
 		// signal. Titles only: <description> is empty, so `description` mode yields
 		// null contentHtml and we link out. The earnings PR lands ~16:05 ET on the

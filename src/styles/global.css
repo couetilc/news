@@ -51,6 +51,7 @@
 	--color-source-aws: #7a4a64; /* muted mauve (#26, AWS) */
 	--color-source-cisco: #7a3a4a; /* muted maroon/wine (#31, Cisco) */
 	--color-source-ti: #b06a4a; /* muted clay/coral (#30, Texas Instruments) */
+	--color-source-citadel: #2f4858; /* muted petrol/teal-navy (#318, Citadel Securities) */
 }
 
 @layer base {

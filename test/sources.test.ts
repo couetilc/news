@@ -6,6 +6,7 @@ import appleXml from './fixtures/apple.xml?raw';
 import gravitonJson from './fixtures/aws-graviton.json?raw';
 import ciscoXml from './fixtures/cisco.xml?raw';
 import ciscoEdgarJson from './fixtures/cisco-sec-edgar.json?raw';
+import citadelXml from './fixtures/citadel-securities.xml?raw';
 import cloudflareXml from './fixtures/cloudflare-blog.xml?raw';
 import elonlitXml from './fixtures/elonlit.xml?raw';
 import ieeeXml from './fixtures/ieee-spectrum.xml?raw';
@@ -38,6 +39,7 @@ describe('SOURCES', () => {
 		expect(slugs).toContain('aws');
 		expect(slugs).toContain('cisco');
 		expect(slugs).toContain('ti');
+		expect(slugs).toContain('citadel-securities');
 	});
 
 	it('registers both Cisco feeds (IR RSS primary + EDGAR 8-K backstop) under one source', () => {
@@ -91,6 +93,35 @@ describe('SOURCES', () => {
 			expect(items[0].contentHtml).toContain('<strong>frontier</strong>');
 			expect(items[0].summary).toBeNull();
 		}
+	});
+
+	it('registers Citadel Securities Market Insights via the OpenRSS proxy, polled daily (#318)', () => {
+		const citadel = source('citadel-securities');
+		// The first-party site is Cloudflare-managed-challenged on every non-browser
+		// path, so we go through OpenRSS like Anthropic — assert the resolved URL.
+		expect(citadel.feed).toBe(
+			'https://openrss.org/feed/www.citadelsecurities.com/news-and-insights/category/market-insights/',
+		);
+		// Market-insights posts are infrequent and OpenRSS caches ~9h → daily poll.
+		expect(citadel.pollIntervalSeconds).toBe(86400);
+	});
+
+	it('parses Citadel Securities OpenRSS items: full HTML from the description, links out, no summary (#318)', () => {
+		const items = source('citadel-securities').parse(citadelXml);
+		// Newest-first feed order, both market-insights posts kept.
+		expect(items.map((i) => i.title)).toEqual([
+			'Some Macro Thoughts',
+			'Regime Change…but Not in Iran',
+		]);
+		// `description` mode routes the rendered article HTML to contentHtml, summary null.
+		expect(items[0].contentHtml).toContain('<strong>markup</strong>');
+		expect(items[0].summary).toBeNull();
+		// Stable guid = the article URL (drives (source, guid) dedupe), and we link out.
+		expect(items[0].guid).toBe(
+			'https://www.citadelsecurities.com/news-and-insights/macro-thoughts/some-macro-thoughts/',
+		);
+		expect(items[0].url).toBe(items[0].guid);
+		expect(items[0].publishedAt).toBe(Math.floor(Date.UTC(2026, 5, 20, 13, 0, 0) / 1000));
 	});
 
 	it('configures one aws feed per silicon term, sharing source "aws"', () => {

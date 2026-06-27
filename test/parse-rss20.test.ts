@@ -3,6 +3,7 @@ import { parseRss20 } from '../src/ingest/parse/rss20';
 import amdXml from './fixtures/amd.xml?raw';
 import anthropicXml from './fixtures/anthropic.xml?raw';
 import ciscoXml from './fixtures/cisco.xml?raw';
+import citadelXml from './fixtures/citadel-securities.xml?raw';
 import cloudflareXml from './fixtures/cloudflare-blog.xml?raw';
 import ieeeXml from './fixtures/ieee-spectrum.xml?raw';
 import intelXml from './fixtures/intel.xml?raw';
@@ -239,6 +240,50 @@ describe('parseRss20 — description mode (Anthropic via OpenRSS proxy)', () => 
 				'<article><h1>Introducing Claude Fable 5 and Mythos 5</h1><p>Today we are announcing our most capable models yet, with <strong>frontier</strong> performance across coding and agentic tasks.</p></article>',
 			publishedAt: Math.floor(Date.UTC(2026, 5, 9, 16, 0, 0) / 1000),
 		});
+	});
+});
+
+describe('parseRss20 — description mode (Citadel Securities via OpenRSS proxy, #318)', () => {
+	// #318: Citadel's first-party WP feed and its HTML pages are all behind a
+	// Cloudflare managed challenge (403 to any non-browser client), so we read the
+	// market-insights category through OpenRSS — same RSS 2.0 shape as Anthropic
+	// (content/dc/ofeed root, full rendered article HTML in the <description>
+	// CDATA, no content:encoded), so `description` mode routes it to contentHtml.
+	const items = parseRss20(citadelXml, { content: 'description' });
+
+	it('extracts every market-insights item in feed order (newest first)', () => {
+		expect(items.map((i) => i.title)).toEqual([
+			'Some Macro Thoughts',
+			'Regime Change…but Not in Iran',
+		]);
+	});
+
+	it('takes the full article HTML from the CDATA description and leaves summary null', () => {
+		expect(items[0]).toEqual({
+			guid: 'https://www.citadelsecurities.com/news-and-insights/macro-thoughts/some-macro-thoughts/',
+			url: 'https://www.citadelsecurities.com/news-and-insights/macro-thoughts/some-macro-thoughts/',
+			title: 'Some Macro Thoughts',
+			summary: null,
+			contentHtml:
+				'<article><h1>Some Macro Thoughts</h1><p>The full rendered article HTML for the market-insights post, with <strong>markup</strong>, tens of kilobytes in reality.</p></article>',
+			publishedAt: Math.floor(Date.UTC(2026, 5, 20, 13, 0, 0) / 1000),
+		});
+	});
+
+	it('uses the article URL as a stable guid so (source, guid) dedupe holds (#191)', () => {
+		// Re-parsing the same payload yields identical guids — the dedupe key the
+		// ingest model keys on must be deterministic across polls.
+		const again = parseRss20(citadelXml, { content: 'description' });
+		expect(again.map((i) => i.guid)).toEqual(items.map((i) => i.guid));
+		expect(new Set(items.map((i) => i.guid)).size).toBe(items.length);
+		expect(items.every((i) => i.url === i.guid)).toBe(true);
+	});
+
+	it('decodes the HTML entity in the second item title (&#8230; → ellipsis)', () => {
+		// OpenRSS emits the title with a numeric character reference; the stored
+		// title must read with a real ellipsis, not the raw "&#8230;".
+		expect(items[1].title).toBe('Regime Change…but Not in Iran');
+		expect(items[1].title).not.toContain('&#8230;');
 	});
 });
 

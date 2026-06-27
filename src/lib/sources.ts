@@ -27,6 +27,7 @@ const REGISTRY: Record<string, SourceMeta> = {
 	aws: { name: 'AWS', swatch: 'bg-source-aws' },
 	cisco: { name: 'Cisco', swatch: 'bg-source-cisco' },
 	ti: { name: 'Texas Instruments', swatch: 'bg-source-ti' },
+	'citadel-securities': { name: 'Citadel Securities', swatch: 'bg-source-citadel' },
 };
 
 export function sourceMeta(slug: string): SourceMeta {
