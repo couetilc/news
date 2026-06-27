@@ -136,6 +136,14 @@ describe('Layout masthead dateline /status link (#305)', () => {
 		expect(link).toContain('hover:text-accent');
 		expect(link).toContain('focus-visible:outline-ink');
 
+		// Accessibility (#310): the visible link text is only the date, so on its
+		// own the anchor's accessible name reads as a bare date in screen-reader
+		// link navigation — telling the user nothing about where it goes. An
+		// aria-label gives it a destination-oriented accessible name (the status
+		// page) while leaving the visible dateline text untouched. Pin the exact
+		// label, not just that *an* aria-label exists.
+		expect(link).toContain(`aria-label="Status for ${longDate(new Date())}"`);
+
 		// It stays in the agate/uppercase masthead voice: the dateline <p> still
 		// carries the small-caps, letter-spaced, muted font-sans treatment.
 		const datelineP = html.slice(
@@ -167,6 +175,8 @@ describe('Layout masthead dateline /status link (#305)', () => {
 		expect(classes).not.toContain('underline');
 		expect(link).toContain('hover:text-accent');
 		expect(link).toContain('focus-visible:outline-ink');
+		// Same destination-oriented accessible name for anonymous visitors (#310).
+		expect(link).toContain(`aria-label="Status for ${longDate(new Date())}"`);
 		// Anonymous render also drops the old colophon line + footer.
 		expect(html).not.toContain('A personal news aggregator');
 		expect(html).not.toContain('<footer');
