@@ -1,0 +1,94 @@
+{
+  "headline": "Eye on the Market",
+  "supportingText": "Explore Eye on the Market, timely commentary that offers views on the economy, markets, and investment portfolios by Michael Cembalest.",
+  "theme": "market-insights",
+  "articleCount": "noLimit",
+  "pages": [
+    {
+      "title": "Semiquincententacles",
+      "webcastId": null,
+      "webcastDuration": 0,
+      "description": "Behold the Aquilaceph, half-bald eagle and half-octopus. On the semiquincentennial 250th anniversary of the US Declaration of Independence, this imaginary beast is a metaphor for the continued US grip on financial markets.",
+      "url": "/us/en/asset-management/institutional/insights/market-insights/eye-on-the-market/semiquincententacles/",
+      "image": "https://cdn.jpmorganfunds.com/content/dam/jpm-am-aem/global/en/images/graphs---charts/eotm/semiquincententacles/semiquincententacles-am-card-927x521px-v01.jpg",
+      "sortDate": 1782219660000,
+      "displayDate": "06/23/2026",
+      "authors": [
+        {
+          "title": "Chairman of Market and Investment Strategy for J.P. Morgan Asset & Wealth Management",
+          "name": "Michael Cembalest",
+          "image": "https://cdn.jpmorganfunds.com/content/dam/jpm-am-aem/global/en/images/common/michael_cembalest.png",
+          "link": "/us/en/asset-management/institutional/bios/michael-cembalest/",
+          "bioPagePath": "michael-cembalest"
+        }
+      ],
+      "tags": [
+        "jpm-am-aem:publication/insights/eye-on-the-market",
+        "jpm-am-aem:tags/economy",
+        "jpm-am-aem:tags/investment-strategies",
+        "jpm-am-aem:tags/markets",
+        "jpm-am-aem:publication/insights/featured",
+        "jpm-am-aem:tags/energy"
+      ],
+      "heroAltText": "Semiquincententacles",
+      "featured": true
+    },
+    {
+      "title": "Home Alone: inflation and the new Fed chair; investing in China&#39;s AI ecosystem; Prediction markets",
+      "webcastId": null,
+      "webcastDuration": 0,
+      "description": "The new Fed chair Kevin Warsh, like Kevin McCallister in Home Alone, faces a lonely vigil: survive until the adults get home again. The latest on inflation, rising Treasury yields, shrinking equity risk premia &amp; pressure from the White House.",
+      "url": "/us/en/asset-management/institutional/insights/market-insights/eye-on-the-market/home-alone/",
+      "image": "https://cdn.jpmorganfunds.com/content/dam/jpm-am-aem/global/en/images/graphs---charts/eotm/home-alone/home-alone-am-card-927x521px-v01.jpg",
+      "sortDate": 1779796620000,
+      "displayDate": "05/26/2026",
+      "authors": [
+        {
+          "title": "Chairman of Market and Investment strategy for J.P.Morgan Asset & Wealth Management",
+          "name": "Michael Cembalest",
+          "image": "https://cdn.jpmorganfunds.com/content/dam/jpm-am-aem/global/en/images/common/michael_cembalest.png",
+          "link": "/us/en/asset-management/institutional/bios/michael-cembalest/",
+          "bioPagePath": "michael-cembalest"
+        }
+      ],
+      "tags": [
+        "jpm-am-aem:publication/insights/eye-on-the-market",
+        "jpm-am-aem:tags/economy",
+        "jpm-am-aem:tags/markets",
+        "jpm-am-aem:tags/investment-strategies",
+        "jpm-am-aem:publication/insights/featured"
+      ],
+      "heroAltText": "Home Alone",
+      "featured": false
+    },
+    {
+      "title": "Fighting Words: The Energy Transition in 2026",
+      "webcastId": null,
+      "webcastDuration": 0,
+      "description": "This year we tackle the fiercest energy debates from data centers and power prices to the \"primary energy\" fallacy and more.",
+      "url": "https://am.jpmorgan.com/us/en/asset-management/institutional/insights/market-insights/eye-on-the-market/energy-paper-2026/",
+      "image": "https://cdn.jpmorganfunds.com/content/dam/jpm-am-aem/global/en/images/graphs---charts/eotm/energy-paper/fighting_words_AM_1200x527-v1.jpg",
+      "sortDate": 1772542860000,
+      "displayDate": "03/03/2026",
+      "authors": [
+        {
+          "title": "Chairman of Market and Investment Strategy for J.P. Morgan Asset & Wealth Management",
+          "name": "Michael Cembalest",
+          "image": "https://cdn.jpmorganfunds.com/content/dam/jpm-am-aem/global/en/images/common/michael_cembalest.png",
+          "link": "/us/en/asset-management/institutional/bios/michael-cembalest/",
+          "bioPagePath": "michael-cembalest"
+        }
+      ],
+      "tags": [
+        "jpm-am-aem:publication/insights/eye-on-the-market",
+        "jpm-am-aem:tags/economy",
+        "jpm-am-aem:tags/investment-strategies",
+        "jpm-am-aem:tags/markets",
+        "jpm-am-aem:tags/energy",
+        "jpm-am-aem:publication/insights/featured"
+      ],
+      "heroAltText": null,
+      "featured": false
+    }
+  ]
+}

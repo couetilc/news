@@ -94,6 +94,7 @@ const MUTATE_SPECS: Record<string, string[]> = {
 	'src/ingest/parse/aws-whats-new.ts': ['test/parse-aws-whats-new.test.ts'],
 	'src/ingest/parse/sec-edgar.ts': ['test/parse-sec-edgar.test.ts'],
 	'src/ingest/parse/ti-newsroom.ts': ['test/parse-ti-newsroom.test.ts'],
+	'src/ingest/parse/jpm-eotm.ts': ['test/parse-jpm-eotm.test.ts'],
 	'src/ingest/parse/entities.ts': ['test/parse-entities.test.ts'],
 	'src/ingest/parse/count.ts': ['test/count.test.ts'],
 	'src/ingest/parse/dates.ts': ['test/dates.test.ts'],

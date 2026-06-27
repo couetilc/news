@@ -17,6 +17,7 @@ import scienceDailyXml from './fixtures/science-daily.xml?raw';
 import tiBlogJson from './fixtures/ti-company-blog.json?raw';
 import tiNewsJson from './fixtures/ti-news-releases.json?raw';
 import tiEdgarJson from './fixtures/ti-sec-edgar.json?raw';
+import eotmJson from './fixtures/eye-on-the-market.json?raw';
 
 const source = (name: string) => SOURCES.find((s) => s.source === name)!;
 
@@ -38,6 +39,7 @@ describe('SOURCES', () => {
 		expect(slugs).toContain('aws');
 		expect(slugs).toContain('cisco');
 		expect(slugs).toContain('ti');
+		expect(slugs).toContain('eye-on-the-market');
 	});
 
 	it('registers both Cisco feeds (IR RSS primary + EDGAR 8-K backstop) under one source', () => {
@@ -231,5 +233,33 @@ describe('SOURCES', () => {
 			'https://www.sec.gov/Archives/edgar/data/97476/000095010326008325/dp247795_8k.htm',
 		);
 		expect(items[0].contentHtml).toBeNull();
+	});
+
+	it('registers the Eye on the Market source on the AEM editorial model.json endpoint (#319)', () => {
+		const eotm = source('eye-on-the-market');
+		expect(eotm.feed).toBe(
+			'https://am.jpmorgan.com/content/jpm-am-aem/global-institutional/us/en/institutional/insights/market-insights/eye-on-the-market/jcr:content/root/responsivegrid/jpm_am_container_sec/section/jpm_am_editorial_lan.model.json',
+		);
+		// ~weekly/biweekly cadence → a daily poll is ample.
+		expect(eotm.pollIntervalSeconds).toBe(86400);
+		expect(eotm.countRaw).toBeDefined();
+	});
+
+	it('parses the Eye on the Market model.json: headline as title, teaser summary, links out (#319)', () => {
+		const items = source('eye-on-the-market').parse(eotmJson);
+		expect(items[0].title).toBe('Semiquincententacles');
+		// Site-relative url resolved to an absolute am.jpmorgan.com article page.
+		expect(items[0].url).toBe(
+			'https://am.jpmorgan.com/us/en/asset-management/institutional/insights/market-insights/eye-on-the-market/semiquincententacles/',
+		);
+		// Link-out only: the listing carries a teaser, never the full essay.
+		expect(items[0].summary).toMatch(/^Behold the Aquilaceph/);
+		expect(items[0].contentHtml).toBeNull();
+		// epoch-ms sortDate → unix seconds.
+		expect(items[0].publishedAt).toBe(1782219660);
+	});
+
+	it('counts the Eye on the Market pages array as the drift denominator (#319)', () => {
+		expect(source('eye-on-the-market').countRaw!(eotmJson)).toBe(3);
 	});
 });
