@@ -361,10 +361,10 @@ whether the read square sits right or the dateline reads as agate.
 **Capture against the running app**, not a fixture render. In the agent
 container, drive the dev server with the baked headless Chromium (the
 `agentic-environments` skill has the container/dev-server specifics — host-port
-mapping, the baked browser path, where `$DEV_HOST_4321` comes from). Concretely:
+mapping, the baked browser path, where `$DEV_HOST_ASTRO` comes from). Concretely:
 
 - Start the dev server on workerd and bind all interfaces:
-  `npm run dev -- --host`, then point the browser at `http://$DEV_HOST_4321/`
+  `npm run dev -- --host`, then point the browser at `http://$DEV_HOST_ASTRO/`
   (the in-container `localhost:4321` maps to a different, randomized host port —
   see `agentic-environments`).
 - Launch Chromium with `chromium.launch({ args: ['--no-sandbox'] })` — non-root

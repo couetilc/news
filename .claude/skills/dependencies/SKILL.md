@@ -92,7 +92,7 @@ Label it `dependency-proposal` (+ the relevant area label, e.g. `auth`,
 ## Defaults (adjustable by the human)
 
 - **Dependency-add PRs are human-merged**, not auto-merged — the supply-chain
-  step is the gate, mirroring `docker/**` and the launcher scripts.
+  step is the gate, mirroring `.agent/**` container-config changes.
 - **Crypto/untrusted-parsing deps require the security note** above; other deps
   don't.
 

@@ -18,7 +18,7 @@ differences.
 | Local CLI / desktop app | Connor's Mac, `~/repos/news` | Terminal / Code tab | Working tree, SSH push | Yes (manual fallback) |
 | **Dispatch** | **Connor's Mac** (desktop app must be running & awake) | Phone / Cowork tab | Same local working tree, SSH push | Yes (same as local) |
 | Cloud sessions (claude.ai/code, `claude --remote`) | Anthropic-managed Ubuntu 24.04 VM (4 vCPU / 16 GB / 30 GB) | Web, mobile, CLI | Fresh clone via GitHub App proxy; **push restricted to the session's own branch**; changes land via PR | **No** (by design) |
-| Agent container (`./bin/claude`) | Docker on Connor's Mac, full-auto (`--dangerously-skip-permissions`) | Terminal | Fresh clone from GitHub into container-private `/workspace`; HTTPS push via `GH_TOKEN` | Possible but discouraged — use PRs |
+| Agent container (`agent claude`) | Docker on Connor's Mac, full-auto (`--dangerously-skip-permissions`) | Terminal | Fresh clone from GitHub into container-private `/workspace`; HTTPS push via `GH_TOKEN` | Possible but discouraged — use PRs |
 | GitHub Actions | GitHub-hosted runner | Push / PR events | `actions/checkout` | **Yes — the canonical deploy path** |
 
 Key facts:
@@ -35,7 +35,10 @@ Key facts:
 
 ## Credentials matrix
 
-`.env.example` is the living documentation for token scopes. Current state:
+`.env.example` (project tokens: `CLOUDFLARE_API_TOKEN`, `GH_TOKEN`) and
+`.agent/env.example` (adds the host-level agent CLI credentials in
+`~/.config/agentic-coding/env`) are the living documentation for token scopes.
+Current state:
 
 | Surface | Cloudflare | GitHub |
 |---|---|---|
@@ -91,139 +94,162 @@ Division of labor: tools/runtimes the VM lacks → setup script (cached
 snapshot); project dependency install → SessionStart hook (runs every session,
 repo-versioned).
 
-## Agent container (`./bin/claude`)
+## Agent container (`agent claude` / `agent codex`)
 
-Local full-auto surface: runs `claude --dangerously-skip-permissions` inside
-Docker. `docker/Dockerfile` codifies the toolchain (node:24-slim matching
-the repo's node pin, git, gh, gitleaks version-matched to the host, claude CLI,
-non-root `node` user — required because `--dangerously-skip-permissions`
-refuses to run as root).
+Local full-auto surface, driven by the published **`@couetilc/agentic-coding`**
+tool (host prereqs: node, docker, git) and configured by this repo's committed
+**`.agent/`** directory — `config.js` names the project/repo/ports/agents/caches,
+`Dockerfile` is the overlay, `init.sh` is the in-container bootstrap, and
+`.agent/README.md` is the host-side config reference. `agent claude` runs
+`claude --dangerously-skip-permissions`; `agent codex` runs `codex` at parity;
+`agent shell` drops into bash; `agent clean` prunes + rebuilds; `agent doctor`
+prints the resolved config. The image is **two-stage**: a shared **base**
+(`agentic-coding-base:<pkg-version>` — node:24-slim matching the repo's node
+pin, git, gh, gitleaks, ripgrep, uv, and both agent CLIs; non-root `node` user,
+required because `--dangerously-skip-permissions` refuses to run as root) plus
+this repo's **`.agent/Dockerfile` overlay** (tagged `agentic-news:<version>`)
+that re-adds shellcheck, actionlint, and a headless Chromium/Playwright shell.
 
 - **Nothing from the host is mounted**: the entrypoint clones the repo fresh
   from GitHub at launch (`GH_TOKEN`, HTTPS) into the container-private
-  `/workspace`. Parallel containers share nothing (but an npm cache volume) and
+  `/workspace`. Parallel containers share nothing (but the package caches) and
   the host filesystem is unreachable — **work enters via the remote and leaves
-  only via git**: each commit is gitleaks-gated (`.git-hooks/pre-commit`) then
-  auto-pushed (`.git-hooks/post-commit`), landing as a branch for the normal PR
-  → CI → merge flow. A container starts from origin's state, so hand it
-  in-progress work by committing first (auto-push publishes the branch), then
-  checking out that branch in the session.
-- `./bin/claude [args]` → builds the image if needed and runs claude
-  full-auto; `--shell` drops into bash; `--clean` removes exited agent
-  containers AND rebuilds the image from scratch (`--pull --no-cache`) so the
-  baked-in claude CLI doesn't freeze at image-build-time latest. Containers
-  are **kept after exit** so unpushed work is recoverable (see "Session resume"
-  below).
+  only via git**: each commit is gitleaks-gated (pre-commit) then auto-pushed
+  (post-commit) by hooks **baked into the base image at `/opt/agent/hooks`** (no
+  per-project `.git-hooks/` any more; the post-commit skip is driven by the
+  `defaultBranch` from `config.js`), landing as a branch for the normal PR → CI
+  → merge flow. A container starts from origin's state, so hand it in-progress
+  work by committing first (auto-push publishes the branch), then checking out
+  that branch in the session.
+- `agent claude [args]` → builds the base + overlay if needed and runs claude
+  full-auto; `agent shell [cmd]` drops into bash; `agent clean` removes THIS
+  project's exited containers (label-scoped to `agentic-coding.project=news`, so
+  it never touches another project's kept containers) AND rebuilds the images
+  from scratch (`--pull --no-cache`) so the baked-in CLIs don't freeze at
+  image-build-time latest. Containers are **kept after exit** (never `--rm`) so
+  unpushed work is recoverable via `docker cp` (see "Recovering work" below).
 - **First-run UX + surface identity**: the entrypoint pre-seeds
   `~/.claude.json` (onboarding + bypass-permissions + /workspace trust) for
   Claude and `~/.codex/config.toml`
   (`[projects."/workspace"].trust_level = "trusted"`) for Codex, so sessions
-  drop straight into the coding UI. It also writes container-scoped global
-  instructions (`~/.claude/CLAUDE.md` or `~/.codex/AGENTS.md`) telling each
-  session it's in this container (PR-only path to prod, backlog = gh
-  issues).
+  drop straight into the coding UI. It also writes generic container-scoped
+  global instructions (`~/.claude/CLAUDE.md` or `~/.codex/AGENTS.md` — the
+  isolation contract, branch/commit/push discipline, and a pointer to the repo's
+  own `CLAUDE.md`/`AGENTS.md` and `/workspace/.agent/README.md`). The
+  news-specific surface identity (baked toolchain, PR-only path to prod, backlog
+  = `gh issue list`) lives in this repo's auto-loaded `CLAUDE.md`.
 - **Model quirk under setup-token auth**: the session bills the Max
   subscription ("inference-only" limits capability scope, not billing), but
   entitlement metadata under-reports — the /model picker omits Fable and
   `best` falls back to Opus. Explicit ids work fine, so the entrypoint seeds
-  `~/.claude/settings.json` with the current top model id (update the id in
-  `docker/entrypoint.sh` when a newer model ships). Default effort is **xhigh**
-  (`--effort` on the invocation + settings seed).
+  `~/.claude/settings.json` with the model + effort from `.agent/config.js`
+  (`agents.claude` = `claude-fable-5` / `xhigh`; `agents.codex` = `gpt-5.5` /
+  `xhigh`) — update those ids in `config.js` when a newer model ships (no image
+  rebuild needed). Default effort is **xhigh** (passed on the invocation + the
+  settings seed).
 - **CLI freshness**: claude is installed via the native installer under
-  `~/.local` (node-owned); the entrypoint runs `claude update` before every
-  session start, while mid-session auto-update stays disabled for
-  predictability. `--clean` rebuilds also refresh the base image (node, gh,
-  gitleaks).
+  `~/.local` (node-owned) in the base image; the entrypoint runs `claude update`
+  before every session start, while mid-session auto-update stays disabled for
+  predictability. `agent clean` rebuilds also refresh the base image (node, gh,
+  gitleaks, the CLIs) and the overlay.
 - **`.dev.vars` gap**: `.dev.vars` (Worker runtime secrets for local dev) is
   gitignored, so container clones don't have it — runtime-secret dev currently
   happens on the host. No distribution path into the container exists yet.
-- **Env injection**: the wrapper passes `--env-file .env` — the container
-  authenticates with `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`;
-  Keychain isn't mountable), pushes with `GH_TOKEN` (SSH remote is rewritten
-  to HTTPS in the container; no SSH keys inside), and holds
-  `CLOUDFLARE_API_TOKEN` for ad-hoc wrangler use. See `.env.example`.
-- `npm ci` runs into the container's own filesystem (host darwin-arm64
-  binaries like workerd can't run on Linux); the shared `news-agent-npm-cache`
-  volume keeps repeat installs fast.
-- **Reaching the dev server from the host**: `bin/claude` picks a random free
-  host port per launch, binds the container's 4321/8787 to it, and injects the
-  host-side address as `$DEV_HOST_4321` / `$DEV_HOST_8787` (printed at startup).
-  Two gotchas: (1) start the dev server on all interfaces — `npm run dev --
-  --host` — because Docker forwards published ports to the container's external
-  interface and a localhost-only listener never sees that traffic; (2) report
-  `http://$DEV_HOST_4321/`, **not** `localhost:4321` (the in-container port,
+- **Env injection**: the launcher merges two `--env-file`s (project overrides
+  host). The **host** file `~/.config/agentic-coding/env` carries the agent CLI
+  credentials shared across every project — `CLAUDE_CODE_OAUTH_TOKEN` (from
+  `claude setup-token`; Keychain isn't mountable) and optional `OPENAI_API_KEY`.
+  The **project** file `./.env` carries `GH_TOKEN` (clone/push; the SSH remote is
+  rewritten to HTTPS in the container, no SSH keys inside) plus
+  `CLOUDFLARE_API_TOKEN` for ad-hoc wrangler use. Codex's `~/.codex/auth.json` is
+  base64-injected off the host `codex login`. See `.agent/env.example` (host +
+  project) and this repo's `.env.example` (project tokens).
+- `npm ci` runs from **`.agent/init.sh`** (the project bootstrap the entrypoint
+  executes after the clone, as non-root `node`) into the container's own
+  filesystem (host darwin-arm64 binaries like workerd can't run on Linux); the
+  shared `agentic-npm-cache` volume — plus the `agentic-news-uv` cache from
+  `caches: ['uv']` in `config.js` — keeps repeat installs fast.
+- **Reaching the dev server from the host**: the launcher picks a random free
+  host port for each named port in `config.js` (`ports: { astro: 4321, wrangler:
+  8787 }`), binds the container's 4321/8787 to them, and injects the host-side
+  addresses as `$DEV_HOST_ASTRO` / `$DEV_HOST_WRANGLER` (printed at startup;
+  these replace the old `$DEV_HOST_4321` / `$DEV_HOST_8787`). Two gotchas: (1)
+  start the dev server on all interfaces — `npm run dev -- --host` — because
+  Docker forwards published ports to the container's external interface and a
+  localhost-only listener never sees that traffic; (2) report
+  `http://$DEV_HOST_ASTRO/`, **not** `localhost:4321` (the in-container port,
   random on the host). `docker port <name> 4321` works as a fallback.
-- **Tooling policy** (also in the container's surface memory): agents run as
-  non-root, so system packages can't be installed mid-session — one-off needs
-  use user-space installs (`npx`, devDependency, binary in `~/.local/bin`);
-  a tool earns a `docker/Dockerfile` entry only on second need (via PR, with
-  a one-line justification comment naming its workflow).
-- **Headless browser (Playwright) baked in**: the image installs a headless
-  Chromium shell + its apt deps (`playwright install --with-deps --only-shell
-  chromium`, run as root before the `USER node` drop) into a world-readable
-  `PLAYWRIGHT_BROWSERS_PATH=/ms-playwright`, version-pinned in lockstep with the
-  `@playwright/test` devDependency. This lets the `verify`/`run` skills drive the
-  dev server in a real browser. Two must-knows: (1) launch with
-  **`chromium.launch({ args: ['--no-sandbox'] })`** — non-root Chromium can't
-  use the container sandbox (throwaway container, so it's fine); (2) point the
-  browser at `http://$DEV_HOST_4321/` after `npm run dev -- --host`. Browser/e2e
-  tests run via `npm run test:e2e`, outside the hermetic `npm test` suite and its
-  coverage gate.
+- **Tooling policy** (also in this repo's `CLAUDE.md` surface identity): agents
+  run as non-root, so system packages can't be installed mid-session — one-off
+  needs use user-space installs (`npx`, devDependency, binary in `~/.local/bin`);
+  a tool earns a `.agent/Dockerfile` overlay entry only on second need (via a
+  human-gated PR, with a one-line justification comment naming its workflow).
+  The split: root/system deps go in the overlay, user-space + repo-dependent
+  setup goes in `.agent/init.sh`.
+- **Headless browser (Playwright) baked in via the overlay**: this repo's
+  `.agent/Dockerfile` installs a headless Chromium shell + its apt deps
+  (`playwright install --with-deps --only-shell chromium`, run as root before the
+  `USER node` drop) into a world-readable
+  `PLAYWRIGHT_BROWSERS_PATH=/ms-playwright`, version-pinned (`PLAYWRIGHT_VERSION`,
+  1.61.0) in lockstep with the `@playwright/test` devDependency. This lets the
+  `verify`/`run` skills drive the dev server in a real browser. Two must-knows:
+  (1) launch with **`chromium.launch({ args: ['--no-sandbox'] })`** — non-root
+  Chromium can't use the container sandbox (throwaway container, so it's fine);
+  (2) point the browser at `http://$DEV_HOST_ASTRO/` after `npm run dev --
+  --host`. Browser/e2e tests run via `npm run test:e2e`, outside the hermetic
+  `npm test` suite and its coverage gate.
 - **Isolation contract, honestly stated**: protects the host filesystem,
   Keychain, SSH keys, and other repos. It does NOT protect the tokens
-  injected from `.env` (readable as env vars by anything in the container)
+  injected from the env files (readable as env vars by anything in the container)
   and has unrestricted network egress. For egress restriction, adapt
   Anthropic's reference firewall:
   https://github.com/anthropics/claude-code/tree/main/.devcontainer
   (init-firewall.sh; needs NET_ADMIN/NET_RAW). Only use with trusted repo
   content. A lighter alternative for fewer prompts without skipping checks is
   permission "auto mode" (classifier-reviewed).
-- **Auto-push on commit**: the repo-versioned hooks in `.git-hooks/` (see its
-  README) are wired automatically by the container entrypoint and the cloud
-  SessionStart hook; Connor's machine has equivalent global hooks (repo hooks
-  opt-in there). Branch commits push themselves — `main` is skipped (ruleset
-  blocks it). In the clone-per-container model this is the data path: an
-  unpushed commit exists only inside that container.
+- **Auto-push on commit**: the container's git hooks are **baked into the base
+  image at `/opt/agent/hooks`** (pre-commit gitleaks gate + post-commit
+  auto-push) and wired automatically by the entrypoint (`core.hooksPath`). Branch
+  commits push themselves — the `defaultBranch` (`main`) is skipped (ruleset
+  blocks it). In the clone-per-container model this is the data path: an unpushed
+  commit exists only inside that container. **Migration note:** the old
+  repo-versioned `.git-hooks/` were removed when this repo moved to
+  `@couetilc/agentic-coding` — only the container still auto-pushes (via the
+  baked hooks). Connor's machine relies on equivalent global hooks; **cloud
+  sessions no longer auto-push** (the SessionStart hook used to wire
+  `.git-hooks/`), so in a cloud session `git push` explicitly or land the branch
+  via the claude.ai "Create PR" flow.
 
-### Session resume across container runs
+### Recovering work across container runs
 
-Both CLIs can reattach to a prior conversation (Claude `/resume`, Codex
-`resume`), but transcripts live on the container's ephemeral home (Claude under
-`~/.claude/projects/**/*.jsonl` + `~/.claude.json`, Codex under `~/.codex/**`). A
-*fresh* `./bin/claude` / `./bin/codex` launch builds a new container
-(`news-agent-<kind>-<timestamp>`) that can't see any earlier session. Resume from
-the **same kept container** instead (no `--rm`; the entrypoint skips re-clone when
-`/workspace/.git` exists) — find it with
-`docker ps -a --filter label=news-agent`.
+`@couetilc/agentic-coding` **drops the `--resume` flag** news's old launcher had
+— it was a footgun: `docker start -ai` on a headless `-p` container replays the
+container's original command, re-running that autonomous prompt's
+edits/commits/pushes. Recovery in the package model has two paths, preferred
+first:
 
-- **`docker start -ai <name>` re-runs the container's ORIGINAL command.** For a
-  container first launched **interactively** it reopens the interactive session,
-  so `/resume` (Codex `resume`) inside picks up that container's prior thread.
-  For one first launched **headless** (`./bin/claude -p "..."` /
-  `./bin/codex -p "..."`) it **reruns that one-shot prompt** — repeating its
-  autonomous edits/commits/pushes. Do NOT `docker start` a headless container to
-  recover work: recover from the already-pushed branch, or `docker cp <name>:…`
-  the files out.
+1. **The pushed branch (primary).** Every commit auto-pushes, so finished work is
+   already a branch on GitHub — pick it up in any new session with `git fetch` +
+   checkout. This is the whole point of the clone-per-container + auto-push
+   design: an unpushed commit exists only inside that one container.
+2. **`docker cp` from the kept container (salvage).** Containers are kept after
+   exit (never `--rm`), so uncommitted/unpushed files can be copied out:
+   `docker cp <container>:/workspace/<path> .`. Find the container with
+   `docker ps -a --filter label=agentic-coding.project=news` (names look like
+   `agentic-news-<agent>-<timestamp>`).
 
-No shared session store (named volume or host bind-mount) is used: it would pool
-all concurrent containers' transcripts — cross-task/cross-branch bleed,
-concurrent appends corrupting the append-only `.jsonl` files, and durable
-persistence of secret-laden output (transcripts capture command results, and the
-home holds the injected `CLOUDFLARE_API_TOKEN`/`GH_TOKEN` and Codex's
-`~/.codex/auth.json`), widening the blast radius the isolation contract does not
-cover. The per-container `docker start` path is also format-agnostic.
-
-Caveats regardless of path:
-
-- **Resume ≠ workspace restore.** A transcript holds the *conversation*, not the
-  git working tree. The same-container path keeps the workspace exactly as left;
-  any other resume starts from whatever the clone had, so `git fetch` and check
-  out the right branch first. Hand in-progress work the durable way: commit
-  (auto-push publishes the branch), then check it out in the new session.
-- **`--clean` deletes resumability.** It `docker rm`s every exited `news-agent`
-  container, taking any kept session's only transcript copy with it. Resume
-  before you `--clean`. Either way, unpushed *code* must be committed (auto-push)
-  before removal; resume only ever recovered the conversation.
+- **`agent clean` deletes salvageability.** It `docker rm`s every exited
+  container for THIS project (label-scoped, so other projects' kept containers
+  are untouched) and rebuilds the images. Copy out anything you need first — but
+  the durable path is always to have committed (auto-push publishes the branch)
+  before cleanup.
+- No shared session/transcript store (named volume or host bind-mount) is used:
+  it would pool concurrent containers' transcripts — cross-task/cross-branch
+  bleed, concurrent appends corrupting the append-only `.jsonl` files, and
+  durable persistence of secret-laden output (transcripts capture command
+  results, and the home holds the injected `CLOUDFLARE_API_TOKEN`/`GH_TOKEN` and
+  Codex's `~/.codex/auth.json`), widening the blast radius the isolation contract
+  does not cover.
 
 ## Network access (cloud sessions)
 
