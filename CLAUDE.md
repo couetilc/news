@@ -42,7 +42,7 @@ aggregator.
 ## Commands
 
 - `npm run dev` — dev server on workerd at http://localhost:4321 (inside the
-  agent container run `npm run dev -- --host` and visit `$DEV_HOST_4321`, since
+  agent container run `npm run dev -- --host` and visit `$DEV_HOST_ASTRO`, since
   the host port is randomized per container — see the agentic-environments skill)
 - `npm test` — vitest; **enforces 100% statements / branches / functions / lines coverage over `src/**`**
   (the suite fails below that — this is the standing test policy)
@@ -67,10 +67,34 @@ aggregator.
 - `npx cf` — Cloudflare's unified CLI (technical preview) for inspecting
   production resources; inside `npx wrangler dev`, press `e` for the Local
   Explorer to browse local KV/D1/R2 state
-- `./bin/claude` — run Claude Code full-auto inside an isolated agent
-  container (Docker; clones the repo fresh from GitHub, so nothing from the
-  host is mounted and parallel containers don't conflict; tokens injected
-  from `.env`); see `.claude/skills/agentic-environments/SKILL.md`
+- `agent claude` / `agent codex` — run Claude Code / Codex full-auto inside an
+  isolated agent container via the published `@couetilc/agentic-coding` tool
+  (configured in `.agent/`; Docker; clones the repo fresh from GitHub, so
+  nothing from the host is mounted and parallel containers don't conflict;
+  project tokens from `.env`, host agent credentials from
+  `~/.config/agentic-coding/env`); see `.claude/skills/agentic-environments/SKILL.md`
+  and `.agent/README.md`
+
+## Agent container surface
+
+When you run inside the `agent claude` / `agent codex` container (a disposable,
+non-root Docker container that clones this repo fresh — nothing from the host is
+mounted): you begin on a fresh clone of `main`, so **branch before committing**,
+and **commit + push early and often** — work leaves only via `git push` (commits
+are gitleaks-gated then auto-pushed by hooks baked into the image), and nothing
+else survives the container. Changes reach production only via PR → CI → merge.
+The backlog is GitHub issues (`gh issue list` — see Backlog below).
+
+Baked toolchain: node 24 (matches the repo pin), npm, git, gh, gitleaks,
+ripgrep (`rg`), and uv from the `@couetilc/agentic-coding` base image; plus
+shellcheck, actionlint, and a headless Chromium/Playwright shell from this
+repo's `.agent/Dockerfile` overlay. You run as **non-root**, so `apt install`
+is impossible mid-session: for a one-off need use a user-space install (`npx`,
+a devDependency, a binary in `~/.local/bin`); when a tool is needed *again*,
+open a GitHub issue proposing it be added to `.agent/Dockerfile` (human-gated)
+rather than editing the image this session. Cross-surface specifics — host-port
+mapping via `$DEV_HOST_ASTRO` / `$DEV_HOST_WRANGLER`, work recovery, credential
+injection — live in the `agentic-environments` skill and `.agent/README.md`.
 
 ## Credentials and secrets contract
 
@@ -211,8 +235,8 @@ merge. Queue ordinary merges with `gh pr merge --auto --squash` (auto-merge is
 enabled repo-wide). **Human-gated PRs are the exception** — leave them for the
 human to review and merge rather than queueing auto-merge: skill updates (Skills
 & memory policy), dependency adds (the `dependencies` skill), README changes
-(README policy), and `.github/workflows/*` / `docker/**` / `bin/**`
-launcher-script changes (explicit human go-ahead).
+(README policy), and `.github/workflows/*` / `.agent/**`
+container-config changes (explicit human go-ahead).
 
 Manual fallback: `npm run deploy` from a machine with `.env` or wrangler OAuth
 (never from cloud sessions — `api.cloudflare.com` isn't reachable there under

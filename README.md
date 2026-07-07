@@ -68,7 +68,9 @@ of guardrails that lets it ship safely without a human in every loop.
 - **One shared instruction layer across four surfaces** — local CLI, Claude
   Dispatch, claude.ai cloud sessions, and GitHub Actions all read the same
   [`CLAUDE.md`](CLAUDE.md) and [`.claude/skills/`](.claude/skills).
-- **Isolation by default.** `./bin/claude` runs an agent full-auto inside a
+- **Isolation by default.** `agent claude` (via the published
+  [`@couetilc/agentic-coding`](https://www.npmjs.com/package/@couetilc/agentic-coding)
+  tool, configured in [`.agent/`](.agent)) runs an agent full-auto inside a
   container that clones the repo fresh, so parallel agents never collide, and
   nothing reaches production except through a reviewed PR and green CI.
 

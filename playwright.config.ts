@@ -9,7 +9,7 @@ import { defineConfig, devices } from '@playwright/test';
 // coverage gate (see CLAUDE.md "Testing policy"). CI wiring is #77's job.
 
 // The local server URL. In the agent container the host port is randomized and
-// exposed as $DEV_HOST_4321, but inside the container the server still listens on
+// exposed as $DEV_HOST_ASTRO, but inside the container the server still listens on
 // 127.0.0.1:4321 — which is also what `webServer` starts below — so the
 // in-container browser talks to it directly. (`astro preview` defaults to 4321,
 // the same port `astro dev` used.)
