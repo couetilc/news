@@ -28,6 +28,7 @@ import { defineConfig } from 'vitest/config';
 //   • src/ingest/parse/aws-whats-new.ts ← test/parse-aws-whats-new.test.ts
 //   • src/ingest/parse/sec-edgar.ts  ← test/parse-sec-edgar.test.ts
 //   • src/ingest/parse/ti-newsroom.ts ← test/parse-ti-newsroom.test.ts
+//   • src/ingest/parse/thinking-machines-news.ts ← test/parse-thinking-machines-news.test.ts
 //   • src/ingest/parse/jpm-eotm.ts   ← test/parse-jpm-eotm.test.ts
 //   • src/ingest/parse/owenomics.ts  ← test/parse-owenomics.test.ts
 //   • src/ingest/parse/cursor.ts     ← test/parse-cursor.test.ts
@@ -61,6 +62,7 @@ export default defineConfig({
 			'test/parse-aws-whats-new.test.ts',
 			'test/parse-sec-edgar.test.ts',
 			'test/parse-ti-newsroom.test.ts',
+			'test/parse-thinking-machines-news.test.ts',
 			'test/parse-jpm-eotm.test.ts',
 			'test/parse-owenomics.test.ts',
 			'test/parse-cursor.test.ts',

@@ -7,6 +7,7 @@ import { parseOwenomics } from '../src/ingest/parse/owenomics';
 import { parseJpmEotm } from '../src/ingest/parse/jpm-eotm';
 import { parseCursorBlog } from '../src/ingest/parse/cursor';
 import { parseSecEdgar } from '../src/ingest/parse/sec-edgar';
+import { parseThinkingMachinesNews } from '../src/ingest/parse/thinking-machines-news';
 import { parseTiNewsroom } from '../src/ingest/parse/ti-newsroom';
 import { parseRfc822 } from '../src/ingest/parse/dates';
 import {
@@ -16,6 +17,7 @@ import {
 	countOwenomics,
 	countCursorBlog,
 	countRss20,
+	countThinkingMachinesNews,
 	countTiNewsroom,
 } from '../src/ingest/parse/count';
 import type { ParsedItem } from '../src/ingest/types';
@@ -262,6 +264,60 @@ describe('parseCursorBlog — fuzz (never throws undocumented, always well-forme
 		fc.assert(
 			fc.property(fc.oneof(arbitraryText, arbitraryListingHtml), (payload) => {
 				const n = countCursorBlog(payload);
+				expect(Number.isInteger(n)).toBe(true);
+				expect(n).toBeGreaterThanOrEqual(0);
+			}),
+			RUNS,
+		);
+	});
+});
+
+// Listing-ish HTML fragments for the Thinking Machines /news/ parser (#352):
+// real markers from the /news/ SSR markup — the post-group container, row
+// anchors with and without hrefs, h2/time elements (date-only datetimes),
+// footer-style classless anchors, broken tags — mixed with random text, to
+// drive the documented container guard, the per-row skip branches, and the
+// hand-rolled scanning's never-hang requirement.
+const tmListingChunk = fc.oneof(
+	fc.constantFrom(
+		'<ol class="post-group" reversed>',
+		'</ol>',
+		'<li>',
+		'</li>',
+		'<a class="post-item-link" href="/news/x/">',
+		'<a class="post-item-link">',
+		'<a href="/news/introducing-inkling/">',
+		'</a>',
+		'<div class="post-info">',
+		'</div>',
+		'<h2 class="post-title">',
+		'</h2>',
+		'<time datetime="2026-08-27">',
+		'<time datetime="someday">',
+		'</time>',
+		'post-group',
+		'&amp;',
+		'<<>>',
+	),
+	fc.string(),
+);
+const arbitraryTmListingHtml = fc
+	.array(tmListingChunk, { maxLength: 30 })
+	.map((parts) => parts.join(''));
+
+describe('parseThinkingMachinesNews — fuzz (never throws undocumented, always well-formed)', () => {
+	it('holds for arbitrary text and listing-ish HTML input', () => {
+		fuzzParser(
+			parseThinkingMachinesNews,
+			/^not a Thinking Machines news listing/,
+			fc.oneof(arbitraryText, arbitraryTmListingHtml),
+		);
+	});
+
+	it('countThinkingMachinesNews returns a non-negative integer and never throws on the same space', () => {
+		fc.assert(
+			fc.property(fc.oneof(arbitraryText, arbitraryTmListingHtml), (payload) => {
+				const n = countThinkingMachinesNews(payload);
 				expect(Number.isInteger(n)).toBe(true);
 				expect(n).toBeGreaterThanOrEqual(0);
 			}),

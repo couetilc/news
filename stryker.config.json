@@ -21,6 +21,7 @@
     "src/ingest/parse/aws-whats-new.ts",
     "src/ingest/parse/sec-edgar.ts",
     "src/ingest/parse/ti-newsroom.ts",
+    "src/ingest/parse/thinking-machines-news.ts",
     "src/ingest/parse/jpm-eotm.ts",
     "src/ingest/parse/owenomics.ts",
     "src/ingest/parse/cursor.ts",

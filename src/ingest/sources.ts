@@ -5,6 +5,7 @@ import { parseJpmEotm } from './parse/jpm-eotm';
 import { parseOwenomics } from './parse/owenomics';
 import { parseRss20 } from './parse/rss20';
 import { parseSecEdgar } from './parse/sec-edgar';
+import { parseThinkingMachinesNews } from './parse/thinking-machines-news';
 import { parseTiNewsroom } from './parse/ti-newsroom';
 import {
 	countAtom,
@@ -13,6 +14,7 @@ import {
 	countJpmEotm,
 	countOwenomics,
 	countRss20,
+	countThinkingMachinesNews,
 	countTiNewsroom,
 } from './parse/count';
 import type { FeedConfig } from './types';
@@ -309,14 +311,37 @@ export const SOURCES: FeedConfig[] = [
 		// syndicates /news/ those items land here with no config change. The
 		// /news/ announcements have NO working feed anywhere (first-party
 		// /news/index.xml 404s, OpenRSS returns an empty channel, the community
-		// mirror is blog-only) — tracked separately, see the issue. Mostly
-		// date-only midnight-UTC pubDates (Date.parse handles them, see
-		// parse/dates.ts); ~1 post every 6 weeks, so a daily poll is ample.
+		// mirror is blog-only) — covered by the sibling /news/ listing entry
+		// below (#352). Mostly date-only midnight-UTC pubDates (Date.parse
+		// handles them, see parse/dates.ts); ~1 post every 6 weeks, so a daily
+		// poll is ample.
 		source: 'thinking-machines',
 		feed: 'https://thinkingmachines.ai/index.xml',
 		pollIntervalSeconds: 86400,
 		parse: (xml) => parseRss20(xml, { content: 'content:encoded' }),
 		countRaw: countRss20,
+	},
+	{
+		// #352 — Thinking Machines /news/ announcements (Tinker/Inkling releases,
+		// grants, partnerships). Re-probed 2026-08-30: still NO working feed for
+		// this section (first-party /news/index.xml 404s, the root feed above
+		// stays blog-only, and the OpenRSS proxy STILL returns an empty
+		// 0-item channel), so we parse the server-rendered static listing at
+		// /news/ directly — the same discover-the-real-endpoint spirit as TI
+		// (#30) / JPM EOTM (#319) / Cursor (#335), except here the "endpoint" is
+		// the SSR HTML itself. Rows carry title/link/date-only <time datetime>
+		// and no teaser → link out, null summary and contentHtml. Shares the
+		// `thinking-machines` slug with the root feed above: run.ts polls each
+		// feed URL independently and insertItems dedupes by (source, guid) —
+		// permalink guids on both feeds — so if the site ever syndicates /news/
+		// into the root feed the rows collapse rather than double up. The page
+		// serves our aggregator UA (probed, identical bytes to a browser UA).
+		// Announcements are rare (~monthly), so a daily poll is ample.
+		source: 'thinking-machines',
+		feed: 'https://thinkingmachines.ai/news/',
+		pollIntervalSeconds: 86400,
+		parse: parseThinkingMachinesNews,
+		countRaw: countThinkingMachinesNews,
 	},
 	{
 		// #319 — JPMorgan Asset Management's "Eye on the Market" (Michael Cembalest),
