@@ -37,6 +37,13 @@ const AWS_TERMS = ['graviton', 'trainium', 'inferentia', 'nitro'] as const;
 // shape-drift check (see FeedConfig.keep), so this can't trip parse_drop.
 const AWS_REGION_ROLLOUT = /\bavailable in\b.*\bregions?\b/i;
 
+// #337 — first-poll flood control for OpenAI: the feed is the FULL ~1,157-item
+// archive back to 2015, so without a cutoff the first poll would insert a
+// decade of backfill. Drop anything published before the source's launch here
+// (2026-08-01T00:00:00Z). See the FeedConfig entry for the conservative
+// missing-date choice.
+const OPENAI_LAUNCH_CUTOFF = Date.UTC(2026, 7, 1) / 1000;
+
 function awsFeed(term: string): FeedConfig {
 	const url = new URL('https://aws.amazon.com/api/dirs/items/search');
 	url.searchParams.set('item.directoryId', 'whats-new-v2');
@@ -313,5 +320,30 @@ export const SOURCES: FeedConfig[] = [
 		pollIntervalSeconds: 21600,
 		parse: (xml) => parseRss20(xml, { content: 'description' }),
 		countRaw: countRss20,
+	},
+	{
+		// #337 — OpenAI's first-party news feed (the old /blog/rss.xml 307-redirects
+		// here). RSS 2.0 with plain-text SUMMARIES in <description> — no
+		// content:encoded, and article pages are Cloudflare-challenged for server
+		// fetches, so we link out and never plan full-text enrichment. As with
+		// Intel/ScienceDaily, `content:encoded` mode routes the description into
+		// `summary` and leaves contentHtml null; ~9% of items (old case studies)
+		// have no description at all, yielding a null summary. Items are NOT
+		// strictly chronological — trust pubDate, never document order. `keep`
+		// drops items published before OPENAI_LAUNCH_CUTOFF (first-poll flood
+		// control against the full-archive feed); an item with a missing or
+		// unparseable pubDate is KEPT — conservative, in the spirit of the AWS
+		// rollout filter: rather ingest a stray archive item than drop a real
+		// post (insertItems dedupes repeats by (source, guid) anyway). Most items
+		// carry one <category> (Company/Research/Product/…, ~13% none); we
+		// deliberately ingest ALL categories — a category filter can be added
+		// later via this same `keep` seam. Several posts/week, so a 6-hour poll
+		// is ample.
+		source: 'openai',
+		feed: 'https://openai.com/news/rss.xml',
+		pollIntervalSeconds: 21600,
+		parse: (xml) => parseRss20(xml, { content: 'content:encoded' }),
+		countRaw: countRss20,
+		keep: (item) => item.publishedAt === null || item.publishedAt >= OPENAI_LAUNCH_CUTOFF,
 	},
 ];
