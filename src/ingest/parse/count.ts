@@ -88,6 +88,17 @@ export function countJpmEotm(payload: string): number {
 	return arrayLength((parsed as { pages?: unknown }).pages);
 }
 
+// Acadian Owenomics Sitecore results API (#333): a JSON OBJECT whose `Results`
+// array holds the listing records — the raw entry count is that array's length.
+// A non-object top level, or one without a `Results` array (a format switch),
+// counts as 0; `parse` will already have rejected it, so the count is just the
+// denominator.
+export function countOwenomics(payload: string): number {
+	const parsed = parseJsonSafe(payload);
+	if (typeof parsed !== 'object' || parsed === null) return 0;
+	return arrayLength((parsed as { Results?: unknown }).Results);
+}
+
 // NOTE: SEC EDGAR deliberately has NO raw counter. `filings.recent` is the whole
 // columnar filings history (~1000 rows for TI), but parseSecEdgar keeps only the
 // configured 8-K forms within a 20-item recent window — so the columnar height

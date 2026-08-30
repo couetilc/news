@@ -3,6 +3,7 @@ import {
 	countAtom,
 	countAwsWhatsNew,
 	countJpmEotm,
+	countOwenomics,
 	countRss20,
 	countTiNewsroom,
 } from '../src/ingest/parse/count';
@@ -12,6 +13,7 @@ import appleXml from './fixtures/apple.xml?raw';
 import gravitonJson from './fixtures/aws-graviton.json?raw';
 import tiNewsJson from './fixtures/ti-news-releases.json?raw';
 import eotmJson from './fixtures/eye-on-the-market.json?raw';
+import owenomicsJson from './fixtures/owenomics.json?raw';
 
 // The counters report RAW container size, independent of parse keep/drop logic —
 // they're the denominator the shape-drift check (#78) compares parsed count to.
@@ -118,5 +120,25 @@ describe('countJpmEotm', () => {
 		expect(countJpmEotm('1')).toBe(0);
 		expect(countJpmEotm('{')).toBe(0);
 		expect(() => countJpmEotm('{')).not.toThrow();
+	});
+});
+
+describe('countOwenomics', () => {
+	it('counts the records in the Results array', () => {
+		expect(countOwenomics(owenomicsJson)).toBe(5);
+	});
+
+	it('returns 0 when Results is missing or not an array', () => {
+		expect(countOwenomics('{}')).toBe(0);
+		expect(countOwenomics('{"Results":{}}')).toBe(0);
+	});
+
+	it('returns 0 for a non-object/garbage top level without throwing (#165)', () => {
+		// JSON null, an array, a bare number, and invalid JSON all count as 0.
+		expect(countOwenomics('null')).toBe(0);
+		expect(countOwenomics('[]')).toBe(0);
+		expect(countOwenomics('1')).toBe(0);
+		expect(countOwenomics('{')).toBe(0);
+		expect(() => countOwenomics('{')).not.toThrow();
 	});
 });

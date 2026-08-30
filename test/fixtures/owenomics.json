@@ -1,0 +1,101 @@
+{
+	"CurrentPage": 1,
+	"Filters": [
+		{
+			"Id": "sortBy",
+			"Label": "Sort By",
+			"Options": [
+				{
+					"Id": "Date",
+					"Label": "Date",
+					"Value": "Date"
+				},
+				{
+					"Id": "AlphabeticalAsc",
+					"Label": "A-Z",
+					"Value": "AlphabeticalAsc"
+				},
+				{
+					"Id": "AlphabeticalDesc",
+					"Label": "Z-A",
+					"Value": "AlphabeticalDesc"
+				},
+				{
+					"Id": "Relevance",
+					"Label": "Relevance",
+					"Value": "Relevance"
+				}
+			],
+			"Value": "sortBy"
+		}
+	],
+	"Results": [
+		{
+			"Category": "Owenomics",
+			"CategoryUrl": "?type=8af8eb60-2c48-4823-9d5a-f6785ffbfb6d",
+			"Id": "{D642A542-3062-48BC-8112-AAFE48709501}",
+			"ReadTime": "5 min",
+			"Theme": null,
+			"Tags": null,
+			"Thumbnail": null,
+			"ThumbnailAlt": null,
+			"Title": "Crazy days in the stock market",
+			"Url": "/investment-insights/owenomics/crazy-days-in-the-stock-market",
+			"Date": "August 2026"
+		},
+		{
+			"Category": "Owenomics",
+			"CategoryUrl": "?type=8af8eb60-2c48-4823-9d5a-f6785ffbfb6d",
+			"Id": "{742995B7-2606-4668-AAA9-5B557C64C441}",
+			"ReadTime": "7 min",
+			"Theme": null,
+			"Tags": null,
+			"Thumbnail": null,
+			"ThumbnailAlt": null,
+			"Title": "The frenzied serenity of the stock market",
+			"Url": "/investment-insights/owenomics/the-frenzied-serenity-of-the-stock-market",
+			"Date": "July 2026"
+		},
+		{
+			"Category": "Owenomics",
+			"CategoryUrl": "?type=8af8eb60-2c48-4823-9d5a-f6785ffbfb6d",
+			"Id": "{9F22DAB6-330E-4789-A4B7-F2143E100B77}",
+			"ReadTime": "8 min",
+			"Theme": null,
+			"Tags": null,
+			"Thumbnail": null,
+			"ThumbnailAlt": null,
+			"Title": "Hynix Hijinks",
+			"Url": "/investment-insights/owenomics/hynix-hijinks",
+			"Date": "July 2026"
+		},
+		{
+			"Category": "Owenomics",
+			"CategoryUrl": "?type=8af8eb60-2c48-4823-9d5a-f6785ffbfb6d",
+			"Id": "{8A9A5F77-3CD4-4068-B241-3F735B5DA04B}",
+			"ReadTime": "6 min",
+			"Theme": null,
+			"Tags": null,
+			"Thumbnail": null,
+			"ThumbnailAlt": null,
+			"Title": "America’s first bubble",
+			"Url": "/investment-insights/owenomics/americas-first-bubble",
+			"Date": "June 2026"
+		},
+		{
+			"Category": "Owenomics",
+			"CategoryUrl": "?type=8af8eb60-2c48-4823-9d5a-f6785ffbfb6d",
+			"Id": "{990CDE27-D0BD-4D6E-8165-B980B673E290}",
+			"ReadTime": "5 min",
+			"Theme": null,
+			"Tags": null,
+			"Thumbnail": null,
+			"ThumbnailAlt": null,
+			"Title": "Waiter, there’s a P in my E",
+			"Url": "/investment-insights/owenomics/waiter-theres-a-p-in-my-e",
+			"Date": "June 2026"
+		}
+	],
+	"ResultsLabel": "Showing <strong>1-20</strong> of <strong>92</strong> results",
+	"TotalPages": 5
+}

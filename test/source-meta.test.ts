@@ -29,6 +29,15 @@ describe('sourceMeta', () => {
 		});
 	});
 
+	it('maps owenomics to its registered display name and swatch (#333)', () => {
+		// The exact pair the reader sees — a slug typo would fall back to
+		// { name: 'owenomics', swatch: 'bg-muted' } and fail here.
+		expect(sourceMeta('owenomics')).toEqual({
+			name: 'Owenomics',
+			swatch: 'bg-source-owenomics',
+		});
+	});
+
 	it('maps other registered slugs to their exact display metadata', () => {
 		// Per-slug pins (not exact-list equality) so sibling sources can land in
 		// parallel without touching this test.

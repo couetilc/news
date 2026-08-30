@@ -3,12 +3,14 @@ import { describe, expect, it } from 'vitest';
 import { parseAtom, type AtomOptions } from '../src/ingest/parse/atom';
 import { parseRss20, type Rss20Options } from '../src/ingest/parse/rss20';
 import { parseAwsWhatsNew } from '../src/ingest/parse/aws-whats-new';
+import { parseOwenomics } from '../src/ingest/parse/owenomics';
 import { parseSecEdgar } from '../src/ingest/parse/sec-edgar';
 import { parseTiNewsroom } from '../src/ingest/parse/ti-newsroom';
 import { parseRfc822 } from '../src/ingest/parse/dates';
 import {
 	countAtom,
 	countAwsWhatsNew,
+	countOwenomics,
 	countRss20,
 	countTiNewsroom,
 } from '../src/ingest/parse/count';
@@ -193,6 +195,16 @@ describe('parseTiNewsroom — fuzz (never throws undocumented, always well-forme
 	});
 });
 
+describe('parseOwenomics — fuzz (never throws undocumented, always well-formed)', () => {
+	it('holds for arbitrary text and structured JSON input', () => {
+		fuzzParser(
+			parseOwenomics,
+			/^not an Owenomics listing response/,
+			fc.oneof(arbitraryText, arbitraryJson),
+		);
+	});
+});
+
 describe('parseSecEdgar — fuzz (never throws undocumented, always well-formed)', () => {
 	// SEC EDGAR takes options; fuzz the option surface too (forms/items filters,
 	// the recent-window limit) alongside the payload so the columnar keep/drop and
@@ -240,6 +252,7 @@ describe('raw counters — fuzz (never throw, always a non-negative integer)', (
 		['countAtom', countAtom],
 		['countAwsWhatsNew', countAwsWhatsNew],
 		['countTiNewsroom', countTiNewsroom],
+		['countOwenomics', countOwenomics],
 	];
 	for (const [name, count] of counters) {
 		it(`${name} returns a non-negative integer and never throws`, () => {
