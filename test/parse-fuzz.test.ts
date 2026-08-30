@@ -29,9 +29,9 @@ import type { ParsedItem } from '../src/ingest/types';
 // well-formed ParsedItem[] (every field the right type). #165 hardened these
 // parsers, so these are REGRESSION GUARDS and should PASS.
 //
-// Runs in the workers project (workerd) — the same pool that hosts the ingest
-// unit tests. fast-check runs cleanly there. A fixed seed makes any
-// counterexample reproducible. numRuns is bumped above the default so the
+// Runs in the NODE project (#349) — the parsers are pure functional core, so
+// their specs live in the fast plain-node pool, not workerd. A fixed seed makes
+// any counterexample reproducible. numRuns is bumped above the default so the
 // generated XML/JSON space is explored harder.
 const SEED = 0x163;
 const RUNS = { seed: SEED, numRuns: 400 };
