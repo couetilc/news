@@ -117,6 +117,22 @@ export function countCursorBlog(payload: string): number {
 	return count;
 }
 
+// Thinking Machines /news/ listing (#352): the server-rendered row anchors
+// whose class carries post-item-link — the exact container
+// parseThinkingMachinesNews iterates (keep the two regexes in sync). Rows are
+// counted BEFORE the parser's per-entry drops (a row with no href still counts
+// — that gap IS the drift signal), and the footer's classless /news/ article
+// anchors can never match. Pure regex scanning over the payload — never throws.
+export function countThinkingMachinesNews(payload: string): number {
+	const anchorOpen = /<a\s([^>]*)>/g;
+	let count = 0;
+	let anchor: RegExpExecArray | null;
+	while ((anchor = anchorOpen.exec(payload)) !== null) {
+		if (/\bclass="[^"]*\bpost-item-link\b[^"]*"/.test(anchor[1])) count++;
+	}
+	return count;
+}
+
 // NOTE: SEC EDGAR deliberately has NO raw counter. `filings.recent` is the whole
 // columnar filings history (~1000 rows for TI), but parseSecEdgar keeps only the
 // configured 8-K forms within a 20-item recent window — so the columnar height

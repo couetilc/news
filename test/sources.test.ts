@@ -25,6 +25,7 @@ import tiEdgarJson from './fixtures/ti-sec-edgar.json?raw';
 import eotmJson from './fixtures/eye-on-the-market.json?raw';
 import owenomicsJson from './fixtures/owenomics.json?raw';
 import thinkingMachinesXml from './fixtures/thinking-machines.xml?raw';
+import tmNewsHtml from './fixtures/thinking-machines-news.html?raw';
 import cursorHtml from './fixtures/cursor-blog-research.html?raw';
 
 const source = (name: string) => SOURCES.find((s) => s.source === name)!;
@@ -493,11 +494,21 @@ describe('SOURCES', () => {
 		expect(source('openai').countRaw!(openaiXml)).toBe(8);
 	});
 
+	it('registers both Thinking Machines feeds (root RSS + /news/ listing) under one source (#352)', () => {
+		const feeds = SOURCES.filter((s) => s.source === 'thinking-machines').map((s) => s.feed);
+		// Per-feed presence (not exact-list equality) so a sibling feed addition
+		// won't break this. The root feed carries the /blog/ posts (#338); the
+		// /news/ section has no working feed anywhere, so it's the SSR listing.
+		expect(feeds).toContain('https://thinkingmachines.ai/index.xml');
+		expect(feeds).toContain('https://thinkingmachines.ai/news/');
+	});
+
 	it('registers Thinking Machines on the root feed with a daily poll (#338)', () => {
 		const tm = source('thinking-machines');
 		// The ROOT feed, not /blog/index.xml: same items today, but section-agnostic
 		// (the site's declared rel=alternate), so future /news/ syndication would
-		// land without a config change. /news/ has no working feed anywhere yet.
+		// land without a config change (dedupe at (source, guid) collapses any
+		// overlap with the /news/ listing entry).
 		expect(tm.feed).toBe('https://thinkingmachines.ai/index.xml');
 		// ~1 post every 6 weeks → daily poll is ample.
 		expect(tm.pollIntervalSeconds).toBe(86400);
@@ -521,6 +532,48 @@ describe('SOURCES', () => {
 		// The one item with a real time-of-day parses to that instant, not midnight.
 		expect(items[1].title).toBe('Defeating Nondeterminism in LLM Inference');
 		expect(items[1].publishedAt).toBe(Math.floor(Date.UTC(2025, 8, 10, 7, 1, 0) / 1000));
+	});
+
+	it('registers the Thinking Machines /news/ listing with a daily poll (#352)', () => {
+		const news = SOURCES.find(
+			(s) => s.source === 'thinking-machines' && s.feed.endsWith('/news/'),
+		)!;
+		// The SSR listing page IS the endpoint — no feed for the section exists
+		// (first-party /news/index.xml 404s, OpenRSS proxies an empty channel).
+		expect(news.feed).toBe('https://thinkingmachines.ai/news/');
+		// Announcements are rare (~monthly) → daily poll.
+		expect(news.pollIntervalSeconds).toBe(86400);
+		expect(news.countRaw).toBeDefined();
+	});
+
+	it('parses the /news/ listing HTML: title/link/date rows, links out, no body (#352)', () => {
+		const news = SOURCES.find(
+			(s) => s.source === 'thinking-machines' && s.feed.endsWith('/news/'),
+		)!;
+		const items = news.parse(tmNewsHtml);
+		expect(items).toHaveLength(12);
+		expect(items[1].title).toBe('Announcing Safety Research Grants');
+		expect(items[1].url).toBe('https://thinkingmachines.ai/news/safety-research-grants/');
+		// guid === url: the permalink is the stable dedupe key — shared with the
+		// root feed's permalink guids, so future cross-listing collapses at
+		// insertItems on (source, guid).
+		expect(items[1].guid).toBe(items[1].url);
+		expect(items[1].summary).toBeNull();
+		expect(items[1].contentHtml).toBeNull();
+		// Date-only <time datetime="2026-08-24"> → midnight UTC, matching the
+		// root feed's midnight-UTC pubDate convention.
+		expect(items[1].publishedAt).toBe(Math.floor(Date.UTC(2026, 7, 24) / 1000));
+	});
+
+	it('counts every raw /news/ listing row as the drift denominator (#352)', () => {
+		const news = SOURCES.find(
+			(s) => s.source === 'thinking-machines' && s.feed.endsWith('/news/'),
+		)!;
+		// 12 listing rows; the footer's classless /news/ article anchors never
+		// count, so raw mirrors what parse emits and a healthy poll never looks
+		// like parse_drop.
+		expect(news.countRaw!(tmNewsHtml)).toBe(12);
+		expect(news.parse(tmNewsHtml)).toHaveLength(12);
 	});
 
 	it('registers the open-models Hugging Face backstop feed (#340)', () => {

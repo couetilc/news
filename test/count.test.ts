@@ -6,6 +6,7 @@ import {
 	countJpmEotm,
 	countOwenomics,
 	countRss20,
+	countThinkingMachinesNews,
 	countTiNewsroom,
 } from '../src/ingest/parse/count';
 import cloudflareXml from './fixtures/cloudflare-blog.xml?raw';
@@ -16,6 +17,7 @@ import tiNewsJson from './fixtures/ti-news-releases.json?raw';
 import eotmJson from './fixtures/eye-on-the-market.json?raw';
 import owenomicsJson from './fixtures/owenomics.json?raw';
 import cursorHtml from './fixtures/cursor-blog-research.html?raw';
+import tmNewsHtml from './fixtures/thinking-machines-news.html?raw';
 
 // The counters report RAW container size, independent of parse keep/drop logic —
 // they're the denominator the shape-drift check (#78) compares parsed count to.
@@ -172,5 +174,47 @@ describe('countCursorBlog', () => {
 		expect(countCursorBlog('<a class="blog-directory__row')).toBe(0);
 		expect(countCursorBlog('')).toBe(0);
 		expect(() => countCursorBlog('<a class="blog-directory__row')).not.toThrow();
+	});
+});
+
+describe('countThinkingMachinesNews', () => {
+	it('counts every post-item-link row anchor in the live listing (#352)', () => {
+		// 12 listing rows; the footer's classless /news/ article anchors and the
+		// nav's /news/ section link never count.
+		expect(countThinkingMachinesNews(tmNewsHtml)).toBe(12);
+	});
+
+	it('counts a row the parser drops (the drift denominator sees raw rows)', () => {
+		// A row with no href is skipped by parseThinkingMachinesNews but still IS
+		// a raw entry: raw 1 vs parsed 0 is the zero_parsed_of_raw smoking gun.
+		expect(
+			countThinkingMachinesNews(
+				'<ol class="post-group"><li><a class="post-item-link"><h2>x</h2></a></li></ol>',
+			),
+		).toBe(1);
+	});
+
+	it('ignores non-row anchors (no post-item-link class)', () => {
+		expect(
+			countThinkingMachinesNews('<a href="/news/introducing-inkling/">Inkling</a>'),
+		).toBe(0);
+	});
+
+	it('counts a row whose class attribute carries other classes around the marker', () => {
+		// The live markup is exactly class="post-item-link" today, but the scan
+		// contract tolerates sibling utility classes on either side (the Cursor
+		// listing's card rows carry several) — pin the [^"]* gaps both ways.
+		expect(
+			countThinkingMachinesNews('<a class="row post-item-link featured" href="/news/x/">x</a>'),
+		).toBe(1);
+	});
+
+	it('returns 0 on a non-listing/garbage payload without throwing (#165)', () => {
+		// An error/challenge page, truncated markup, and empty input all count as
+		// 0 raw entries — never a throw.
+		expect(countThinkingMachinesNews('<!DOCTYPE html><html><body>error</body></html>')).toBe(0);
+		expect(countThinkingMachinesNews('<a class="post-item-link')).toBe(0);
+		expect(countThinkingMachinesNews('')).toBe(0);
+		expect(() => countThinkingMachinesNews('<a class="post-item-link')).not.toThrow();
 	});
 });
