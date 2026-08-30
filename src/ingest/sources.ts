@@ -23,6 +23,20 @@ import type { FeedConfig } from './types';
 // 6-hour poll per term is ample.
 const AWS_TERMS = ['graviton', 'trainium', 'inferentia', 'nitro'] as const;
 
+// #321 — region-expansion drop rule, applied source-wide (all four q= terms).
+// The q= queries are FULL-TEXT over the release body, so q=nitro matches
+// essentially every new EC2 instance ("built on the AWS Nitro System") and
+// q=graviton every Arm-instance rollout: ~55–60% of those results are
+// "<instance> now available in <region(s)>" regional-availability noise. The
+// launch itself ("Introducing …", "Announcing …", "… launches …", a first GA
+// with no region clause like "M9g instances are now available") never carries
+// an "available in … region(s)" clause, so a headline match on that phrase is
+// the rollout, not the launch. Deliberately conservative — it requires BOTH
+// "available in" and a trailing "region(s)" — so a borderline item stays in
+// rather than risk dropping a real launch. run.ts applies `keep` after the
+// shape-drift check (see FeedConfig.keep), so this can't trip parse_drop.
+const AWS_REGION_ROLLOUT = /\bavailable in\b.*\bregions?\b/i;
+
 function awsFeed(term: string): FeedConfig {
 	const url = new URL('https://aws.amazon.com/api/dirs/items/search');
 	url.searchParams.set('item.directoryId', 'whats-new-v2');
@@ -37,6 +51,7 @@ function awsFeed(term: string): FeedConfig {
 		pollIntervalSeconds: 21600,
 		parse: parseAwsWhatsNew,
 		countRaw: countAwsWhatsNew,
+		keep: (item) => !AWS_REGION_ROLLOUT.test(item.title),
 	};
 }
 

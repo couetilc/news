@@ -1,0 +1,161 @@
+{
+  "items": [
+    {
+      "item": {
+        "id": "whats-new-v2#rollout-r8g-additional-regions",
+        "locale": "en_US",
+        "directoryId": "whats-new-v2",
+        "additionalFields": {
+          "headline": "Amazon EC2 R8g instances now available in additional regions",
+          "postBody": "<p>Amazon EC2 R8g instances powered by AWS Graviton4 are now available in additional regions.</p>",
+          "postDateTime": "2026-08-20T17:00:00Z",
+          "headlineUrl": "/about-aws/whats-new/2026/08/ec2-r8g-additional-regions/"
+        }
+      }
+    },
+    {
+      "item": {
+        "id": "whats-new-v2#rollout-c7a-singapore",
+        "locale": "en_US",
+        "directoryId": "whats-new-v2",
+        "additionalFields": {
+          "headline": "Amazon EC2 C7a instances are now available in the Asia Pacific (Singapore) Region",
+          "postBody": "<p>Amazon EC2 C7a instances are now available in the Asia Pacific (Singapore) Region.</p>",
+          "postDateTime": "2026-08-19T16:00:00Z",
+          "headlineUrl": "/about-aws/whats-new/2026/08/ec2-c7a-singapore/"
+        }
+      }
+    },
+    {
+      "item": {
+        "id": "whats-new-v2#rollout-c8in-additional-regions",
+        "locale": "en_US",
+        "directoryId": "whats-new-v2",
+        "additionalFields": {
+          "headline": "Amazon EC2 C8in instances are now available in additional regions",
+          "postBody": "<p>Amazon EC2 C8in network optimized instances, built on the AWS Nitro System, are now available in additional regions.</p>",
+          "postDateTime": "2026-08-18T15:00:00Z",
+          "headlineUrl": "/about-aws/whats-new/2026/08/ec2-c8in-additional-regions/"
+        }
+      }
+    },
+    {
+      "item": {
+        "id": "whats-new-v2#rollout-i8ge-additional-regions",
+        "locale": "en_US",
+        "directoryId": "whats-new-v2",
+        "additionalFields": {
+          "headline": "Amazon EC2 I8ge instances are now generally available in additional AWS regions",
+          "postBody": "<p>Amazon EC2 I8ge storage optimized instances are now generally available in additional AWS regions.</p>",
+          "postDateTime": "2026-08-17T14:00:00Z",
+          "headlineUrl": "/about-aws/whats-new/2026/08/ec2-i8ge-additional-regions/"
+        }
+      }
+    },
+    {
+      "item": {
+        "id": "whats-new-v2#rollout-vpc-encryption-govcloud",
+        "locale": "en_US",
+        "directoryId": "whats-new-v2",
+        "additionalFields": {
+          "headline": "AWS VPC Encryption Controls now available in AWS GovCloud (US) Regions",
+          "postBody": "<p>AWS VPC Encryption Controls, built on the AWS Nitro System, are now available in the AWS GovCloud (US) Regions.</p>",
+          "postDateTime": "2026-08-16T13:00:00Z",
+          "headlineUrl": "/about-aws/whats-new/2026/08/vpc-encryption-controls-govcloud/"
+        }
+      }
+    },
+    {
+      "item": {
+        "id": "whats-new-v2#launch-m9g-preview",
+        "locale": "en_US",
+        "directoryId": "whats-new-v2",
+        "additionalFields": {
+          "headline": "Announcing new Amazon EC2 M9g instances powered by AWS Graviton5 processors (Preview)",
+          "postBody": "<p>AWS announces the preview of Amazon EC2 M9g instances powered by AWS Graviton5 processors.</p>",
+          "postDateTime": "2026-08-15T18:00:00Z",
+          "headlineUrl": "/about-aws/whats-new/2026/08/ec2-m9g-graviton5-preview/"
+        }
+      }
+    },
+    {
+      "item": {
+        "id": "whats-new-v2#launch-redshift-rg",
+        "locale": "en_US",
+        "directoryId": "whats-new-v2",
+        "additionalFields": {
+          "headline": "Amazon Redshift launches RG instances powered by AWS Graviton",
+          "postBody": "<p>Amazon Redshift launches RG instances powered by AWS Graviton processors.</p>",
+          "postDateTime": "2026-08-14T17:00:00Z",
+          "headlineUrl": "/about-aws/whats-new/2026/08/redshift-rg-graviton/"
+        }
+      }
+    },
+    {
+      "item": {
+        "id": "whats-new-v2#launch-c8in-c8ib",
+        "locale": "en_US",
+        "directoryId": "whats-new-v2",
+        "additionalFields": {
+          "headline": "Introducing Amazon EC2 C8in and C8ib instances",
+          "postBody": "<p>AWS introduces Amazon EC2 C8in and C8ib instances, built on the AWS Nitro System.</p>",
+          "postDateTime": "2026-08-13T16:00:00Z",
+          "headlineUrl": "/about-aws/whats-new/2026/08/ec2-c8in-c8ib/"
+        }
+      }
+    },
+    {
+      "item": {
+        "id": "whats-new-v2#launch-trn3-ultraservers",
+        "locale": "en_US",
+        "directoryId": "whats-new-v2",
+        "additionalFields": {
+          "headline": "Announcing Amazon EC2 Trn3 UltraServers for faster, lower-cost generative AI training",
+          "postBody": "<p>AWS announces Amazon EC2 Trn3 UltraServers powered by AWS Trainium3 chips.</p>",
+          "postDateTime": "2026-08-12T15:00:00Z",
+          "headlineUrl": "/about-aws/whats-new/2026/08/ec2-trn3-ultraservers/"
+        }
+      }
+    },
+    {
+      "item": {
+        "id": "whats-new-v2#launch-m8gn-m8gb-ga",
+        "locale": "en_US",
+        "directoryId": "whats-new-v2",
+        "additionalFields": {
+          "headline": "Now generally available: Amazon EC2 M8gn and M8gb instances",
+          "postBody": "<p>Amazon EC2 M8gn and M8gb instances powered by AWS Graviton4 are now generally available.</p>",
+          "postDateTime": "2026-08-11T14:00:00Z",
+          "headlineUrl": "/about-aws/whats-new/2026/08/ec2-m8gn-m8gb-ga/"
+        }
+      }
+    },
+    {
+      "item": {
+        "id": "whats-new-v2#launch-m9g-m9gd-ga",
+        "locale": "en_US",
+        "directoryId": "whats-new-v2",
+        "additionalFields": {
+          "headline": "Amazon EC2 M9g and M9gd general purpose instances are now available",
+          "postBody": "<p>Amazon EC2 M9g and M9gd general purpose instances powered by AWS Graviton5 processors are now generally available.</p>",
+          "postDateTime": "2026-08-10T13:00:00Z",
+          "headlineUrl": "/about-aws/whats-new/2026/08/ec2-m9g-m9gd-ga/"
+        }
+      }
+    },
+    {
+      "item": {
+        "id": "whats-new-v2#launch-neuron-sdk-2-30",
+        "locale": "en_US",
+        "directoryId": "whats-new-v2",
+        "additionalFields": {
+          "headline": "AWS Neuron SDK 2.30.0 now available with NKI 0.4.0 and expanded training support",
+          "postBody": "<p>AWS Neuron SDK 2.30.0 is now available with NKI 0.4.0 for Trainium and Inferentia.</p>",
+          "postDateTime": "2026-08-09T12:00:00Z",
+          "headlineUrl": "/about-aws/whats-new/2026/08/neuron-sdk-2-30/"
+        }
+      }
+    }
+  ],
+  "metadata": { "count": 12, "totalHits": 412 }
+}

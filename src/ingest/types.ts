@@ -28,4 +28,13 @@ export interface FeedConfig {
 	// validation, just not the zero-of-N signal. A counter must never throw on a
 	// payload `parse` would reject — `parse` runs first and surfaces that error.
 	countRaw?(payload: string): number;
+	// Editorial filter (#321): return false to drop a successfully parsed item as
+	// noise (e.g. AWS "… now available in <region>" rollout announcements). run.ts
+	// applies it AFTER the shape-drift check (reportAnomaly) and BEFORE
+	// insertItems — NOT inside `parse` — so a feed that is legitimately mostly
+	// noise never trips the parse_drop / zero_parsed_of_raw anomalies, `parse`
+	// stays a pure shape concern, and the drop is logged (`filtered` on
+	// ingest.poll) rather than silent. Optional: a feed without it keeps
+	// everything it parses.
+	keep?(item: ParsedItem): boolean;
 }

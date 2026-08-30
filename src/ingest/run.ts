@@ -79,7 +79,15 @@ async function pollFeed(deps: IngestDeps, config: FeedConfig, state: FeedState):
 		// turn a healthy poll into a feed error, so it can't escape this helper.
 		reportAnomaly(config, body, items);
 
-		const inserted = await insertItems(db, config.source, items, now());
+		// Editorial filter (#321): drop known noise (e.g. AWS region-rollout
+		// announcements) AFTER the shape-drift check — the anomaly comparison above
+		// must see the full parsed count, or a feed that is legitimately mostly
+		// noise would trip parse_drop / zero_parsed_of_raw on every healthy poll —
+		// and BEFORE the writes. The `filtered` count is logged below so the drop
+		// is visible and quantified, never silent.
+		const kept = config.keep ? items.filter(config.keep) : items;
+
+		const inserted = await insertItems(db, config.source, kept, now());
 		await updateFeedState(db, config.feed, {
 			etag: res.headers.get('ETag'),
 			lastModified: res.headers.get('Last-Modified'),
@@ -92,6 +100,7 @@ async function pollFeed(deps: IngestDeps, config: FeedConfig, state: FeedState):
 			feed: config.feed,
 			status: 200,
 			items: items.length,
+			filtered: items.length - kept.length,
 			inserted,
 			outcome: 'ok',
 		});
