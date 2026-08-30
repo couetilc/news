@@ -64,7 +64,8 @@ const GLUE_ALLOWLIST: Record<string, string> = {
 // forgotten new pure module red-fails. One reason per entry.
 const CORE_WITHOUT_ISOLATED_TEST: Record<string, string> = {
 	'src/lib/format.ts': 'no dedicated spec — covered only via .astro page renders',
-	'src/lib/sources.ts': 'no dedicated spec — covered only via .astro page renders',
+	// src/lib/sources.ts got a dedicated plain-node spec in #326
+	// (test/source-meta.test.ts), so it's in `mutate` + the stryker include now.
 	'src/lib/pinned.ts': 'flat data registry — covered only via the .astro PinnedLinks render',
 	// deploy.ts now has a dedicated plain-node spec (test/deploy.test.ts, split
 	// out of status.test.ts in #236), so it's in `mutate` + the stryker include,
@@ -88,6 +89,7 @@ const MUTATE_SPECS: Record<string, string[]> = {
 	'src/lib/return-path.ts': ['test/return-path.test.ts'],
 	'src/lib/log.ts': ['test/log.test.ts'],
 	'src/lib/email.ts': ['test/email.test.ts'],
+	'src/lib/sources.ts': ['test/source-meta.test.ts'],
 	'src/ingest/validate.ts': ['test/validate.test.ts'],
 	'src/ingest/sources.ts': ['test/sources.test.ts'],
 	'src/ingest/parse/atom.ts': ['test/parse-atom.test.ts'],

@@ -20,6 +20,7 @@ import { defineConfig } from 'vitest/config';
 //   • src/lib/return-path.ts         ← test/return-path.test.ts
 //   • src/lib/log.ts                 ← test/log.test.ts
 //   • src/lib/email.ts               ← test/email.test.ts (fetch is injected)
+//   • src/lib/sources.ts             ← test/source-meta.test.ts (#326)
 //   • src/ingest/validate.ts         ← test/validate.test.ts
 //   • src/ingest/sources.ts          ← test/sources.test.ts
 //   • src/ingest/parse/atom.ts       ← test/parse-atom.test.ts
@@ -50,6 +51,7 @@ export default defineConfig({
 			'test/return-path.test.ts',
 			'test/log.test.ts',
 			'test/email.test.ts',
+			'test/source-meta.test.ts',
 			'test/validate.test.ts',
 			'test/sources.test.ts',
 			'test/parse-atom.test.ts',

@@ -37,6 +37,9 @@ export default defineConfig({
 			'test/status.test.ts',
 			// Plain-node deployInfo() unit spec — runs in the node project (#236).
 			'test/deploy.test.ts',
+			// Plain-node sourceMeta() unit spec (#326) — reads files off disk via
+			// node:fs, which the workerd pool can't; runs in the node project.
+			'test/source-meta.test.ts',
 			'test/public.test.ts',
 			'test/article.test.ts',
 			'test/worker.test.ts',
