@@ -29,6 +29,7 @@ const REGISTRY: Record<string, SourceMeta> = {
 	ti: { name: 'Texas Instruments', swatch: 'bg-source-ti' },
 	'eye-on-the-market': { name: 'Eye on the Market', swatch: 'bg-source-eotm' },
 	mistral: { name: 'Mistral', swatch: 'bg-source-mistral' },
+	openai: { name: 'OpenAI', swatch: 'bg-source-openai' },
 };
 
 export function sourceMeta(slug: string): SourceMeta {

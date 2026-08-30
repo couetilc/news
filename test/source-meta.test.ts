@@ -38,6 +38,15 @@ describe('sourceMeta', () => {
 		});
 	});
 
+	it('maps openai to its registered display name and swatch (#337)', () => {
+		// The exact pair the reader sees; a slug typo would fall back to
+		// { name: 'openai', swatch: 'bg-muted' } and fail here.
+		expect(sourceMeta('openai')).toEqual({
+			name: 'OpenAI',
+			swatch: 'bg-source-openai',
+		});
+	});
+
 	it('maps other registered slugs to their exact display metadata', () => {
 		// Per-slug pins (not exact-list equality) so sibling sources can land in
 		// parallel without touching this test.

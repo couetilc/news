@@ -14,6 +14,7 @@ import intelXml from './fixtures/intel.xml?raw';
 import mistralXml from './fixtures/mistral.xml?raw';
 import nvidiaBlogXml from './fixtures/nvidia-blog.xml?raw';
 import nvidiaNewsroomXml from './fixtures/nvidia-newsroom.xml?raw';
+import openaiXml from './fixtures/openai.xml?raw';
 import qualcommXml from './fixtures/qualcomm.xml?raw';
 import scienceDailyXml from './fixtures/science-daily.xml?raw';
 import tiBlogJson from './fixtures/ti-company-blog.json?raw';
@@ -43,6 +44,7 @@ describe('SOURCES', () => {
 		expect(slugs).toContain('ti');
 		expect(slugs).toContain('eye-on-the-market');
 		expect(slugs).toContain('mistral');
+		expect(slugs).toContain('openai');
 	});
 
 	it('registers both Cisco feeds (IR RSS primary + EDGAR 8-K backstop) under one source', () => {
@@ -358,5 +360,95 @@ describe('SOURCES', () => {
 
 	it('counts every Mistral <item> as the drift denominator (#339)', () => {
 		expect(source('mistral').countRaw!(mistralXml)).toBe(5);
+	});
+
+	it('registers the OpenAI first-party news feed (#337)', () => {
+		const openai = source('openai');
+		expect(openai.feed).toBe('https://openai.com/news/rss.xml');
+		// Several posts/week → a 6-hour poll is ample.
+		expect(openai.pollIntervalSeconds).toBe(21600);
+		expect(openai.countRaw).toBeDefined();
+		expect(openai.keep).toBeDefined();
+	});
+
+	it('parses the OpenAI feed: plain-text summary from the description, links out (#337)', () => {
+		const items = source('openai').parse(openaiXml);
+		expect(items).toHaveLength(8);
+		expect(items[0].title).toBe('Our decision on Cursor following its acquisition by SpaceX');
+		expect(items[0].url).toBe(
+			'https://openai.com/index/our-decision-on-cursor-following-its-acquisition-by-spacex',
+		);
+		// guid isPermaLink="true" — the article URL is the stable dedupe id.
+		expect(items[0].guid).toBe(items[0].url);
+		// Summaries only: description → summary, no full text in the feed
+		// (article pages are Cloudflare-challenged, so we link out).
+		expect(items[0].summary).toBe(
+			'Our decision to wind down our contract providing OpenAI models to Cursor following its acquisition by SpaceX.',
+		);
+		expect(items[0].contentHtml).toBeNull();
+		expect(items[0].publishedAt).toBe(Math.floor(Date.UTC(2026, 7, 28, 6, 0, 0) / 1000));
+		// ~9% of items (old case studies) carry no <description>: null summary,
+		// still a well-formed item.
+		const genebench = items.find((i) => i.title === 'Inside Genebench-Pro')!;
+		expect(genebench.summary).toBeNull();
+		expect(genebench.contentHtml).toBeNull();
+	});
+
+	it('preserves pubDate over document order for OpenAI (feed is not strictly chronological, #337)', () => {
+		// Real live-feed quirk: the NVIDIA item precedes the Asana item in the
+		// document even though Asana's pubDate is LATER — pubDate is the truth.
+		const items = source('openai').parse(openaiXml);
+		const nvidia = items.findIndex((i) => i.url === 'https://openai.com/index/nvidia/chatgpt-work');
+		const asana = items.findIndex((i) => i.url === 'https://openai.com/index/asana');
+		expect(nvidia).toBeLessThan(asana);
+		expect(items[nvidia].publishedAt).toBe(Math.floor(Date.UTC(2026, 7, 18, 0, 0, 0) / 1000));
+		expect(items[asana].publishedAt).toBe(Math.floor(Date.UTC(2026, 7, 18, 7, 0, 0) / 1000));
+		expect(items[asana].publishedAt!).toBeGreaterThan(items[nvidia].publishedAt!);
+	});
+
+	it('openai keep filter drops pre-launch archive items, keeps post-cutoff ones (#337)', () => {
+		// First-poll flood control: the live feed is the full ~1,157-item archive
+		// back to 2015; only items published on/after 2026-08-01T00:00:00Z stay.
+		// parse keeps everything (run.ts applies `keep` post-anomaly-check).
+		const openai = source('openai');
+		const items = openai.parse(openaiXml);
+		expect(items).toHaveLength(8);
+		const kept = items.filter((i) => openai.keep!(i)).map((i) => i.title);
+		expect(kept).toEqual([
+			'Our decision on Cursor following its acquisition by SpaceX',
+			'Supporting Thailand’s next generation of AI startups',
+			'How loveholidays is making everyone a builder with Codex',
+			'How NVIDIA scales expertise with ChatGPT Work',
+			'Asana cleared 5 years of engineering work in 2 weeks with Codex',
+		]);
+		const dropped = items.filter((i) => !openai.keep!(i)).map((i) => i.title);
+		expect(dropped).toEqual([
+			// 2026-07-29 — days before the cutoff; category (Research) is irrelevant
+			// to keep: we ingest ALL categories, the cutoff is purely by date.
+			'How enabling two settings tripled our scores on the ARC-AGI-3 benchmark',
+			'Inside Genebench-Pro',
+			'Introducing OpenAI',
+		]);
+	});
+
+	it('openai keep filter keeps an item with a missing/unparseable pubDate (#337)', () => {
+		// Conservative branch: rather ingest a stray archive item than drop a real
+		// post whose date failed to parse (insertItems dedupes repeats anyway).
+		expect(
+			source('openai').keep!({
+				guid: 'https://openai.com/index/undated',
+				url: 'https://openai.com/index/undated',
+				title: 'An undated post',
+				summary: null,
+				contentHtml: null,
+				publishedAt: null,
+			}),
+		).toBe(true);
+	});
+
+	it('counts raw OpenAI <item> elements as the drift denominator (#337)', () => {
+		// countRaw sees ALL 8 raw items — the keep filter must never shrink the
+		// shape-drift comparison, or a mostly-archive poll would look like drift.
+		expect(source('openai').countRaw!(openaiXml)).toBe(8);
 	});
 });
