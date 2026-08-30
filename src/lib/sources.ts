@@ -36,6 +36,7 @@ const REGISTRY: Record<string, SourceMeta> = {
 	'open-models': { name: 'Open Models', swatch: 'bg-source-open-models' },
 	// …plus a per-lab chip for each verified OpenRSS proxy (only DeepSeek so far).
 	deepseek: { name: 'DeepSeek', swatch: 'bg-source-deepseek' },
+	cursor: { name: 'Cursor', swatch: 'bg-source-cursor' },
 };
 
 export function sourceMeta(slug: string): SourceMeta {

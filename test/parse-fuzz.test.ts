@@ -4,6 +4,7 @@ import { parseAtom, type AtomOptions } from '../src/ingest/parse/atom';
 import { parseRss20, type Rss20Options } from '../src/ingest/parse/rss20';
 import { parseAwsWhatsNew } from '../src/ingest/parse/aws-whats-new';
 import { parseOwenomics } from '../src/ingest/parse/owenomics';
+import { parseCursorBlog } from '../src/ingest/parse/cursor';
 import { parseSecEdgar } from '../src/ingest/parse/sec-edgar';
 import { parseTiNewsroom } from '../src/ingest/parse/ti-newsroom';
 import { parseRfc822 } from '../src/ingest/parse/dates';
@@ -11,6 +12,7 @@ import {
 	countAtom,
 	countAwsWhatsNew,
 	countOwenomics,
+	countCursorBlog,
 	countRss20,
 	countTiNewsroom,
 } from '../src/ingest/parse/count';
@@ -201,6 +203,57 @@ describe('parseOwenomics — fuzz (never throws undocumented, always well-formed
 			parseOwenomics,
 			/^not an Owenomics listing response/,
 			fc.oneof(arbitraryText, arbitraryJson),
+		);
+	});
+});
+
+// Listing-ish HTML fragments for the Cursor parser (#335): real markers from
+// the /blog/topic/research SSR markup — the container/card classes, anchors
+// with and without hrefs, time/p elements, broken tags — mixed with random
+// text, to drive the documented container guard, the per-card skip branches,
+// and the hand-rolled scanning's never-hang requirement.
+const listingChunk = fc.oneof(
+	fc.constantFrom(
+		'<div class="blog-directory">',
+		'</div>',
+		'<a class="blog-directory__row" href="/blog/x">',
+		'<a class="blog-directory__row">',
+		'<a class="nav" href="/blog">',
+		'</a>',
+		'<article>',
+		'</article>',
+		'<time dateTime="2026-08-18T12:00:00.000Z">',
+		'<time datetime="someday">',
+		'</time>',
+		'<p>',
+		'</p>',
+		'blog-directory',
+		'&amp;',
+		'<<>>',
+	),
+	fc.string(),
+);
+const arbitraryListingHtml = fc
+	.array(listingChunk, { maxLength: 30 })
+	.map((parts) => parts.join(''));
+
+describe('parseCursorBlog — fuzz (never throws undocumented, always well-formed)', () => {
+	it('holds for arbitrary text and listing-ish HTML input', () => {
+		fuzzParser(
+			parseCursorBlog,
+			/^not a Cursor blog listing/,
+			fc.oneof(arbitraryText, arbitraryListingHtml),
+		);
+	});
+
+	it('countCursorBlog returns a non-negative integer and never throws on the same space', () => {
+		fc.assert(
+			fc.property(fc.oneof(arbitraryText, arbitraryListingHtml), (payload) => {
+				const n = countCursorBlog(payload);
+				expect(Number.isInteger(n)).toBe(true);
+				expect(n).toBeGreaterThanOrEqual(0);
+			}),
+			RUNS,
 		);
 	});
 });

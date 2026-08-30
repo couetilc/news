@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	countAtom,
 	countAwsWhatsNew,
+	countCursorBlog,
 	countJpmEotm,
 	countOwenomics,
 	countRss20,
@@ -14,6 +15,7 @@ import gravitonJson from './fixtures/aws-graviton.json?raw';
 import tiNewsJson from './fixtures/ti-news-releases.json?raw';
 import eotmJson from './fixtures/eye-on-the-market.json?raw';
 import owenomicsJson from './fixtures/owenomics.json?raw';
+import cursorHtml from './fixtures/cursor-blog-research.html?raw';
 
 // The counters report RAW container size, independent of parse keep/drop logic —
 // they're the denominator the shape-drift check (#78) compares parsed count to.
@@ -140,5 +142,35 @@ describe('countOwenomics', () => {
 		expect(countOwenomics('1')).toBe(0);
 		expect(countOwenomics('{')).toBe(0);
 		expect(() => countOwenomics('{')).not.toThrow();
+	});
+});
+
+describe('countCursorBlog', () => {
+	it('counts every blog-directory__row card anchor, duplicate SSR render included (#335)', () => {
+		// The fixture carries the full first render (12 cards) plus the two cards
+		// opening the page's duplicate render — the parser emits all 14, so the
+		// raw denominator must match, not the deduped 12.
+		expect(countCursorBlog(cursorHtml)).toBe(14);
+	});
+
+	it('counts a card the parser drops (the drift denominator sees raw cards)', () => {
+		// A card with no href is skipped by parseCursorBlog but still IS a raw
+		// entry: raw 1 vs parsed 0 is exactly the zero_parsed_of_raw smoking gun.
+		expect(
+			countCursorBlog('<div class="blog-directory"><a class="blog-directory__row"><p>x</p></a></div>'),
+		).toBe(1);
+	});
+
+	it('ignores non-card anchors (no blog-directory__row class)', () => {
+		expect(countCursorBlog('<a class="text-theme-text-sec" href="/blog">Blog</a>')).toBe(0);
+	});
+
+	it('returns 0 on a non-listing/garbage payload without throwing (#165)', () => {
+		// The homepage the dead rss.xml URL serves, truncated markup, and empty
+		// input all count as 0 raw entries — never a throw.
+		expect(countCursorBlog('<!DOCTYPE html><html><body>home</body></html>')).toBe(0);
+		expect(countCursorBlog('<a class="blog-directory__row')).toBe(0);
+		expect(countCursorBlog('')).toBe(0);
+		expect(() => countCursorBlog('<a class="blog-directory__row')).not.toThrow();
 	});
 });

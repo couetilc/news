@@ -25,6 +25,7 @@ import tiEdgarJson from './fixtures/ti-sec-edgar.json?raw';
 import eotmJson from './fixtures/eye-on-the-market.json?raw';
 import owenomicsJson from './fixtures/owenomics.json?raw';
 import thinkingMachinesXml from './fixtures/thinking-machines.xml?raw';
+import cursorHtml from './fixtures/cursor-blog-research.html?raw';
 
 const source = (name: string) => SOURCES.find((s) => s.source === name)!;
 
@@ -53,6 +54,7 @@ describe('SOURCES', () => {
 		expect(slugs).toContain('owenomics');
 		expect(slugs).toContain('open-models');
 		expect(slugs).toContain('deepseek');
+		expect(slugs).toContain('cursor');
 	});
 
 	it('registers both Cisco feeds (IR RSS primary + EDGAR 8-K backstop) under one source', () => {
@@ -641,5 +643,35 @@ describe('SOURCES', () => {
 
 	it('counts every DeepSeek OpenRSS <item> as the drift denominator (#340)', () => {
 		expect(source('deepseek').countRaw!(deepseekXml)).toBe(3);
+	});
+
+	it('registers the Cursor research-topic listing on the apex host with a daily poll (#335)', () => {
+		const cursor = source('cursor');
+		// The dead rss.xml serves the homepage, so we poll the server-rendered
+		// research listing directly; www 308s to the apex, so poll the apex.
+		expect(cursor.feed).toBe('https://cursor.com/blog/topic/research');
+		// Research posts are ~weekly → daily poll.
+		expect(cursor.pollIntervalSeconds).toBe(86400);
+		expect(cursor.countRaw).toBeDefined();
+	});
+
+	it('parses the Cursor listing HTML: title/link/date cards, links out, no body (#335)', () => {
+		const items = source('cursor').parse(cursorHtml);
+		expect(items[0].title).toBe('Git at any scale');
+		expect(items[0].url).toBe('https://cursor.com/blog/git-at-any-scale');
+		// guid === url: the article page is the stable dedupe key — the page's
+		// duplicate SSR render collapses at insertItems on (source, guid).
+		expect(items[0].guid).toBe(items[0].url);
+		expect(items[0].summary).toBeNull();
+		expect(items[0].contentHtml).toBeNull();
+		expect(items[0].publishedAt).toBe(Math.floor(Date.UTC(2026, 7, 18, 12, 0, 0) / 1000));
+	});
+
+	it('counts every raw Cursor card anchor as the drift denominator (#335)', () => {
+		// 12 first-render cards + the fixture's 2 duplicate-render cards: the raw
+		// count mirrors what parse emits (14), so a healthy poll never looks like
+		// parse_drop.
+		expect(source('cursor').countRaw!(cursorHtml)).toBe(14);
+		expect(source('cursor').parse(cursorHtml)).toHaveLength(14);
 	});
 });
