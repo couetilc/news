@@ -1,6 +1,12 @@
 import { experimental_AstroContainer as AstroContainer } from 'astro/container';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { countItemsByRead, distinctSources, listItems, listItemsByRead } from '../src/ingest/db';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+	countItemsByRead,
+	distinctSources,
+	listItems,
+	listItemsByRead,
+	listRecentlyRead,
+} from '../src/ingest/db';
 import type { ItemRow } from '../src/ingest/db';
 
 vi.mock('../src/ingest/db', () => ({
@@ -8,6 +14,7 @@ vi.mock('../src/ingest/db', () => ({
 	listItemsByRead: vi.fn(),
 	countItemsByRead: vi.fn(),
 	distinctSources: vi.fn(),
+	listRecentlyRead: vi.fn(),
 }));
 
 import Index from '../src/pages/index.astro';
@@ -63,11 +70,19 @@ const render = async (url = 'https://news.test/', userId: number = USER) => {
 };
 
 describe('index page', () => {
+	beforeEach(() => {
+		// The authed page always queries the Recently viewed lane (#334); default it
+		// empty (lane self-erases) so every pre-lane test renders unchanged. Tests
+		// about the lane override this with rows.
+		vi.mocked(listRecentlyRead).mockResolvedValue([]);
+	});
+
 	afterEach(() => {
 		vi.mocked(listItems).mockReset();
 		vi.mocked(listItemsByRead).mockReset();
 		vi.mocked(countItemsByRead).mockReset();
 		vi.mocked(distinctSources).mockReset();
+		vi.mocked(listRecentlyRead).mockReset();
 	});
 
 	it('shows an empty state when nothing has been aggregated', async () => {
@@ -281,10 +296,13 @@ describe('index page', () => {
 			// The personal feed's controls (filter, sign out) are absent.
 			expect(html).not.toContain('Filter by source');
 			expect(html).not.toContain('Sign out');
-			// The anonymous branch never runs the per-user read-state queries.
+			// The anonymous branch never runs the per-user read-state queries — the
+			// Recently viewed lane included (#334): no user row, no lane.
 			expect(vi.mocked(listItemsByRead)).not.toHaveBeenCalled();
 			expect(vi.mocked(countItemsByRead)).not.toHaveBeenCalled();
 			expect(vi.mocked(distinctSources)).not.toHaveBeenCalled();
+			expect(vi.mocked(listRecentlyRead)).not.toHaveBeenCalled();
+			expect(html).not.toContain('Recently viewed');
 		});
 
 		it('shows the empty state (and still the Log in link) when nothing is aggregated', async () => {
@@ -292,6 +310,69 @@ describe('index page', () => {
 			const html = await renderAnon();
 			expect(html).toContain('Nothing aggregated yet');
 			expect(html).toContain('Log in');
+		});
+	});
+
+	describe('recently viewed lane (#334)', () => {
+		// The lane: this user's ~3 most recently opened items (opening marks them
+		// read via the opened.ts beacon), rendered ABOVE the unread list — between
+		// the FilterBar and the FeedTabs — as its own ruled section. Global (never
+		// narrowed by ?source) and self-erasing while nothing has been opened.
+		const recentRows = [
+			row({ id: 9, title: 'Opened most recently', read_at: 9000 }),
+			row({ id: 8, title: 'Opened earlier', read_at: 8000 }),
+		];
+
+		it('renders the lane above the unread list for an authed user with reads', async () => {
+			vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog']);
+			feed({ unread: [row({ id: 1, title: 'Fresh unread' })] });
+			vi.mocked(listRecentlyRead).mockResolvedValue(recentRows);
+
+			const html = await render();
+			expect(html).toContain('aria-label="Recently viewed"');
+			expect(html).toContain('Opened most recently');
+			expect(html).toContain('Opened earlier');
+			// Placement: after the FilterBar, before the FeedTabs + the unread list —
+			// "preceding the unread list" is the issue's contract.
+			const filterAt = html.indexOf('aria-label="Filter by source"');
+			const laneAt = html.indexOf('aria-label="Recently viewed"');
+			const tabsAt = html.indexOf('aria-label="Feed tabs"');
+			const listAt = html.indexOf('data-feed-list');
+			expect(filterAt).toBeGreaterThan(-1);
+			expect(laneAt).toBeGreaterThan(filterAt);
+			expect(tabsAt).toBeGreaterThan(laneAt);
+			expect(listAt).toBeGreaterThan(tabsAt);
+			// The lane queried the reader's recent reads, capped at 3, for this user.
+			expect(vi.mocked(listRecentlyRead)).toHaveBeenCalledTimes(1);
+			const call = vi.mocked(listRecentlyRead).mock.calls[0];
+			expect(call[1]).toBe(USER);
+			expect(call[2]).toBe(3);
+			// Lane rows are ordinary read Article rows: dimmed, filled square, and an
+			// un-read control that returns the item to Unread.
+			expect(html).toContain('opacity-55');
+			expect(html).toContain('aria-label="Mark as unread"');
+		});
+
+		it('self-erases while the reader has opened nothing yet', async () => {
+			vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog']);
+			feed({ unread: [row({})] });
+			// beforeEach already defaults listRecentlyRead to [] — the lane (heading,
+			// section, rule) must leave no trace.
+			const html = await render();
+			expect(html).not.toContain('Recently viewed');
+			expect(html).not.toContain('data-recently-viewed');
+		});
+
+		it('still renders on the Read tab and keeps the current view as returnTo', async () => {
+			vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog']);
+			feed({ read: [row({ id: 5, title: 'Old read', read_at: 4000 })] });
+			vi.mocked(listRecentlyRead).mockResolvedValue([recentRows[0]]);
+
+			const html = await render('https://news.test/?tab=read');
+			// The lane is tab-independent (a global rail, not tab content)…
+			expect(html).toContain('aria-label="Recently viewed"');
+			// …and its rows' toggles return to the active view like every other row.
+			expect(html).toContain('name="return" value="/?tab=read"');
 		});
 	});
 

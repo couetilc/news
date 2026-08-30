@@ -8,6 +8,7 @@ import {
 	insertItems,
 	listItems,
 	listItemsByRead,
+	listRecentlyRead,
 	setItemRead,
 	updateFeedState,
 } from '../src/ingest/db';
@@ -353,6 +354,85 @@ describe('countItemsByRead', () => {
 
 	it('returns 0 for an empty section', async () => {
 		expect(await countItemsByRead(db, { userId: USER, read: true })).toBe(0);
+	});
+});
+
+describe('listRecentlyRead (#334)', () => {
+	// Seed n items (descending published_at so insertion order == feed order) and
+	// return their ids keyed by guid, so each case can mark specific ones read.
+	async function seedIds(n: number): Promise<Record<string, number>> {
+		for (let i = 0; i < n; i++) {
+			await insertItems(db, 's', [item({ guid: `g${i}`, publishedAt: 100000 - i })], 100);
+		}
+		return Object.fromEntries((await listItems(db, n)).map((r) => [r.guid, r.id]));
+	}
+
+	it('returns the most recently read items, newest read_at first, capped at limit', async () => {
+		const ids = await seedIds(5);
+		// Read order (by read_at) is deliberately unrelated to feed/publish order:
+		// g3 first, then g0, g4, g1 — g2 never read.
+		await setItemRead(db, USER, ids.g3, 1000);
+		await setItemRead(db, USER, ids.g0, 2000);
+		await setItemRead(db, USER, ids.g4, 3000);
+		await setItemRead(db, USER, ids.g1, 4000);
+
+		const recent = await listRecentlyRead(db, USER, 3);
+		// The 3 newest by read_at, most recent first — g3 (oldest read) fell off,
+		// g2 (never read) never appears.
+		expect(recent.map((r) => r.guid)).toEqual(['g1', 'g4', 'g0']);
+		// Each row carries this user's read_at (the per-user join column), so the
+		// lane's Article rows render as read.
+		expect(recent.map((r) => r.read_at)).toEqual([4000, 3000, 2000]);
+	});
+
+	it('re-reading an item bumps it to the front (read_at upsert)', async () => {
+		const ids = await seedIds(3);
+		await setItemRead(db, USER, ids.g0, 1000);
+		await setItemRead(db, USER, ids.g1, 2000);
+		// Re-opening g0 refreshes its read_at (ON CONFLICT upsert), so it outranks
+		// g1 — "recently viewed" tracks the LAST open, not the first.
+		await setItemRead(db, USER, ids.g0, 3000);
+
+		const recent = await listRecentlyRead(db, USER, 3);
+		expect(recent.map((r) => r.guid)).toEqual(['g0', 'g1']);
+	});
+
+	it('breaks a same-second read_at tie by newest item id first', async () => {
+		const ids = await seedIds(2);
+		await setItemRead(db, USER, ids.g0, 5000);
+		await setItemRead(db, USER, ids.g1, 5000);
+		// g1 was inserted after g0, so it has the higher id and wins the tie.
+		expect((await listRecentlyRead(db, USER, 2)).map((r) => r.guid)).toEqual(['g1', 'g0']);
+	});
+
+	it("is scoped per user — another user's reads never leak in", async () => {
+		const USER_A = 1;
+		const USER_B = 2;
+		const ids = await seedIds(2);
+		await setItemRead(db, USER_A, ids.g0, 1000);
+		await setItemRead(db, USER_B, ids.g1, 9000);
+
+		expect((await listRecentlyRead(db, USER_A, 3)).map((r) => r.guid)).toEqual(['g0']);
+		expect((await listRecentlyRead(db, USER_B, 3)).map((r) => r.guid)).toEqual(['g1']);
+	});
+
+	it('returns an empty list for a user with no reads', async () => {
+		await seedIds(2);
+		expect(await listRecentlyRead(db, USER, 3)).toEqual([]);
+	});
+
+	it('never surfaces an orphan read row whose item is gone (INNER JOIN)', async () => {
+		// item_reads has no FK to items; a legacy orphan row (the item was deleted,
+		// e.g. by the #191 dedupe migration) must not render a ghost lane entry.
+		const ids = await seedIds(1);
+		await setItemRead(db, USER, ids.g0, 1000);
+		await db
+			.prepare('INSERT INTO item_reads (user_id, item_id, read_at) VALUES (?, ?, ?)')
+			.bind(USER, 999999, 9000)
+			.run();
+
+		// Only the real item comes back, despite the orphan's newer read_at.
+		expect((await listRecentlyRead(db, USER, 3)).map((r) => r.guid)).toEqual(['g0']);
 	});
 });
 

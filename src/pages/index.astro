@@ -1,11 +1,18 @@
 ---
 import { env } from 'cloudflare:workers';
-import { countItemsByRead, distinctSources, listItems, listItemsByRead } from '../ingest/db';
+import {
+	countItemsByRead,
+	distinctSources,
+	listItems,
+	listItemsByRead,
+	listRecentlyRead,
+} from '../ingest/db';
 import Article from '../components/Article.astro';
 import FeedPage from '../components/FeedPage.astro';
 import FeedTabs from '../components/FeedTabs.astro';
 import FilterBar from '../components/FilterBar.astro';
 import PinnedLinks from '../components/PinnedLinks.astro';
+import RecentlyViewed from '../components/RecentlyViewed.astro';
 import Layout from '../layouts/Layout.astro';
 import { PAGE_SIZE, isReadTab, parseTab } from '../lib/pagination';
 import { PINNED } from '../lib/pinned';
@@ -84,6 +91,16 @@ const items = isAuthed
 		})
 	: [];
 
+// The "Recently viewed" lane (#334): this user's few most recently opened
+// items, rendered above the unread list. Opening an article marks it read (the
+// opened.ts beacon → /api/read), so this is simply the newest item_reads rows.
+// Deliberately UNFILTERED by ?source and independent of the active tab — it's a
+// short global "where was I?" rail, not a section of the tabbed feed. Anonymous
+// visitors have no user row, so the query never runs and the lane never renders
+// on the public view.
+const RECENT_LIMIT = 3;
+const recent = isAuthed ? await listRecentlyRead(env.NEWS_DB, queryUser, RECENT_LIMIT) : [];
+
 // Empty-state copy for the active tab. A source filter with no matches gets the
 // "from this source" line (so the reader knows to clear it); otherwise it's the
 // plain per-tab caught-up/none-read message. "Nothing aggregated yet" (no sources
@@ -124,6 +141,11 @@ const emptyMessage = isReadTab(tab)
 				) : (
 					<div class="mx-auto max-w-2xl">
 						<FilterBar sources={present} active={active} tab={tab} />
+						{/* Recently viewed (#334): the ~3 most recently opened items, above
+						    the unread list. Sits between the filter chips and the tabs so it
+						    reads as its own ruled newspaper section, not part of the active
+						    tab's list. Self-erasing while nothing has been opened yet. */}
+						<RecentlyViewed items={recent} returnTo={returnTo} />
 						<FeedTabs
 							active={tab}
 							sources={active}

@@ -196,6 +196,35 @@ export async function countItemsByRead(
 	return n as number;
 }
 
+// The reader's most recently opened items (#334): the `limit` newest item_reads
+// rows for ONE user by read_at, joined back to items. Feeds the "Recently
+// viewed" lane the homepage renders above the unread list — opening an article
+// marks it read (the click beacon POSTs /api/read), so "recently viewed" IS
+// "most recently read". The INNER JOIN sources every row from items, so a
+// legacy/orphan item_reads row for a deleted item can never render. read_at is
+// selected from the join row (per-user state, same shape listItemsByRead
+// returns), and item_id DESC breaks a same-second tie deterministically in
+// favor of the newer item.
+export async function listRecentlyRead(
+	db: D1Database,
+	userId: number,
+	limit: number,
+): Promise<ItemRow[]> {
+	const { results } = await db
+		.prepare(
+			`SELECT i.id, i.source, i.guid, i.url, i.title, i.summary, i.content_html,
+			        i.published_at, i.fetched_at, r.read_at AS read_at
+			 FROM item_reads r
+			 JOIN items i ON i.id = r.item_id
+			 WHERE r.user_id = ?
+			 ORDER BY r.read_at DESC, r.item_id DESC
+			 LIMIT ?`,
+		)
+		.bind(userId, limit)
+		.all<ItemRow>();
+	return results;
+}
+
 // The source slugs actually present in the items table — the sources the feed
 // can be filtered by, so empty/unregistered registry entries never show. Ordered
 // by display name (via sourceMeta) for a stable, human-sensible filter bar.

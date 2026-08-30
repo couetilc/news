@@ -50,7 +50,7 @@ const nextState = isRead ? '0' : '1';
 	class={row}
 	transition:name={`item-${item.id}`}
 	data-feed-row
-	data-visited-url={item.url}
+	data-item-id={item.id}
 >
 	<div class="min-w-0 flex-1">
 		{/* Headline link — the text-link idiom (#129/#131). Resting affordance: per
@@ -60,12 +60,16 @@ const nextState = isRead ? '0' : '1';
 		    link is its only serif headline. It still owes the four obligations: the
 		    focus-visible ink ring (added here) gives keyboard readers a visible focus
 		    box, hover goes accent + underlined, and <a href> supplies cursor-pointer. */}
-		{/* data-visited-link marks the article link for the visited indicator (#263):
-		    the visited.ts click listener records this row's URL on open and the
-		    a:visited / [data-visited] CSS de-emphasizes it. Independent of read state. */}
+		{/* data-opened-link (#334) marks the article link on INTERACTIVE rows only:
+		    the opened.ts click listener beacons this row's data-item-id to /api/read
+		    (read=1) when the link is opened, so the item leaves Unread and enters the
+		    Recently viewed lane on the next render. The public read-only feed emits
+		    no hook — an anonymous visitor has no per-user read state to write, and
+		    the middleware would bounce the POST anyway. This replaced the #263
+		    localStorage "Opened" tag. */}
 		<a
 			href={item.url}
-			data-visited-link
+			data-opened-link={interactive ? '' : undefined}
 			class="group block focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
 		>
 			<h2
@@ -81,16 +85,6 @@ const nextState = isRead ? '0' : '1';
 			<span class="font-semibold text-ink-soft">{source.name}</span>
 			<span class="mx-1.5" aria-hidden="true">·</span>
 			<time datetime={isoTime(seconds)}>{shortDate(seconds)}</time>
-			{/* Visited indicator (#263): an agate "Opened" tag in the dateline voice,
-			    set in the muted ink and a hairline ruled box so it reads as a calm
-			    archival mark — NOT the accent (reserved for interaction) and NOT the
-			    read square. Hidden at rest; the `[data-visited]` CSS in global.css
-			    reveals it once visited.ts records this row's link as opened. It's
-			    independent of read state, so a row can be opened-but-unread. */}
-			<span data-visited-tag class="visited-tag">
-				<span class="mx-1.5" aria-hidden="true">·</span>
-				<span class="border border-rule px-1 not-italic text-muted">Opened</span>
-			</span>
 		</p>
 	</div>
 	{
@@ -149,4 +143,17 @@ const nextState = isRead ? '0' : '1';
    e2e/async-feedback.spec.ts). */}
 <script>
 	import '../scripts/enhance-forms';
+</script>
+
+{/* Mark-read-on-open beacon (#334), progressive: opening an article from the
+   logged-in feed sends a fire-and-forget sendBeacon/keepalive-fetch POST to
+   /api/read (read=1) — the same idempotent, auth-gated write as the square — so
+   the item leaves Unread and enters the Recently viewed lane on the next
+   render. It never preventDefault()s (the navigation proceeds), and with JS off
+   the click simply doesn't update the lane. One delegated document click
+   listener, ClientRouter-safe like enhance-forms above. Pure DOM logic,
+   unit-tested under happy-dom (test/opened.test.ts) inside the 100% src/** gate
+   and covered end-to-end by e2e/recently-viewed.spec.ts. */}
+<script>
+	import '../scripts/opened';
 </script>
