@@ -21,6 +21,7 @@ import tiBlogJson from './fixtures/ti-company-blog.json?raw';
 import tiNewsJson from './fixtures/ti-news-releases.json?raw';
 import tiEdgarJson from './fixtures/ti-sec-edgar.json?raw';
 import eotmJson from './fixtures/eye-on-the-market.json?raw';
+import thinkingMachinesXml from './fixtures/thinking-machines.xml?raw';
 
 const source = (name: string) => SOURCES.find((s) => s.source === name)!;
 
@@ -45,6 +46,7 @@ describe('SOURCES', () => {
 		expect(slugs).toContain('eye-on-the-market');
 		expect(slugs).toContain('mistral');
 		expect(slugs).toContain('openai');
+		expect(slugs).toContain('thinking-machines');
 	});
 
 	it('registers both Cisco feeds (IR RSS primary + EDGAR 8-K backstop) under one source', () => {
@@ -450,5 +452,35 @@ describe('SOURCES', () => {
 		// countRaw sees ALL 8 raw items — the keep filter must never shrink the
 		// shape-drift comparison, or a mostly-archive poll would look like drift.
 		expect(source('openai').countRaw!(openaiXml)).toBe(8);
+	});
+
+	it('registers Thinking Machines on the root feed with a daily poll (#338)', () => {
+		const tm = source('thinking-machines');
+		// The ROOT feed, not /blog/index.xml: same items today, but section-agnostic
+		// (the site's declared rel=alternate), so future /news/ syndication would
+		// land without a config change. /news/ has no working feed anywhere yet.
+		expect(tm.feed).toBe('https://thinkingmachines.ai/index.xml');
+		// ~1 post every 6 weeks → daily poll is ample.
+		expect(tm.pollIntervalSeconds).toBe(86400);
+		expect(tm.countRaw).toBeDefined();
+		expect(tm.countRaw!(thinkingMachinesXml)).toBe(2);
+	});
+
+	it('parses Thinking Machines: full HTML from content:encoded, no summary (no description) (#338)', () => {
+		const items = source('thinking-machines').parse(thinkingMachinesXml);
+		expect(items).toHaveLength(2);
+		expect(items[0].title).toBe('A Safe Path to Open Weights');
+		// Permalink guid doubles as the absolute article URL.
+		expect(items[0].url).toBe('https://thinkingmachines.ai/blog/a-safe-path-to-open-weights/');
+		expect(items[0].guid).toBe('https://thinkingmachines.ai/blog/a-safe-path-to-open-weights/');
+		// Full post HTML lives in content:encoded; items carry NO <description>,
+		// so summary is null (not '').
+		expect(items[0].contentHtml).toContain('<strong>Abstract:</strong>');
+		expect(items[0].summary).toBeNull();
+		// Date-only pubDate → midnight UTC, exactly.
+		expect(items[0].publishedAt).toBe(Math.floor(Date.UTC(2026, 6, 31, 0, 0, 0) / 1000));
+		// The one item with a real time-of-day parses to that instant, not midnight.
+		expect(items[1].title).toBe('Defeating Nondeterminism in LLM Inference');
+		expect(items[1].publishedAt).toBe(Math.floor(Date.UTC(2025, 8, 10, 7, 1, 0) / 1000));
 	});
 });

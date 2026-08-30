@@ -282,6 +282,26 @@ export const SOURCES: FeedConfig[] = [
 		parse: (json) => parseSecEdgar(json, { cik: '97476', issuer: 'Texas Instruments' }),
 	},
 	{
+		// #338 — Thinking Machines Lab. The ROOT feed (the site's declared
+		// rel=alternate) — RSS 2.0 with the FULL post HTML in content:encoded and
+		// NO <description> at all (probed 2026-08-30; the issue's "summaries only"
+		// research predates the current feed), so content:encoded mode stores the
+		// full text and summary stays null. Guids are the permalink URLs.
+		// Today it carries exactly the /blog/ ("Connectionism") posts — identical
+		// to /blog/index.xml — but it's section-agnostic, so if the site ever
+		// syndicates /news/ those items land here with no config change. The
+		// /news/ announcements have NO working feed anywhere (first-party
+		// /news/index.xml 404s, OpenRSS returns an empty channel, the community
+		// mirror is blog-only) — tracked separately, see the issue. Mostly
+		// date-only midnight-UTC pubDates (Date.parse handles them, see
+		// parse/dates.ts); ~1 post every 6 weeks, so a daily poll is ample.
+		source: 'thinking-machines',
+		feed: 'https://thinkingmachines.ai/index.xml',
+		pollIntervalSeconds: 86400,
+		parse: (xml) => parseRss20(xml, { content: 'content:encoded' }),
+		countRaw: countRss20,
+	},
+	{
 		// #319 — JPMorgan Asset Management's "Eye on the Market" (Michael Cembalest),
 		// the ongoing weekly/biweekly commentary stream. The landing page is a
 		// client-rendered AEM app with NO RSS/Atom and no first-party feed; its

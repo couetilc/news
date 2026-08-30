@@ -54,6 +54,7 @@
 	--color-source-eotm: #8a7a3a; /* muted dark mustard/gold (#319, Eye on the Market) */
 	--color-source-mistral: #6d7a4a; /* muted willow-green (#339, Mistral) */
 	--color-source-openai: #456d75; /* muted petrol (#337, OpenAI) */
+	--color-source-thinking-machines: #56518c; /* muted indigo (#338, Thinking Machines) */
 }
 
 @layer base {

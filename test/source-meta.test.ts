@@ -55,6 +55,10 @@ describe('sourceMeta', () => {
 			swatch: 'bg-source-cloudflare',
 		});
 		expect(sourceMeta('ti')).toEqual({ name: 'Texas Instruments', swatch: 'bg-source-ti' });
+		expect(sourceMeta('thinking-machines')).toEqual({
+			name: 'Thinking Machines',
+			swatch: 'bg-source-thinking-machines',
+		});
 	});
 
 	it('falls back to the raw slug and the neutral swatch for an unregistered source', () => {
