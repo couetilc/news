@@ -39,7 +39,7 @@ Each line is a decision, not just a feature:
   engagement-optimized noise, more signal. Tech-company newsrooms, IR and
   earnings feeds, SEC EDGAR 8-K filings, and science wires, all normalized into
   one feed.
-- **Astro 6 SSR on Cloudflare Workers, with local dev inside workerd.** Chose
+- **Astro 7 SSR on Cloudflare Workers, with local dev inside workerd.** Chose
   edge server-rendering because a news feed wants fresh content over a stale
   cache, and local-workerd parity so "works on my machine" actually means "works
   in production."
