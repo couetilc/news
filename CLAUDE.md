@@ -55,7 +55,9 @@ aggregator.
   sandbox; it's a throwaway container so that's fine. The baked browser lives at
   `PLAYWRIGHT_BROWSERS_PATH=/ms-playwright`; its version is pinned in lockstep
   with the `@playwright/test` devDependency (bump both together). Outside the
-  container (host/cloud) run `npx playwright install chromium` first. See the
+  container, on a host run `npx playwright install chromium` first; in claude.ai
+  cloud sessions that can't work (browser CDN egress-blocked, VM's preinstalled
+  build lags the pin) — run `scripts/pw-browser-shim.sh` there instead. See the
   `agentic-environments` skill.
 - `npm run build` — build worker + assets into `dist/`
 - `npm run preview` — serve the built worker locally in workerd
