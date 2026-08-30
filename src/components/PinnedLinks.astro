@@ -49,6 +49,16 @@ const { links } = Astro.props;
 									PDF
 								</span>
 							)}
+							{link.scrapeProtected && (
+								/* Scrape-protected tag (#330): the same ruled agate tag idiom as
+								   "PDF" — a calm per-entry mark, not a separate section — telling
+								   the reader this origin blocks every automated feed path, so the
+								   link-out is all the aggregator can offer. Muted ink, never the
+								   accent (reserved for interaction). */
+								<span class="whitespace-nowrap border border-rule px-1 font-sans text-[0.55rem] font-normal uppercase tracking-wider text-muted">
+									Scrape-protected
+								</span>
+							)}
 							{/* External-link cue: the conventional ↗ glyph marks that the link
 							    leaves the site (opens a new tab). aria-hidden — the new-tab
 							    behavior is on the anchor, and the glyph is decorative. */}
