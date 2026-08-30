@@ -49,13 +49,19 @@ Current state:
 Cloud sessions need no Cloudflare token: deploys happen in CI after merge. The
 claude.ai environment has no dedicated secrets store (env vars are visible to
 anyone who can edit the environment), so keeping it empty is the safest
-default. If a cloud session ever needs a secret, use an **API credential**:
-the agent proxy attaches it to requests for the hosts you list after they
-leave the VM, so the session never sees the value. The section only renders
-when **editing an existing environment** (hover the environment row → settings
-icon → "API credentials", below "Environment variables") — the create-new
-dialog never shows it — and requires an org Admin/Owner role (held
-automatically on Pro/Max personal orgs).
+default. If a cloud session ever needs a secret, the right slot is an **API
+credential**: the agent proxy attaches it to requests for the hosts you list
+after they leave the VM, so the session never sees the value. Per the docs it
+renders only when **editing an existing environment** (hover the row →
+settings icon → "API credentials", below "Environment variables"; never in
+the create-new dialog) and needs an org Admin/Owner role. In practice the
+section does not appear for this account yet (verified 2026-08: the edit
+dialog shows only name / network / env vars / setup script), so treat the
+feature as not yet rolled out here — and do **not** fall back to env vars for
+secrets: they are session-readable (the dialog says so), and this app feeds
+sessions untrusted scraped content under Full egress. Keep the environment
+credential-free until the section appears (tracked in the observability
+backlog issue).
 
 ## Cloud environment recipe (claude.ai settings)
 
