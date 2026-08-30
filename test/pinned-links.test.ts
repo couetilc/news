@@ -72,6 +72,32 @@ describe('PinnedLinks (#316)', () => {
 		expect(html).toContain('A web reference');
 		// No "PDF" tag when the entry isn't flagged as a PDF.
 		expect(html).not.toMatch(/>\s*PDF\s*</);
+		// And no "Scrape-protected" tag when the entry isn't flagged either (#330).
+		expect(html).not.toContain('Scrape-protected');
+	});
+
+	it('marks a scrape-protected link with the agate "Scrape-protected" tag (#330)', async () => {
+		const link: PinnedLink = {
+			label: 'A walled-off source',
+			href: 'https://example.com/walled',
+			scrapeProtected: true,
+		};
+		const html = await render([link]);
+
+		// The tag renders in the same ruled agate voice as the PDF tag — muted ink,
+		// hairline box, never the accent — as a per-entry mark, not a separate
+		// section (whitespace-tolerant: Astro may pad the element's text).
+		expect(html).toMatch(/>\s*Scrape-protected\s*</);
+		expect(html).not.toMatch(/>\s*PDF\s*</);
+
+		// Still the standard external pinned link: new tab + safe rel + the #129
+		// text-link affordances.
+		const anchor = anchorFor(html, 'https://example.com/walled');
+		expect(anchor).toContain('target="_blank"');
+		expect(anchor).toContain('rel="noopener noreferrer"');
+		expect(anchor).toContain('underline');
+		expect(anchor).toContain('hover:text-accent');
+		expect(anchor).toContain('focus-visible:outline-ink');
 	});
 
 	it('renders every entry it is given, one list row per link', async () => {
@@ -87,10 +113,9 @@ describe('PinnedLinks (#316)', () => {
 		expect((html.match(/<li/g) ?? []).length).toBe(2);
 	});
 
-	it('renders the real PINNED registry: the Trump Policy Impact Tracker PDF (#316)', async () => {
-		// Exercise the shipped data module, not just a fixture — the canonical URL
-		// (Teams-share artifact stripped) and the PDF flag are the contract this
-		// issue delivers.
+	it('renders the real PINNED registry: the tracker PDF + the Citadel link (#316, #330)', async () => {
+		// Exercise the shipped data module, not just a fixture — the canonical URLs
+		// and per-entry flags are the contract these issues deliver.
 		const html = await render(PINNED);
 		expect(html).toContain('Trump Policy Impact Tracker');
 		expect(html).toContain(
@@ -99,19 +124,39 @@ describe('PinnedLinks (#316)', () => {
 		// No leftover Teams-share artifact on the canonical URL.
 		expect(html).not.toContain('secureweb=Teams');
 		expect(html).toMatch(/>\s*PDF\s*</);
+		// The Citadel entry links out (never ingests) and carries its tag.
+		expect(html).toContain('Citadel Securities Market Insights');
+		expect(html).toContain(
+			'href="https://www.citadelsecurities.com/news-and-insights/category/market-insights/"',
+		);
+		expect(html).toMatch(/>\s*Scrape-protected\s*</);
 	});
 });
 
-describe('PINNED registry (#316)', () => {
-	it('contains exactly the Trump Policy Impact Tracker PDF entry today', () => {
-		expect(PINNED).toHaveLength(1);
-		const [entry] = PINNED;
-		expect(entry.label).toBe('Trump Policy Impact Tracker');
-		expect(entry.href).toBe(
+describe('PINNED registry (#316, #330)', () => {
+	it('contains exactly the tracker PDF and the Citadel scrape-protected link today', () => {
+		expect(PINNED).toHaveLength(2);
+		const [tracker, citadel] = PINNED;
+
+		expect(tracker.label).toBe('Trump Policy Impact Tracker');
+		expect(tracker.href).toBe(
 			'https://assets.jpmprivatebank.com/content/dam/jpm-pb-aem/global/en/documents/eotm/trump-tracker.pdf',
 		);
-		expect(entry.pdf).toBe(true);
+		expect(tracker.pdf).toBe(true);
 		// Canonical URL: the ?secureweb=Teams share artifact is stripped.
-		expect(entry.href).not.toContain('secureweb');
+		expect(tracker.href).not.toContain('secureweb');
+		// The tracker is reachable by a plain fetch — not scrape-protected.
+		expect(tracker.scrapeProtected).toBeUndefined();
+
+		// Citadel Securities Market Insights (#330): a reference LINK, not a feed
+		// source — the origin 403s every automated feed path behind a Cloudflare
+		// JS challenge (#318), so `scrapeProtected` is the load-bearing flag.
+		expect(citadel.label).toBe('Citadel Securities Market Insights');
+		expect(citadel.href).toBe(
+			'https://www.citadelsecurities.com/news-and-insights/category/market-insights/',
+		);
+		expect(citadel.scrapeProtected).toBe(true);
+		// A web page, not a PDF.
+		expect(citadel.pdf).toBeUndefined();
 	});
 });

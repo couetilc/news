@@ -302,6 +302,8 @@ describe('index page', () => {
 		// state — is pinned where it actually composes.
 		const TRACKER_HREF =
 			'https://assets.jpmprivatebank.com/content/dam/jpm-pb-aem/global/en/documents/eotm/trump-tracker.pdf';
+		const CITADEL_HREF =
+			'https://www.citadelsecurities.com/news-and-insights/category/market-insights/';
 
 		it('renders the pinned tracker above the FilterBar for a logged-in visitor', async () => {
 			vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog']);
@@ -312,6 +314,9 @@ describe('index page', () => {
 			expect(html).toContain(`href="${TRACKER_HREF}"`);
 			expect(html).toContain('Trump Policy Impact Tracker');
 			expect(html).toContain('aria-label="Pinned references"');
+			// The scrape-protected Citadel reference link (#330) shares the strip.
+			expect(html).toContain(`href="${CITADEL_HREF}"`);
+			expect(html).toContain('Citadel Securities Market Insights');
 			// It sits ABOVE the source FilterBar (the decided Option A placement).
 			const pinnedAt = html.indexOf('aria-label="Pinned references"');
 			const filterAt = html.indexOf('aria-label="Filter by source"');
