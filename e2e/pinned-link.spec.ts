@@ -11,6 +11,7 @@ import { test, expect } from '@playwright/test';
 
 const TRACKER_HREF =
 	'https://assets.jpmprivatebank.com/content/dam/jpm-pb-aem/global/en/documents/eotm/trump-tracker.pdf';
+const CITADEL_HREF = 'https://www.citadelsecurities.com/news-and-insights/category/market-insights/';
 
 test.describe('pinned Trump Policy Impact Tracker link (#316)', () => {
 	test('an anonymous visitor sees the pinned PDF link pointing at the tracker', async ({ page }) => {
@@ -30,6 +31,25 @@ test.describe('pinned Trump Policy Impact Tracker link (#316)', () => {
 
 		// It's marked as a PDF.
 		await expect(strip.getByText('PDF', { exact: true })).toBeVisible();
+	});
+
+	test('an anonymous visitor sees the scrape-protected Citadel reference link (#330)', async ({
+		page,
+	}) => {
+		await page.goto('/');
+		const strip = page.locator('nav[aria-label="Pinned references"]');
+		await expect(strip).toBeVisible();
+
+		// The Citadel entry is a link OUT (the origin blocks all feed paths, #318),
+		// carrying its label and the external-tab safety attributes.
+		const link = strip.locator(`a[href="${CITADEL_HREF}"]`);
+		await expect(link).toBeVisible();
+		await expect(link).toContainText('Citadel Securities Market Insights');
+		await expect(link).toHaveAttribute('target', '_blank');
+		await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+
+		// The agate "Scrape-protected" tag distinguishes it from a plain pin.
+		await expect(strip.getByText('Scrape-protected', { exact: true })).toBeVisible();
 	});
 
 	test('the pinned strip sits above the source filter / feed', async ({ page }) => {
