@@ -52,6 +52,7 @@
 	--color-source-cisco: #7a3a4a; /* muted maroon/wine (#31, Cisco) */
 	--color-source-ti: #b06a4a; /* muted clay/coral (#30, Texas Instruments) */
 	--color-source-eotm: #8a7a3a; /* muted dark mustard/gold (#319, Eye on the Market) */
+	--color-source-mistral: #6d7a4a; /* muted willow-green (#339, Mistral) */
 }
 
 @layer base {
