@@ -21,6 +21,7 @@ import tiBlogJson from './fixtures/ti-company-blog.json?raw';
 import tiNewsJson from './fixtures/ti-news-releases.json?raw';
 import tiEdgarJson from './fixtures/ti-sec-edgar.json?raw';
 import eotmJson from './fixtures/eye-on-the-market.json?raw';
+import owenomicsJson from './fixtures/owenomics.json?raw';
 import thinkingMachinesXml from './fixtures/thinking-machines.xml?raw';
 
 const source = (name: string) => SOURCES.find((s) => s.source === name)!;
@@ -47,6 +48,7 @@ describe('SOURCES', () => {
 		expect(slugs).toContain('mistral');
 		expect(slugs).toContain('openai');
 		expect(slugs).toContain('thinking-machines');
+		expect(slugs).toContain('owenomics');
 	});
 
 	it('registers both Cisco feeds (IR RSS primary + EDGAR 8-K backstop) under one source', () => {
@@ -318,6 +320,37 @@ describe('SOURCES', () => {
 
 	it('counts the Eye on the Market pages array as the drift denominator (#319)', () => {
 		expect(source('eye-on-the-market').countRaw!(eotmJson)).toBe(3);
+	});
+
+	it('registers the Owenomics source on the Sitecore ResultsListingApi endpoint (#333)', () => {
+		const owenomics = source('owenomics');
+		// The listing PAGE is a server-rendered shell with no article cards; this
+		// is the data-endpoint its search-results module loads them from
+		// (non-regional site=acadian, so records carry non-/au/ paths).
+		expect(owenomics.feed).toBe(
+			'https://www.acadian-asset.com/api/sitecore/ResultsListingApi/GetArticlesByTopic?topic=%7BA2B2139C-F61B-4FA3-AFFB-02EDB2339234%7D&site=acadian',
+		);
+		// ~1–2 essays/month → a daily poll is ample.
+		expect(owenomics.pollIntervalSeconds).toBe(86400);
+		expect(owenomics.countRaw).toBeDefined();
+	});
+
+	it('parses the Owenomics listing API: title, absolute article URL, links out (#333)', () => {
+		const items = source('owenomics').parse(owenomicsJson);
+		expect(items[0].title).toBe('Crazy days in the stock market');
+		// Site-relative Url resolved to the absolute non-regional article page.
+		expect(items[0].url).toBe(
+			'https://www.acadian-asset.com/investment-insights/owenomics/crazy-days-in-the-stock-market',
+		);
+		// Link-out only: the listing carries no teaser and no body.
+		expect(items[0].summary).toBeNull();
+		expect(items[0].contentHtml).toBeNull();
+		// Month-granularity "August 2026" → first-of-month UTC.
+		expect(items[0].publishedAt).toBe(Math.floor(Date.UTC(2026, 7, 1) / 1000));
+	});
+
+	it('counts the Owenomics Results array as the drift denominator (#333)', () => {
+		expect(source('owenomics').countRaw!(owenomicsJson)).toBe(5);
 	});
 
 	it('registers the Mistral first-party feed on the /news/rss URL with a 6-hour poll (#339)', () => {

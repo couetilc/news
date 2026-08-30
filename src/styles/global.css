@@ -55,6 +55,7 @@
 	--color-source-mistral: #6d7a4a; /* muted willow-green (#339, Mistral) */
 	--color-source-openai: #456d75; /* muted petrol (#337, OpenAI) */
 	--color-source-thinking-machines: #56518c; /* muted indigo (#338, Thinking Machines) */
+	--color-source-owenomics: #7a6a8a; /* muted heather (#333, Owenomics) */
 }
 
 @layer base {

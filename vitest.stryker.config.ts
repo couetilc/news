@@ -29,6 +29,7 @@ import { defineConfig } from 'vitest/config';
 //   • src/ingest/parse/sec-edgar.ts  ← test/parse-sec-edgar.test.ts
 //   • src/ingest/parse/ti-newsroom.ts ← test/parse-ti-newsroom.test.ts
 //   • src/ingest/parse/jpm-eotm.ts   ← test/parse-jpm-eotm.test.ts
+//   • src/ingest/parse/owenomics.ts  ← test/parse-owenomics.test.ts
 //   • src/ingest/parse/entities.ts   ← test/parse-entities.test.ts
 //   • src/ingest/parse/count.ts      ← test/count.test.ts
 //   • src/ingest/parse/dates.ts      ← test/dates.test.ts
@@ -60,6 +61,7 @@ export default defineConfig({
 			'test/parse-sec-edgar.test.ts',
 			'test/parse-ti-newsroom.test.ts',
 			'test/parse-jpm-eotm.test.ts',
+			'test/parse-owenomics.test.ts',
 			'test/parse-entities.test.ts',
 			'test/count.test.ts',
 			'test/dates.test.ts',

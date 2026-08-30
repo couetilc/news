@@ -1,6 +1,7 @@
 import { parseAtom } from './parse/atom';
 import { parseAwsWhatsNew } from './parse/aws-whats-new';
 import { parseJpmEotm } from './parse/jpm-eotm';
+import { parseOwenomics } from './parse/owenomics';
 import { parseRss20 } from './parse/rss20';
 import { parseSecEdgar } from './parse/sec-edgar';
 import { parseTiNewsroom } from './parse/ti-newsroom';
@@ -8,6 +9,7 @@ import {
 	countAtom,
 	countAwsWhatsNew,
 	countJpmEotm,
+	countOwenomics,
 	countRss20,
 	countTiNewsroom,
 } from './parse/count';
@@ -365,5 +367,26 @@ export const SOURCES: FeedConfig[] = [
 		parse: (xml) => parseRss20(xml, { content: 'content:encoded' }),
 		countRaw: countRss20,
 		keep: (item) => item.publishedAt === null || item.publishedAt >= OPENAI_LAUNCH_CUTOFF,
+	},
+	{
+		// #333 — Acadian Asset Management "Owenomics" (Owen Lamont's behavioral
+		// finance commentary). NO RSS/Atom exists anywhere on the site; the listing
+		// page (/investment-insights/owenomics) is a server-rendered Sitecore shell
+		// whose article cards load CLIENT-SIDE from this Sitecore results API — the
+		// `data-endpoint` its search-results module declares (topic is the
+		// Owenomics topic item's Sitecore GUID; site=acadian is the non-regional
+		// site, whose records carry non-/au/ paths). Same "no feed, poll the
+		// rendering data" family as TI (#30) and JPM EOTM (#319). Page 1 holds the
+		// 20 newest of ~90 essays. parseOwenomics links out (the listing has no
+		// teaser/body) and normalizes the MONTH-granularity `Date` ("August 2026")
+		// to first-of-month UTC — the only machine-readable date in the payload,
+		// and the same precision the article pages display. ~1–2 essays/month, so
+		// a daily poll is ample. The endpoint serves our plain aggregator UA
+		// (no anti-bot; confirmed in the #333 live probe).
+		source: 'owenomics',
+		feed: 'https://www.acadian-asset.com/api/sitecore/ResultsListingApi/GetArticlesByTopic?topic=%7BA2B2139C-F61B-4FA3-AFFB-02EDB2339234%7D&site=acadian',
+		pollIntervalSeconds: 86400,
+		parse: parseOwenomics,
+		countRaw: countOwenomics,
 	},
 ];
