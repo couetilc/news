@@ -4,6 +4,7 @@ import { parseAtom, type AtomOptions } from '../src/ingest/parse/atom';
 import { parseRss20, type Rss20Options } from '../src/ingest/parse/rss20';
 import { parseAwsWhatsNew } from '../src/ingest/parse/aws-whats-new';
 import { parseOwenomics } from '../src/ingest/parse/owenomics';
+import { parseJpmEotm } from '../src/ingest/parse/jpm-eotm';
 import { parseCursorBlog } from '../src/ingest/parse/cursor';
 import { parseSecEdgar } from '../src/ingest/parse/sec-edgar';
 import { parseTiNewsroom } from '../src/ingest/parse/ti-newsroom';
@@ -11,6 +12,7 @@ import { parseRfc822 } from '../src/ingest/parse/dates';
 import {
 	countAtom,
 	countAwsWhatsNew,
+	countJpmEotm,
 	countOwenomics,
 	countCursorBlog,
 	countRss20,
@@ -207,6 +209,16 @@ describe('parseOwenomics — fuzz (never throws undocumented, always well-formed
 	});
 });
 
+describe('parseJpmEotm — fuzz (never throws undocumented, always well-formed)', () => {
+	it('holds for arbitrary text and structured JSON input', () => {
+		fuzzParser(
+			parseJpmEotm,
+			/^not a JPM Eye on the Market response/,
+			fc.oneof(arbitraryText, arbitraryJson),
+		);
+	});
+});
+
 // Listing-ish HTML fragments for the Cursor parser (#335): real markers from
 // the /blog/topic/research SSR markup — the container/card classes, anchors
 // with and without hrefs, time/p elements, broken tags — mixed with random
@@ -305,6 +317,7 @@ describe('raw counters — fuzz (never throw, always a non-negative integer)', (
 		['countAtom', countAtom],
 		['countAwsWhatsNew', countAwsWhatsNew],
 		['countTiNewsroom', countTiNewsroom],
+		['countJpmEotm', countJpmEotm],
 		['countOwenomics', countOwenomics],
 	];
 	for (const [name, count] of counters) {
