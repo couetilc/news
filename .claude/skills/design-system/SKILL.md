@@ -400,18 +400,25 @@ scripts/upload-screenshot.sh <issue-number> before docs/screenshot-before.png
 scripts/upload-screenshot.sh <issue-number> after  docs/screenshot-after.png
 ```
 
-It puts each PNG to the public `news-cdn` R2 bucket (`--remote`) under the
-`pr-screenshots/<issue>/` prefix and prints the public URL. Embed those URLs in
-the PR body so GitHub renders them inline:
+It puts each PNG to the public `news-cdn` R2 bucket (`--remote`) under a
+**content-addressed** key — `pr-screenshots/<issue>/<name>-<hash>.png`, where
+`<hash>` is a short hash of the PNG's bytes — and prints the resulting public
+URL on stdout (diagnostics go to stderr). **Embed exactly the URLs the helper
+prints; never hand-write a fixed key like `.../before.png`.** The hash in the
+URL is intentional: GitHub's image proxy (camo) caches proxied images by URL
+essentially permanently, so a fixed key would keep serving a stale screenshot
+after a re-capture, while changed bytes ⇒ a new hash ⇒ a new URL that camo
+fetches fresh (identical bytes re-upload idempotently to the same URL). In the
+PR body:
 
 ```markdown
 **Before**
 
-![before](https://news-cdn.cuteteal.com/pr-screenshots/<issue>/before.png)
+![before](https://news-cdn.cuteteal.com/pr-screenshots/<issue>/before-<hash>.png)
 
 **After**
 
-![after](https://news-cdn.cuteteal.com/pr-screenshots/<issue>/after.png)
+![after](https://news-cdn.cuteteal.com/pr-screenshots/<issue>/after-<hash>.png)
 ```
 
 Why this works: `news-cdn` is a public R2 bucket (the `CDN` binding in
