@@ -200,6 +200,15 @@ describe('countThinkingMachinesNews', () => {
 		).toBe(0);
 	});
 
+	it('counts a row whose class attribute carries other classes around the marker', () => {
+		// The live markup is exactly class="post-item-link" today, but the scan
+		// contract tolerates sibling utility classes on either side (the Cursor
+		// listing's card rows carry several) — pin the [^"]* gaps both ways.
+		expect(
+			countThinkingMachinesNews('<a class="row post-item-link featured" href="/news/x/">x</a>'),
+		).toBe(1);
+	});
+
 	it('returns 0 on a non-listing/garbage payload without throwing (#165)', () => {
 		// An error/challenge page, truncated markup, and empty input all count as
 		// 0 raw entries — never a throw.
