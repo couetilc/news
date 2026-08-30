@@ -3,14 +3,16 @@ import type { ItemRow } from '../ingest/db';
 import Article from './Article.astro';
 
 // "Recently viewed" lane (#334): the reader's few most recently opened items,
-// rendered above the unread list. Opening an article marks it read (the
-// opened.ts beacon), so the rows here are the newest item_reads rows
-// (listRecentlyRead) — a short "where was I?" rail in the briefing-column
-// voice: a small-caps divider label flanked by hairline rules (the section-
-// divider idiom), then ordinary Article rows. Each row arrives read, so it
-// renders dimmed with the filled square — un-reading from the lane works like
-// anywhere else and returns the item to Unread. Self-erasing when there are no
-// reads yet, so it never leaves an orphaned rule (the PinnedLinks pattern).
+// rendered above the unread list (the homepage passes items only on the Unread
+// tab — on the Read tab every lane row would duplicate the history below it).
+// Opening an article marks it read (the opened.ts beacon), so the rows here are
+// the newest item_reads rows (listRecentlyRead) — a short "where was I?" rail
+// in the briefing-column voice: a small-caps divider label flanked by hairline
+// rules (the section-divider idiom), then ordinary Article rows. Each row
+// arrives read, so it renders dimmed with the filled square — un-reading from
+// the lane works like anywhere else and returns the item to Unread.
+// Self-erasing when items is empty, so it never leaves an orphaned rule (the
+// PinnedLinks pattern).
 interface Props {
 	// Newest-opened first, already capped by the query (~3).
 	items: ItemRow[];

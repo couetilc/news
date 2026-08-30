@@ -363,16 +363,29 @@ describe('index page', () => {
 			expect(html).not.toContain('data-recently-viewed');
 		});
 
-		it('still renders on the Read tab and keeps the current view as returnTo', async () => {
+		it('does not render on the Read tab — every lane row would duplicate the history below', async () => {
 			vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog']);
 			feed({ read: [row({ id: 5, title: 'Old read', read_at: 4000 })] });
-			vi.mocked(listRecentlyRead).mockResolvedValue([recentRows[0]]);
 
 			const html = await render('https://news.test/?tab=read');
-			// The lane is tab-independent (a global rail, not tab content)…
+			// The lane query is skipped entirely on the Read tab, and no lane markup
+			// renders — the Read tab looks exactly as it did pre-lane.
+			expect(vi.mocked(listRecentlyRead)).not.toHaveBeenCalled();
+			expect(html).not.toContain('Recently viewed');
+			expect(html).not.toContain('data-recently-viewed');
+		});
+
+		it('keeps the current filtered view as the lane rows’ returnTo', async () => {
+			vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog']);
+			feed({ unread: [] });
+			vi.mocked(listRecentlyRead).mockResolvedValue([recentRows[0]]);
+
+			const html = await render('https://news.test/?source=cloudflare-blog');
+			// The lane renders even when the (filtered) unread tab is empty…
 			expect(html).toContain('aria-label="Recently viewed"');
-			// …and its rows' toggles return to the active view like every other row.
-			expect(html).toContain('name="return" value="/?tab=read"');
+			// …and its rows' toggles return to the active view like every other row,
+			// so un-reading from the lane keeps the filter (#80).
+			expect(html).toContain('name="return" value="/?source=cloudflare-blog"');
 		});
 	});
 

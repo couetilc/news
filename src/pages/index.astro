@@ -94,12 +94,15 @@ const items = isAuthed
 // The "Recently viewed" lane (#334): this user's few most recently opened
 // items, rendered above the unread list. Opening an article marks it read (the
 // opened.ts beacon → /api/read), so this is simply the newest item_reads rows.
-// Deliberately UNFILTERED by ?source and independent of the active tab — it's a
-// short global "where was I?" rail, not a section of the tabbed feed. Anonymous
-// visitors have no user row, so the query never runs and the lane never renders
-// on the public view.
+// Deliberately UNFILTERED by ?source (a short global "where was I?" rail, not a
+// section of the tabbed feed) and UNREAD-TAB ONLY — the issue's contract is a
+// lane preceding the *unread* list, and on the Read tab every lane row would be
+// a duplicate of the read history right below it. Anonymous visitors have no
+// user row, so the query never runs and the lane never renders on the public
+// view; on the Read tab it's skipped the same way (empty → self-erasing lane).
 const RECENT_LIMIT = 3;
-const recent = isAuthed ? await listRecentlyRead(env.NEWS_DB, queryUser, RECENT_LIMIT) : [];
+const recent =
+	isAuthed && !isReadTab(tab) ? await listRecentlyRead(env.NEWS_DB, queryUser, RECENT_LIMIT) : [];
 
 // Empty-state copy for the active tab. A source filter with no matches gets the
 // "from this source" line (so the reader knows to clear it); otherwise it's the
@@ -142,9 +145,10 @@ const emptyMessage = isReadTab(tab)
 					<div class="mx-auto max-w-2xl">
 						<FilterBar sources={present} active={active} tab={tab} />
 						{/* Recently viewed (#334): the ~3 most recently opened items, above
-						    the unread list. Sits between the filter chips and the tabs so it
-						    reads as its own ruled newspaper section, not part of the active
-						    tab's list. Self-erasing while nothing has been opened yet. */}
+						    the unread list (Unread tab only — `recent` is [] on the Read tab
+						    and the lane self-erases). Sits between the filter chips and the
+						    tabs so it reads as its own ruled newspaper section, not part of
+						    the active tab's list. Also empty while nothing has been opened. */}
 						<RecentlyViewed items={recent} returnTo={returnTo} />
 						<FeedTabs
 							active={tab}
