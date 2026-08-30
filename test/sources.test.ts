@@ -11,8 +11,10 @@ import cloudflareXml from './fixtures/cloudflare-blog.xml?raw';
 import elonlitXml from './fixtures/elonlit.xml?raw';
 import ieeeXml from './fixtures/ieee-spectrum.xml?raw';
 import intelXml from './fixtures/intel.xml?raw';
+import mistralXml from './fixtures/mistral.xml?raw';
 import nvidiaBlogXml from './fixtures/nvidia-blog.xml?raw';
 import nvidiaNewsroomXml from './fixtures/nvidia-newsroom.xml?raw';
+import openaiXml from './fixtures/openai.xml?raw';
 import qualcommXml from './fixtures/qualcomm.xml?raw';
 import scienceDailyXml from './fixtures/science-daily.xml?raw';
 import tiBlogJson from './fixtures/ti-company-blog.json?raw';
@@ -20,6 +22,7 @@ import tiNewsJson from './fixtures/ti-news-releases.json?raw';
 import tiEdgarJson from './fixtures/ti-sec-edgar.json?raw';
 import eotmJson from './fixtures/eye-on-the-market.json?raw';
 import owenomicsJson from './fixtures/owenomics.json?raw';
+import thinkingMachinesXml from './fixtures/thinking-machines.xml?raw';
 
 const source = (name: string) => SOURCES.find((s) => s.source === name)!;
 
@@ -42,6 +45,9 @@ describe('SOURCES', () => {
 		expect(slugs).toContain('cisco');
 		expect(slugs).toContain('ti');
 		expect(slugs).toContain('eye-on-the-market');
+		expect(slugs).toContain('mistral');
+		expect(slugs).toContain('openai');
+		expect(slugs).toContain('thinking-machines');
 		expect(slugs).toContain('owenomics');
 	});
 
@@ -345,5 +351,169 @@ describe('SOURCES', () => {
 
 	it('counts the Owenomics Results array as the drift denominator (#333)', () => {
 		expect(source('owenomics').countRaw!(owenomicsJson)).toBe(5);
+	});
+
+	it('registers the Mistral first-party feed on the /news/rss URL with a 6-hour poll (#339)', () => {
+		const mistral = source('mistral');
+		// The advertised /rss.xml 301s here; poll the final URL directly. The feed
+		// is served as text/plain — run.ts parses by content, never content-type.
+		expect(mistral.feed).toBe('https://mistral.ai/news/rss');
+		// ~1–2 posts/week → 6-hourly.
+		expect(mistral.pollIntervalSeconds).toBe(21600);
+		expect(mistral.countRaw).toBeDefined();
+	});
+
+	it('parses Mistral title-only items: no content, no summary, links out (#339)', () => {
+		// The newest live item has NO <description> at all — the AMD pattern:
+		// `description` mode yields null contentHtml and the reader links out.
+		const items = source('mistral').parse(mistralXml);
+		expect(items[0].title).toBe('Mistral x HUMAIN');
+		expect(items[0].url).toBe('https://mistral.ai/news/mistral-x-humain/');
+		// guid mirrors the permalink (isPermaLink="true").
+		expect(items[0].guid).toBe('https://mistral.ai/news/mistral-x-humain/');
+		expect(items[0].contentHtml).toBeNull();
+		expect(items[0].summary).toBeNull();
+		// Precise second-resolution pubDate, RFC-822 GMT.
+		expect(items[0].publishedAt).toBe(Math.floor(Date.UTC(2026, 7, 24, 16, 2, 41) / 1000));
+	});
+
+	it('parses a Mistral teaser description into contentHtml with no summary (#339)', () => {
+		// When an item does carry a <description>, it's a one-sentence plain-text
+		// teaser; `description` mode routes it into contentHtml and leaves summary
+		// null (same path as IEEE Spectrum/Qualcomm).
+		const items = source('mistral').parse(mistralXml);
+		expect(items[1].title).toBe(
+			'Agentic Search. More accurate and efficient results from your AI systems.',
+		);
+		expect(items[1].url).toBe('https://mistral.ai/news/agentic-search/');
+		expect(items[1].contentHtml).toBe(
+			'The retrieval layer that helps AI systems navigate, read, and verify information inside even the most complex documents',
+		);
+		expect(items[1].summary).toBeNull();
+		expect(items[1].publishedAt).toBe(Math.floor(Date.UTC(2026, 7, 20, 12, 0, 17) / 1000));
+	});
+
+	it('counts every Mistral <item> as the drift denominator (#339)', () => {
+		expect(source('mistral').countRaw!(mistralXml)).toBe(5);
+	});
+
+	it('registers the OpenAI first-party news feed (#337)', () => {
+		const openai = source('openai');
+		expect(openai.feed).toBe('https://openai.com/news/rss.xml');
+		// Several posts/week → a 6-hour poll is ample.
+		expect(openai.pollIntervalSeconds).toBe(21600);
+		expect(openai.countRaw).toBeDefined();
+		expect(openai.keep).toBeDefined();
+	});
+
+	it('parses the OpenAI feed: plain-text summary from the description, links out (#337)', () => {
+		const items = source('openai').parse(openaiXml);
+		expect(items).toHaveLength(8);
+		expect(items[0].title).toBe('Our decision on Cursor following its acquisition by SpaceX');
+		expect(items[0].url).toBe(
+			'https://openai.com/index/our-decision-on-cursor-following-its-acquisition-by-spacex',
+		);
+		// guid isPermaLink="true" — the article URL is the stable dedupe id.
+		expect(items[0].guid).toBe(items[0].url);
+		// Summaries only: description → summary, no full text in the feed
+		// (article pages are Cloudflare-challenged, so we link out).
+		expect(items[0].summary).toBe(
+			'Our decision to wind down our contract providing OpenAI models to Cursor following its acquisition by SpaceX.',
+		);
+		expect(items[0].contentHtml).toBeNull();
+		expect(items[0].publishedAt).toBe(Math.floor(Date.UTC(2026, 7, 28, 6, 0, 0) / 1000));
+		// ~9% of items (old case studies) carry no <description>: null summary,
+		// still a well-formed item.
+		const genebench = items.find((i) => i.title === 'Inside Genebench-Pro')!;
+		expect(genebench.summary).toBeNull();
+		expect(genebench.contentHtml).toBeNull();
+	});
+
+	it('preserves pubDate over document order for OpenAI (feed is not strictly chronological, #337)', () => {
+		// Real live-feed quirk: the NVIDIA item precedes the Asana item in the
+		// document even though Asana's pubDate is LATER — pubDate is the truth.
+		const items = source('openai').parse(openaiXml);
+		const nvidia = items.findIndex((i) => i.url === 'https://openai.com/index/nvidia/chatgpt-work');
+		const asana = items.findIndex((i) => i.url === 'https://openai.com/index/asana');
+		expect(nvidia).toBeLessThan(asana);
+		expect(items[nvidia].publishedAt).toBe(Math.floor(Date.UTC(2026, 7, 18, 0, 0, 0) / 1000));
+		expect(items[asana].publishedAt).toBe(Math.floor(Date.UTC(2026, 7, 18, 7, 0, 0) / 1000));
+		expect(items[asana].publishedAt!).toBeGreaterThan(items[nvidia].publishedAt!);
+	});
+
+	it('openai keep filter drops pre-launch archive items, keeps post-cutoff ones (#337)', () => {
+		// First-poll flood control: the live feed is the full ~1,157-item archive
+		// back to 2015; only items published on/after 2026-08-01T00:00:00Z stay.
+		// parse keeps everything (run.ts applies `keep` post-anomaly-check).
+		const openai = source('openai');
+		const items = openai.parse(openaiXml);
+		expect(items).toHaveLength(8);
+		const kept = items.filter((i) => openai.keep!(i)).map((i) => i.title);
+		expect(kept).toEqual([
+			'Our decision on Cursor following its acquisition by SpaceX',
+			'Supporting Thailand’s next generation of AI startups',
+			'How loveholidays is making everyone a builder with Codex',
+			'How NVIDIA scales expertise with ChatGPT Work',
+			'Asana cleared 5 years of engineering work in 2 weeks with Codex',
+		]);
+		const dropped = items.filter((i) => !openai.keep!(i)).map((i) => i.title);
+		expect(dropped).toEqual([
+			// 2026-07-29 — days before the cutoff; category (Research) is irrelevant
+			// to keep: we ingest ALL categories, the cutoff is purely by date.
+			'How enabling two settings tripled our scores on the ARC-AGI-3 benchmark',
+			'Inside Genebench-Pro',
+			'Introducing OpenAI',
+		]);
+	});
+
+	it('openai keep filter keeps an item with a missing/unparseable pubDate (#337)', () => {
+		// Conservative branch: rather ingest a stray archive item than drop a real
+		// post whose date failed to parse (insertItems dedupes repeats anyway).
+		expect(
+			source('openai').keep!({
+				guid: 'https://openai.com/index/undated',
+				url: 'https://openai.com/index/undated',
+				title: 'An undated post',
+				summary: null,
+				contentHtml: null,
+				publishedAt: null,
+			}),
+		).toBe(true);
+	});
+
+	it('counts raw OpenAI <item> elements as the drift denominator (#337)', () => {
+		// countRaw sees ALL 8 raw items — the keep filter must never shrink the
+		// shape-drift comparison, or a mostly-archive poll would look like drift.
+		expect(source('openai').countRaw!(openaiXml)).toBe(8);
+	});
+
+	it('registers Thinking Machines on the root feed with a daily poll (#338)', () => {
+		const tm = source('thinking-machines');
+		// The ROOT feed, not /blog/index.xml: same items today, but section-agnostic
+		// (the site's declared rel=alternate), so future /news/ syndication would
+		// land without a config change. /news/ has no working feed anywhere yet.
+		expect(tm.feed).toBe('https://thinkingmachines.ai/index.xml');
+		// ~1 post every 6 weeks → daily poll is ample.
+		expect(tm.pollIntervalSeconds).toBe(86400);
+		expect(tm.countRaw).toBeDefined();
+		expect(tm.countRaw!(thinkingMachinesXml)).toBe(2);
+	});
+
+	it('parses Thinking Machines: full HTML from content:encoded, no summary (no description) (#338)', () => {
+		const items = source('thinking-machines').parse(thinkingMachinesXml);
+		expect(items).toHaveLength(2);
+		expect(items[0].title).toBe('A Safe Path to Open Weights');
+		// Permalink guid doubles as the absolute article URL.
+		expect(items[0].url).toBe('https://thinkingmachines.ai/blog/a-safe-path-to-open-weights/');
+		expect(items[0].guid).toBe('https://thinkingmachines.ai/blog/a-safe-path-to-open-weights/');
+		// Full post HTML lives in content:encoded; items carry NO <description>,
+		// so summary is null (not '').
+		expect(items[0].contentHtml).toContain('<strong>Abstract:</strong>');
+		expect(items[0].summary).toBeNull();
+		// Date-only pubDate → midnight UTC, exactly.
+		expect(items[0].publishedAt).toBe(Math.floor(Date.UTC(2026, 6, 31, 0, 0, 0) / 1000));
+		// The one item with a real time-of-day parses to that instant, not midnight.
+		expect(items[1].title).toBe('Defeating Nondeterminism in LLM Inference');
+		expect(items[1].publishedAt).toBe(Math.floor(Date.UTC(2025, 8, 10, 7, 1, 0) / 1000));
 	});
 });

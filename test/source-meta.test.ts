@@ -29,6 +29,24 @@ describe('sourceMeta', () => {
 		});
 	});
 
+	it('maps mistral to its registered display name and swatch (#339)', () => {
+		// The exact pair the reader sees on the chip; a slug typo would fall back
+		// to { name: 'mistral', swatch: 'bg-muted' } and fail here.
+		expect(sourceMeta('mistral')).toEqual({
+			name: 'Mistral',
+			swatch: 'bg-source-mistral',
+		});
+	});
+
+	it('maps openai to its registered display name and swatch (#337)', () => {
+		// The exact pair the reader sees; a slug typo would fall back to
+		// { name: 'openai', swatch: 'bg-muted' } and fail here.
+		expect(sourceMeta('openai')).toEqual({
+			name: 'OpenAI',
+			swatch: 'bg-source-openai',
+		});
+	});
+
 	it('maps owenomics to its registered display name and swatch (#333)', () => {
 		// The exact pair the reader sees — a slug typo would fall back to
 		// { name: 'owenomics', swatch: 'bg-muted' } and fail here.
@@ -46,6 +64,10 @@ describe('sourceMeta', () => {
 			swatch: 'bg-source-cloudflare',
 		});
 		expect(sourceMeta('ti')).toEqual({ name: 'Texas Instruments', swatch: 'bg-source-ti' });
+		expect(sourceMeta('thinking-machines')).toEqual({
+			name: 'Thinking Machines',
+			swatch: 'bg-source-thinking-machines',
+		});
 	});
 
 	it('falls back to the raw slug and the neutral swatch for an unregistered source', () => {

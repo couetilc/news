@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?><rss xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:atom="http://www.w3.org/2005/Atom" version="2.0">
+    <channel>
+        <title><![CDATA[OpenAI News]]></title>
+        <description><![CDATA[The OpenAI blog]]></description>
+        <link>https://openai.com/news</link>
+        <image>
+            <url>https://openai.com/apple-icon.png</url>
+            <title>OpenAI News</title>
+            <link>https://openai.com/news</link>
+        </image>
+        <generator>OpenAI</generator>
+        <lastBuildDate>Sun, 30 Aug 2026 04:50:51 GMT</lastBuildDate>
+        <atom:link href="https://openai.com/news/rss.xml" rel="self" type="application/rss+xml"/>
+        <item>
+            <title><![CDATA[Our decision on Cursor following its acquisition by SpaceX]]></title>
+            <description><![CDATA[Our decision to wind down our contract providing OpenAI models to Cursor following its acquisition by SpaceX.]]></description>
+            <link>https://openai.com/index/our-decision-on-cursor-following-its-acquisition-by-spacex</link>
+            <guid isPermaLink="true">https://openai.com/index/our-decision-on-cursor-following-its-acquisition-by-spacex</guid>
+            <category><![CDATA[Company]]></category>
+            <pubDate>Fri, 28 Aug 2026 06:00:00 GMT</pubDate>
+        </item>
+        <item>
+            <title><![CDATA[Supporting Thailand’s next generation of AI startups]]></title>
+            <description><![CDATA[OpenAI and Thailand’s MHESI launch an eight-week accelerator helping 10 health, wellness, and education startups turn AI prototypes into trusted products.]]></description>
+            <link>https://openai.com/index/supporting-next-generation-ai-startups-thailand</link>
+            <guid isPermaLink="true">https://openai.com/index/supporting-next-generation-ai-startups-thailand</guid>
+            <category><![CDATA[Company]]></category>
+            <pubDate>Fri, 28 Aug 2026 02:00:00 GMT</pubDate>
+        </item>
+        <item>
+            <title><![CDATA[How loveholidays is making everyone a builder with Codex]]></title>
+            <description><![CDATA[Discover how loveholidays uses OpenAI Codex to make software development accessible across the business, helping teams turn ideas into products faster.]]></description>
+            <link>https://openai.com/index/loveholidays</link>
+            <guid isPermaLink="true">https://openai.com/index/loveholidays</guid>
+            <pubDate>Wed, 26 Aug 2026 00:00:00 GMT</pubDate>
+        </item>
+        <item>
+            <title><![CDATA[How NVIDIA scales expertise with ChatGPT Work]]></title>
+            <description><![CDATA[NVIDIA teams use ChatGPT Work to reduce manual tasks, connect fast-moving signals, and scale successful workflows globally.]]></description>
+            <link>https://openai.com/index/nvidia/chatgpt-work</link>
+            <guid isPermaLink="true">https://openai.com/index/nvidia/chatgpt-work</guid>
+            <pubDate>Tue, 18 Aug 2026 00:00:00 GMT</pubDate>
+        </item>
+        <item>
+            <title><![CDATA[Asana cleared 5 years of engineering work in 2 weeks with Codex]]></title>
+            <description><![CDATA[Asana used OpenAI Codex to replace an outdated testing system in two weeks, completing work expected to take five years for about $12K.]]></description>
+            <link>https://openai.com/index/asana</link>
+            <guid isPermaLink="true">https://openai.com/index/asana</guid>
+            <pubDate>Tue, 18 Aug 2026 07:00:00 GMT</pubDate>
+        </item>
+        <item>
+            <title><![CDATA[How enabling two settings tripled our scores on the ARC-AGI-3 benchmark]]></title>
+            <description><![CDATA[How two API settings improved GPT-5.6 performance on ARC-AGI-3, boosting scores and efficiency by retaining reasoning and enabling compaction.]]></description>
+            <link>https://openai.com/index/how-two-settings-tripled-our-arc-agi-3-scores</link>
+            <guid isPermaLink="true">https://openai.com/index/how-two-settings-tripled-our-arc-agi-3-scores</guid>
+            <category><![CDATA[Research]]></category>
+            <pubDate>Wed, 29 Jul 2026 15:00:00 GMT</pubDate>
+        </item>
+        <item>
+            <title><![CDATA[Inside Genebench-Pro]]></title>
+            <link>https://openai.com/index/genebench-pro/case-studies</link>
+            <guid isPermaLink="true">https://openai.com/index/genebench-pro/case-studies</guid>
+            <pubDate>Tue, 30 Jun 2026 00:00:00 GMT</pubDate>
+        </item>
+        <item>
+            <title><![CDATA[Introducing OpenAI]]></title>
+            <description><![CDATA[OpenAI is a non-profit artificial intelligence research company. Our goal is to advance digital intelligence in the way that is most likely to benefit humanity as a whole, unconstrained by a need to generate financial return. Since our research is free from financial obligations, we can better focus on a positive human impact.]]></description>
+            <link>https://openai.com/index/introducing-openai</link>
+            <guid isPermaLink="true">https://openai.com/index/introducing-openai</guid>
+            <category><![CDATA[Company]]></category>
+            <pubDate>Fri, 11 Dec 2015 08:00:00 GMT</pubDate>
+        </item>
+    </channel>
+</rss>

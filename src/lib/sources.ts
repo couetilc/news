@@ -28,6 +28,9 @@ const REGISTRY: Record<string, SourceMeta> = {
 	cisco: { name: 'Cisco', swatch: 'bg-source-cisco' },
 	ti: { name: 'Texas Instruments', swatch: 'bg-source-ti' },
 	'eye-on-the-market': { name: 'Eye on the Market', swatch: 'bg-source-eotm' },
+	mistral: { name: 'Mistral', swatch: 'bg-source-mistral' },
+	openai: { name: 'OpenAI', swatch: 'bg-source-openai' },
+	'thinking-machines': { name: 'Thinking Machines', swatch: 'bg-source-thinking-machines' },
 	owenomics: { name: 'Owenomics', swatch: 'bg-source-owenomics' },
 };
 

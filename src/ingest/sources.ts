@@ -39,6 +39,13 @@ const AWS_TERMS = ['graviton', 'trainium', 'inferentia', 'nitro'] as const;
 // shape-drift check (see FeedConfig.keep), so this can't trip parse_drop.
 const AWS_REGION_ROLLOUT = /\bavailable in\b.*\bregions?\b/i;
 
+// #337 — first-poll flood control for OpenAI: the feed is the FULL ~1,157-item
+// archive back to 2015, so without a cutoff the first poll would insert a
+// decade of backfill. Drop anything published before the source's launch here
+// (2026-08-01T00:00:00Z). See the FeedConfig entry for the conservative
+// missing-date choice.
+const OPENAI_LAUNCH_CUTOFF = Date.UTC(2026, 7, 1) / 1000;
+
 function awsFeed(term: string): FeedConfig {
 	const url = new URL('https://aws.amazon.com/api/dirs/items/search');
 	url.searchParams.set('item.directoryId', 'whats-new-v2');
@@ -277,6 +284,26 @@ export const SOURCES: FeedConfig[] = [
 		parse: (json) => parseSecEdgar(json, { cik: '97476', issuer: 'Texas Instruments' }),
 	},
 	{
+		// #338 — Thinking Machines Lab. The ROOT feed (the site's declared
+		// rel=alternate) — RSS 2.0 with the FULL post HTML in content:encoded and
+		// NO <description> at all (probed 2026-08-30; the issue's "summaries only"
+		// research predates the current feed), so content:encoded mode stores the
+		// full text and summary stays null. Guids are the permalink URLs.
+		// Today it carries exactly the /blog/ ("Connectionism") posts — identical
+		// to /blog/index.xml — but it's section-agnostic, so if the site ever
+		// syndicates /news/ those items land here with no config change. The
+		// /news/ announcements have NO working feed anywhere (first-party
+		// /news/index.xml 404s, OpenRSS returns an empty channel, the community
+		// mirror is blog-only) — tracked separately, see the issue. Mostly
+		// date-only midnight-UTC pubDates (Date.parse handles them, see
+		// parse/dates.ts); ~1 post every 6 weeks, so a daily poll is ample.
+		source: 'thinking-machines',
+		feed: 'https://thinkingmachines.ai/index.xml',
+		pollIntervalSeconds: 86400,
+		parse: (xml) => parseRss20(xml, { content: 'content:encoded' }),
+		countRaw: countRss20,
+	},
+	{
 		// #319 — JPMorgan Asset Management's "Eye on the Market" (Michael Cembalest),
 		// the ongoing weekly/biweekly commentary stream. The landing page is a
 		// client-rendered AEM app with NO RSS/Atom and no first-party feed; its
@@ -296,6 +323,50 @@ export const SOURCES: FeedConfig[] = [
 		pollIntervalSeconds: 86400,
 		parse: parseJpmEotm,
 		countRaw: countJpmEotm,
+	},
+	{
+		// #339 — Mistral AI news, first-party RSS 2.0. The advertised /rss.xml URL
+		// 301s to /news/rss (the news page's "RSS feed" card), so poll the final URL
+		// directly. GOTCHA: it's served as `Content-Type: text/plain; charset=UTF-8`,
+		// not an XML type — fine, run.ts never gates on content-type (it hands
+		// res.text() straight to parse). Items are title+link with at most a
+		// one-sentence teaser <description> (most items carry none), so `description`
+		// mode yields a teaser-or-null contentHtml and we link out — the AMD pattern.
+		// ~1–2 posts/week in an ~80-item window, so a 6-hour poll is ample. Fallback
+		// mirrors if the first-party feed rots: the Turing Institute mirror
+		// (raw.githubusercontent.com/alan-turing-institute/ai-rss-feeds → feeds/
+		// mistral-news.xml), 0xSMW/rss-feeds (feed_mistral_news.xml, full text in
+		// content:encoded), or the openrss.org proxy.
+		source: 'mistral',
+		feed: 'https://mistral.ai/news/rss',
+		pollIntervalSeconds: 21600,
+		parse: (xml) => parseRss20(xml, { content: 'description' }),
+		countRaw: countRss20,
+	},
+	{
+		// #337 — OpenAI's first-party news feed (the old /blog/rss.xml 307-redirects
+		// here). RSS 2.0 with plain-text SUMMARIES in <description> — no
+		// content:encoded, and article pages are Cloudflare-challenged for server
+		// fetches, so we link out and never plan full-text enrichment. As with
+		// Intel/ScienceDaily, `content:encoded` mode routes the description into
+		// `summary` and leaves contentHtml null; ~9% of items (old case studies)
+		// have no description at all, yielding a null summary. Items are NOT
+		// strictly chronological — trust pubDate, never document order. `keep`
+		// drops items published before OPENAI_LAUNCH_CUTOFF (first-poll flood
+		// control against the full-archive feed); an item with a missing or
+		// unparseable pubDate is KEPT — conservative, in the spirit of the AWS
+		// rollout filter: rather ingest a stray archive item than drop a real
+		// post (insertItems dedupes repeats by (source, guid) anyway). Most items
+		// carry one <category> (Company/Research/Product/…, ~13% none); we
+		// deliberately ingest ALL categories — a category filter can be added
+		// later via this same `keep` seam. Several posts/week, so a 6-hour poll
+		// is ample.
+		source: 'openai',
+		feed: 'https://openai.com/news/rss.xml',
+		pollIntervalSeconds: 21600,
+		parse: (xml) => parseRss20(xml, { content: 'content:encoded' }),
+		countRaw: countRss20,
+		keep: (item) => item.publishedAt === null || item.publishedAt >= OPENAI_LAUNCH_CUTOFF,
 	},
 	{
 		// #333 — Acadian Asset Management "Owenomics" (Owen Lamont's behavioral
