@@ -8,9 +8,9 @@
 # PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers (with
 # PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1), but that build lags the repo's
 # @playwright/test pin, so `npm run test:e2e` fails with a missing-executable
-# error — and `npx playwright install chromium` cannot fix it there because
-# the Playwright browser CDN is egress-blocked under the environment's network
-# policy. Minor version skew (an older headless shell under a newer client) is
+# error. Prefer `npx playwright install chromium` when the browser CDN is
+# reachable; this shim is the no-download fallback when it isn't.
+# Minor version skew (an older headless shell under a newer client) is
 # fine for these UI specs; CI installs the pinned browser properly and never
 # uses this shim.
 #

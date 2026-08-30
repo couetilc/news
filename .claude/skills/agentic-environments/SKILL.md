@@ -46,16 +46,23 @@ Current state:
 | Cloud sessions | **None — deliberately credential-free** | Scoped credential via GitHub App proxy (automatic) |
 | GitHub Actions | Repo Actions secret `CLOUDFLARE_API_TOKEN` (same token value as `.env`) | Built-in `GITHUB_TOKEN` |
 
-Cloud sessions need no Cloudflare token: deploys happen in CI after merge, so
-they need no network exception. The claude.ai environment has no dedicated
-secrets store (env vars are visible to anyone who can edit the environment), so
-keeping it empty is the safest default.
+Cloud sessions need no Cloudflare token: deploys happen in CI after merge. The
+claude.ai environment has no dedicated secrets store (env vars are visible to
+anyone who can edit the environment), so keeping it empty is the safest
+default. If a cloud session ever needs a secret, use an **API credential**
+(environment editor → "API credentials", below "Environment variables";
+requires an org Admin/Owner role to see the section): the agent proxy attaches
+it to requests for the hosts you list after they leave the VM, so the session
+never sees the value.
 
 ## Cloud environment recipe (claude.ai settings)
 
 The environment for this repo should be configured as:
 
-- **Network access:** Trusted (default)
+- **Network access:** Full — cloud sessions fetch live feeds and probe
+  candidate sources directly while building scrapers. Safe because the
+  environment holds no credentials and all egress still passes through
+  Anthropic's policy proxy.
 - **Environment variables:** none
 - **Setup script:** none
 
@@ -258,22 +265,24 @@ cloud SDKs) / **Full** (any domain) / **Custom** (your allowlist, optionally
 plus the Trusted defaults). All egress passes through Anthropic's security
 proxy; GitHub traffic uses its own separate proxy regardless of mode.
 
-Facts that drive our choices:
+This repo's environment runs **Full**, so scraper/ingest work can fetch live
+feeds and probe candidate sources during cloud development — no allowlist to
+maintain. (If it ever moves back to a Custom allowlist,
+`scripts/print-feed-allowlist.mjs` prints the feed hosts from
+`src/ingest/sources.ts` to paste in.) What Full does and doesn't change:
 
-- `api.cloudflare.com` is **not** in the Trusted allowlist → `wrangler deploy`
-  fails from a Trusted cloud session. That's fine: deploys belong to CI.
-- `https://news.cuteteal.com` is also unreachable under Trusted mode, so the
-  standard dev loop's post-merge `curl` verification can't run from a cloud
-  session — verify a deploy by watching the CI `deploy` job go green instead
-  (via the GitHub MCP actions tools or the run's page).
-- **Testing policy: vitest must never hit the network.** Mock all external
-  HTTP. This keeps `npm test` working under Trusted, in CI, and offline.
-- When feature work needs to fetch live feeds/APIs *during cloud development*,
-  switch the environment to **Custom**, list the feed domains (one per line,
-  `*.` wildcards supported), and check "Also include default list of common
-  package managers". Otherwise develop live-fetch features locally or via
-  Dispatch. Changing network settings invalidates the environment cache (setup
-  script re-runs).
+- `https://news.cuteteal.com` is reachable, so the standard dev loop's
+  post-merge `curl` verification works from cloud sessions (watching the CI
+  `deploy` job go green is an equivalent check).
+- `api.cloudflare.com` is reachable, but `wrangler` still can't deploy or read
+  production from a cloud session: the environment deliberately holds no
+  Cloudflare credential. The deploy gate is the credential, not the network
+  mode — deploys belong to CI.
+- **Testing policy is unchanged: vitest must never hit the network.** Mock all
+  external HTTP. Hermeticity is policy — deterministic in CI and offline —
+  not a workaround for network restrictions.
+- Changing network settings invalidates the environment cache (setup script
+  re-runs).
 
 ## Playwright e2e in cloud sessions
 
@@ -281,11 +290,12 @@ Facts that drive our choices:
 Playwright browsers at `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers` (and sets
 `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`), but that build lags the repo's
 `@playwright/test` pin, and Playwright refuses to launch a build revision it
-didn't install (missing-executable error). `npx playwright install chromium` —
-the host guidance in CLAUDE.md — cannot fix it there: the Playwright browser
-CDN is egress-blocked under the environment's network policy (Trusted mode).
+didn't install (missing-executable error). Under the environment's Full
+network access the browser CDN is reachable, so try `npx playwright install
+chromium` (the host guidance in CLAUDE.md) first.
 
-Run **`scripts/pw-browser-shim.sh`** instead. It derives the pinned build
+If the download fails, run **`scripts/pw-browser-shim.sh`** instead — it needs
+no network. It derives the pinned build
 revision from `node_modules/playwright-core/browsers.json` and globs the
 preinstalled dir for the available one (no hardcoded build numbers — it
 survives version bumps on either side), builds a symlink shim at
