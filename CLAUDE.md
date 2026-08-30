@@ -137,10 +137,12 @@ skill at `.claude/skills/testing/SKILL.md`):
 - **Two vitest projects, because two runtimes are required:** `workers`
   (`vitest.workers.config.ts`) runs inside workerd via
   `@cloudflare/vitest-pool-workers` for real `cloudflare:workers` env + D1 +
-  `ON CONFLICT` semantics (all `src/ingest/**`, the worker's real D1 behavior);
-  `node` (`vitest.node.config.ts`) renders `.astro` pages via Astro's Container
-  API and hosts the `src/worker.ts` entry test. Every `src/**` file is exercised
-  by exactly one project.
+  `ON CONFLICT` semantics (the imperative shell: D1 data layer, ingest
+  orchestration, endpoints, workerd crypto); `node` (`vitest.node.config.ts`)
+  hosts every pure functional-core spec (parsers, normalization, the
+  schedule/merge/queries/digest cores), renders `.astro` pages via Astro's
+  Container API, and runs the `src/worker.ts` entry test. Every `src/**` file's
+  dedicated spec lives in exactly one project.
 - **Hermetic — tests must never hit the network.** Inject `fetch` (the ingest
   runner takes a `fetchFn`) and use feed fixtures under `test/fixtures/`. Keeps
   `npm test` green in CI, in claude.ai cloud sessions (Trusted network mode), and
