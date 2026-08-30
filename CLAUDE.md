@@ -10,10 +10,10 @@ aggregator.
 
 ## Stack and architectural decisions
 
-- **Astro 6 with `output: 'server'`** — all pages SSR by default (an aggregator
+- **Astro 7 with `output: 'server'`** — all pages SSR by default (an aggregator
   serves fresh content). Opt individual pages back into prerendering with
   `export const prerender = true`.
-- **`@astrojs/cloudflare` adapter v13**, built on `@cloudflare/vite-plugin`:
+- **`@astrojs/cloudflare` adapter v14**, built on `@cloudflare/vite-plugin`:
   `astro dev` runs the app **inside workerd** locally with real local bindings —
   this is the rapid-iteration loop. `astro build` emits the worker to
   `dist/server/` plus a deployable config at `dist/server/wrangler.json`;

@@ -90,9 +90,18 @@ export default defineConfig({
 	// starts the run once `/` responds, so the first navigation can't hit the
 	// server before it's listening — which closes the `astro dev` window where a
 	// nav could land mid-(re)compile (#257).
+	//
+	// ASTRO_PREVIEW_BACKGROUND=1 pins `astro preview` to the FOREGROUND. Astro 7
+	// auto-daemonizes dev/preview when it detects an agent environment
+	// (am-i-vibing, e.g. $CLAUDECODE): the parent forks the server and exits 0,
+	// and Playwright then fails with "Process from config.webServer exited
+	// early" (issue #343). Setting the CLI's own background-child marker env var
+	// makes the agent-detection branch skip itself, so the server runs attached —
+	// the process Playwright supervises IS the server, on every surface. CI and
+	// human shells were foreground already; this just makes it deterministic.
 	webServer: {
 		command:
-			'node ./e2e/ensure-dev-vars.mjs && npm run db:migrate:local && npm run build && npm run preview -- --host 127.0.0.1',
+			'node ./e2e/ensure-dev-vars.mjs && npm run db:migrate:local && npm run build && ASTRO_PREVIEW_BACKGROUND=1 npm run preview -- --host 127.0.0.1',
 		url: BASE_URL,
 		reuseExistingServer: !process.env.CI,
 		timeout: 180_000,
