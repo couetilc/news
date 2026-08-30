@@ -46,6 +46,19 @@ const AWS_REGION_ROLLOUT = /\bavailable in\b.*\bregions?\b/i;
 // missing-date choice.
 const OPENAI_LAUNCH_CUTOFF = Date.UTC(2026, 7, 1) / 1000;
 
+// #340 — lab-name filter for the Hugging Face blog backstop. STRICTLY the five
+// Chinese open-source labs (DeepSeek, Qwen, Moonshot/Kimi, Zhipu/Z.ai, MiniMax
+// — GLM is Zhipu/Z.ai's model line), not any-open-weights — an owner decision
+// recorded on the PR. Boundary rule: a lab token must not be GLUED to another
+// LETTER on either side, but digits/hyphens/punctuation attach freely — so
+// "Qwen3", "Qwen3-Coder", "DeepSeek-V4", "GLM-5", "Kimi K2" all match, while
+// letter-glued near-misses ("Kimina-Prover", a stats post on "GLMs", "viz.ai")
+// don't. That strictness knowingly leaves spinoff BRANDS containing a lab name
+// (Kimina-*) outside the filter; the alternative — bare substring matching —
+// would admit arbitrary unrelated words. Case-insensitive: HF titles write
+// "Deepseek" as often as "DeepSeek".
+const OPEN_MODELS_LABS = /(?<![a-z])(?:deepseek|qwen|kimi|glm|zhipu|z\.ai|minimax)(?![a-z])/i;
+
 function awsFeed(term: string): FeedConfig {
 	const url = new URL('https://aws.amazon.com/api/dirs/items/search');
 	url.searchParams.set('item.directoryId', 'whats-new-v2');
@@ -388,5 +401,49 @@ export const SOURCES: FeedConfig[] = [
 		pollIntervalSeconds: 86400,
 		parse: parseOwenomics,
 		countRaw: countOwenomics,
+	},
+	{
+		// #340 — the Chinese open-source labs (DeepSeek, Qwen, Moonshot/Kimi,
+		// Zhipu/Z.ai, MiniMax) have NO working first-party feed (probed 2026-08-30:
+		// every candidate path is an SPA HTML shell, 404, or a frozen archive), so
+		// the healthy first-party Hugging Face blog feed is the shared BACKSTOP —
+		// it carries nearly every major release from all five labs. The feed is
+		// broad (~850 items, several posts/week, partner/community posts), so
+		// `keep` narrows it to lab-name titles (see OPEN_MODELS_LABS); run.ts
+		// applies it after the shape-drift check, so countRss20 still sees the
+		// full item count. Items are title+link+guid+pubDate ONLY — no per-item
+		// <description> — so `description` mode yields null summary AND null
+		// contentHtml and we link out, the AMD title-only pattern. First poll
+		// ingests only the ~dozen archive items that pass the filter — on-topic
+		// backfill, so no launch cutoff needed (contrast OpenAI above). The
+		// deliberately-skipped alternative: Qwen's old qwenlm.github.io feed is a
+		// frozen 2023–2025 archive (newest 2025-09-23; the blog moved to qwen.ai)
+		// — pure backfill, no new items possible. Several posts/week feed-wide,
+		// so a 6-hour poll is ample.
+		source: 'open-models',
+		feed: 'https://huggingface.co/blog/feed.xml',
+		pollIntervalSeconds: 21600,
+		parse: (xml) => parseRss20(xml, { content: 'description' }),
+		countRaw: countRss20,
+		keep: (item) => OPEN_MODELS_LABS.test(item.title),
+	},
+	{
+		// #340 — DeepSeek's news page through the OpenRSS proxy (the #22 Anthropic
+		// pattern; the only one of the five per-lab OpenRSS candidates that
+		// returned a populated feed on the 2026-08-30 probe — the rest 404). Use
+		// EXACTLY the /feed/-prefixed URL: the bare openrss.org/<host>/<path> form
+		// serves the OpenRSS HTML site page, not XML. RSS 2.0 with the full
+		// rendered page HTML in the <description> CDATA (no content:encoded), so
+		// `description` mode routes it into contentHtml with null summary — same
+		// path as the Anthropic feeds. CAVEAT: OpenRSS scrapes the Docusaurus
+		// news/docs site, so items are whatever doc pages change — release posts
+		// AND guide updates; the open-models backstop above stays the primary
+		// release signal. ~monthly-ish cadence and OpenRSS serves a cached copy
+		// anyway, so poll 3×/day (8h) like the Anthropic entries.
+		source: 'deepseek',
+		feed: 'https://openrss.org/feed/api-docs.deepseek.com/news',
+		pollIntervalSeconds: 28800,
+		parse: (xml) => parseRss20(xml, { content: 'description' }),
+		countRaw: countRss20,
 	},
 ];

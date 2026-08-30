@@ -56,6 +56,24 @@ describe('sourceMeta', () => {
 		});
 	});
 
+	it('maps open-models to its registered display name and swatch (#340)', () => {
+		// The single combined chip for the Hugging Face lab-filtered backstop; a
+		// slug typo would fall back to { name: 'open-models', swatch: 'bg-muted' }.
+		expect(sourceMeta('open-models')).toEqual({
+			name: 'Open Models',
+			swatch: 'bg-source-open-models',
+		});
+	});
+
+	it('maps deepseek to its registered display name and swatch (#340)', () => {
+		// The per-lab chip for the verified OpenRSS proxy feed; a slug typo would
+		// fall back to { name: 'deepseek', swatch: 'bg-muted' } and fail here.
+		expect(sourceMeta('deepseek')).toEqual({
+			name: 'DeepSeek',
+			swatch: 'bg-source-deepseek',
+		});
+	});
+
 	it('maps other registered slugs to their exact display metadata', () => {
 		// Per-slug pins (not exact-list equality) so sibling sources can land in
 		// parallel without touching this test.

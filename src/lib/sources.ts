@@ -32,6 +32,10 @@ const REGISTRY: Record<string, SourceMeta> = {
 	openai: { name: 'OpenAI', swatch: 'bg-source-openai' },
 	'thinking-machines': { name: 'Thinking Machines', swatch: 'bg-source-thinking-machines' },
 	owenomics: { name: 'Owenomics', swatch: 'bg-source-owenomics' },
+	// #340 — one combined chip for the Hugging Face lab-filtered backstop feed…
+	'open-models': { name: 'Open Models', swatch: 'bg-source-open-models' },
+	// …plus a per-lab chip for each verified OpenRSS proxy (only DeepSeek so far).
+	deepseek: { name: 'DeepSeek', swatch: 'bg-source-deepseek' },
 };
 
 export function sourceMeta(slug: string): SourceMeta {

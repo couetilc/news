@@ -8,6 +8,7 @@ import awsRolloutsJson from './fixtures/aws-rollouts.json?raw';
 import ciscoXml from './fixtures/cisco.xml?raw';
 import ciscoEdgarJson from './fixtures/cisco-sec-edgar.json?raw';
 import cloudflareXml from './fixtures/cloudflare-blog.xml?raw';
+import deepseekXml from './fixtures/deepseek.xml?raw';
 import elonlitXml from './fixtures/elonlit.xml?raw';
 import ieeeXml from './fixtures/ieee-spectrum.xml?raw';
 import intelXml from './fixtures/intel.xml?raw';
@@ -15,6 +16,7 @@ import mistralXml from './fixtures/mistral.xml?raw';
 import nvidiaBlogXml from './fixtures/nvidia-blog.xml?raw';
 import nvidiaNewsroomXml from './fixtures/nvidia-newsroom.xml?raw';
 import openaiXml from './fixtures/openai.xml?raw';
+import openModelsXml from './fixtures/open-models.xml?raw';
 import qualcommXml from './fixtures/qualcomm.xml?raw';
 import scienceDailyXml from './fixtures/science-daily.xml?raw';
 import tiBlogJson from './fixtures/ti-company-blog.json?raw';
@@ -49,6 +51,8 @@ describe('SOURCES', () => {
 		expect(slugs).toContain('openai');
 		expect(slugs).toContain('thinking-machines');
 		expect(slugs).toContain('owenomics');
+		expect(slugs).toContain('open-models');
+		expect(slugs).toContain('deepseek');
 	});
 
 	it('registers both Cisco feeds (IR RSS primary + EDGAR 8-K backstop) under one source', () => {
@@ -515,5 +519,127 @@ describe('SOURCES', () => {
 		// The one item with a real time-of-day parses to that instant, not midnight.
 		expect(items[1].title).toBe('Defeating Nondeterminism in LLM Inference');
 		expect(items[1].publishedAt).toBe(Math.floor(Date.UTC(2025, 8, 10, 7, 1, 0) / 1000));
+	});
+
+	it('registers the open-models Hugging Face backstop feed (#340)', () => {
+		const om = source('open-models');
+		expect(om.feed).toBe('https://huggingface.co/blog/feed.xml');
+		// Several posts/week feed-wide → a 6-hour poll is ample.
+		expect(om.pollIntervalSeconds).toBe(21600);
+		expect(om.countRaw).toBeDefined();
+		expect(om.keep).toBeDefined();
+	});
+
+	it('parses HF blog title-only items: no summary, no content, links out (#340)', () => {
+		// The live feed carries NO per-item <description> (only the channel-level
+		// blog tagline), so `description` mode yields null on BOTH body slots —
+		// the AMD title-only pattern; the reader links out.
+		const items = source('open-models').parse(openModelsXml);
+		expect(items).toHaveLength(9);
+		expect(items[0].title).toBe('The Open ASR Leaderboard Adds Its First Global South Language');
+		expect(items[0].url).toBe('https://huggingface.co/blog/open-asr-leaderboard-global-south');
+		// guid mirrors the permalink (community posts mark isPermaLink="false"
+		// but still carry the article URL as the guid text).
+		expect(items[0].guid).toBe(items[0].url);
+		expect(items[0].summary).toBeNull();
+		expect(items[0].contentHtml).toBeNull();
+		expect(items[0].publishedAt).toBe(Math.floor(Date.UTC(2026, 7, 28, 0, 0, 0) / 1000));
+	});
+
+	it('open-models keep filter keeps lab-name titles, incl. digit/hyphen-glued forms (#340)', () => {
+		// The fixture's six lab titles are real HF headlines: the boundary rule
+		// must match a lab token glued to a digit ("Qwen3-8B"), a hyphenated
+		// version ("GLM-5.2", "DeepSeek-V4", "Qwen-3’s"), and a plain mention
+		// ("MiniMax M2", quoted "DeepSeek"). parse keeps everything — run.ts
+		// applies `keep` post-anomaly-check.
+		const om = source('open-models');
+		const kept = om.parse(openModelsXml).filter((i) => om.keep!(i)).map((i) => i.title);
+		expect(kept).toEqual([
+			'GLM-5.2: Built for Long-Horizon Tasks',
+			'DeepSeek-V4: a million-token context that agents can actually use',
+			'One Year Since the “DeepSeek Moment”',
+			'Aligning to What? Rethinking Agent Generalization in MiniMax M2',
+			'Accelerating Qwen3-8B Agent on Intel® Core™ Ultra with Depth-Pruned Draft Models',
+			'The 4 Things Qwen-3’s Chat Template Teaches Us',
+		]);
+	});
+
+	it('open-models keep filter drops non-lab titles and letter-glued near-misses (#340)', () => {
+		// The false-positive guard: "Kimina-Prover-RL" contains "Kimi" glued to a
+		// following letter and must NOT match; ordinary HF posts (other vendors'
+		// models, platform news) are the bulk of the feed and must all drop.
+		const om = source('open-models');
+		const dropped = om.parse(openModelsXml).filter((i) => !om.keep!(i)).map((i) => i.title);
+		expect(dropped).toEqual([
+			'The Open ASR Leaderboard Adds Its First Global South Language',
+			"Granite 4.2 LLMs: How They're Built",
+			'Kimina-Prover-RL',
+		]);
+	});
+
+	it('open-models keep filter handles tricky lab-name boundaries both ways (#340)', () => {
+		// Constructed-title unit checks (the AWS constructed-item precedent) for
+		// boundary forms the fixture can't carry — including the labs with no
+		// live HF headline today (Kimi, Zhipu, Z.ai).
+		const keep = source('open-models').keep!;
+		const item = (title: string) => ({
+			guid: 'g',
+			url: 'https://huggingface.co/blog/x',
+			title,
+			summary: null,
+			contentHtml: null,
+			publishedAt: null,
+		});
+		// Lab tokens glued to digits/hyphens/punctuation stay matches…
+		expect(keep(item('Qwen3-Coder is here'))).toBe(true);
+		expect(keep(item('Kimi K2.5 sets a new agentic benchmark'))).toBe(true);
+		expect(keep(item('GLM-5 technical report'))).toBe(true);
+		expect(keep(item('Zhipu AI opens the GLM weights'))).toBe(true);
+		expect(keep(item('Z.ai ships a long-horizon agent stack'))).toBe(true);
+		expect(keep(item('MiniMax-M3 is out'))).toBe(true);
+		// …case-insensitively ("Deepseek" is as common as "DeepSeek" on HF).
+		expect(keep(item('Mini-R1: Reproduce Deepseek R1 „aha moment“ a RL tutorial'))).toBe(true);
+		// …but a token glued to a LETTER on either side is a different word:
+		expect(keep(item('Kimina-Prover: Test-time RL Search'))).toBe(false); // Kimi + "na"
+		expect(keep(item('Fitting GLMs with scikit-learn'))).toBe(false); // statistics, plural
+		expect(keep(item('How viz.ai uses transformers'))).toBe(false); // "vi" + z.ai
+		// …and an unrelated title with no token at all drops.
+		expect(keep(item('Universal Image Segmentation with Mask2Former and OneFormer'))).toBe(false);
+	});
+
+	it('counts every raw HF <item> as the drift denominator (#340)', () => {
+		// countRaw sees ALL 9 raw items even though keep passes only 6 — the
+		// filter must never shrink the shape-drift comparison, or a normal poll
+		// of the mostly-off-topic feed would look like parse drift.
+		const om = source('open-models');
+		expect(om.countRaw!(openModelsXml)).toBe(9);
+		expect(om.parse(openModelsXml).filter((i) => om.keep!(i)).length).toBeLessThan(9);
+	});
+
+	it('registers the deepseek OpenRSS proxy feed on the /feed/-prefixed URL (#340)', () => {
+		const ds = source('deepseek');
+		// EXACTLY the /feed/ form — the bare openrss.org/<host>/<path> URL serves
+		// the OpenRSS HTML site page (probed 2026-08-30), not a feed.
+		expect(ds.feed).toBe('https://openrss.org/feed/api-docs.deepseek.com/news');
+		// OpenRSS serves a cached copy, so 3×/day like the Anthropic entries.
+		expect(ds.pollIntervalSeconds).toBe(28800);
+		expect(ds.countRaw).toBeDefined();
+	});
+
+	it('parses DeepSeek OpenRSS full page HTML from the description, no summary (#340)', () => {
+		const items = source('deepseek').parse(deepseekXml);
+		expect(items[0].title).toBe('Using the Anthropic API | DeepSeek API Docs');
+		expect(items[0].url).toBe('https://api-docs.deepseek.com/guides/anthropic_api');
+		// Permalink guid — the doc page URL is the stable dedupe id.
+		expect(items[0].guid).toBe(items[0].url);
+		// Full rendered-page HTML in the description CDATA → contentHtml, null
+		// summary (the Anthropic OpenRSS path).
+		expect(items[0].contentHtml).toContain('<code>https://api.deepseek.com/anthropic</code>');
+		expect(items[0].summary).toBeNull();
+		expect(items[0].publishedAt).toBe(Math.floor(Date.UTC(2026, 7, 22, 7, 39, 58) / 1000));
+	});
+
+	it('counts every DeepSeek OpenRSS <item> as the drift denominator (#340)', () => {
+		expect(source('deepseek').countRaw!(deepseekXml)).toBe(3);
 	});
 });

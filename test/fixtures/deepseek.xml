@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<!-- Real excerpt of https://openrss.org/feed/api-docs.deepseek.com/news
+     (fetched 2026-08-30, #340): the live feed's channel head and all 3 items
+     verbatim, with each item's multi-KB rendered-page <description> CDATA
+     trimmed to its real opening markup. Live shape: RSS 2.0, every text slot
+     CDATA-wrapped, full page HTML in <description> (no content:encoded despite
+     the declared namespace), permalink guids, RFC-822 pubDates. Note the items
+     OpenRSS surfaces are the doc pages linked off DeepSeek's Docusaurus news
+     sidebar, not only release posts - see the FeedConfig comment. -->
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:ofeed="https://openrss.org"><channel><language>en-us</language><title><![CDATA[Your First API Call | DeepSeek API Docs]]></title><description><![CDATA[The DeepSeek API uses an API format compatible with OpenAI/Anthropic. By modifying the configuration, you can use the OpenAI/Anthropic SDK or softwares compatible with the OpenAI/Anthropic API to access the DeepSeek API.]]></description><link><![CDATA[https://api-docs.deepseek.com/news]]></link><image><url><![CDATA[https://api-docs.deepseek.com/img/deepseek-social-card.jpeg]]></url><link><![CDATA[https://api-docs.deepseek.com]]></link><title><![CDATA[Your First API Call | DeepSeek API Docs]]></title></image><lastBuildDate>Sat, 22 Aug 2026 07:39:58 GMT</lastBuildDate><item><description><![CDATA[<a href="https://api-docs.deepseek.com/guides/anthropic_api"><img src="https://api-docs.deepseek.com/img/deepseek-social-card.jpeg"></a><div><div>
+<p>To meet the demand for using the Anthropic API ecosystem, our API has added support for the Anthropic API format, with the <code>base_url</code> being <code>https://api.deepseek.com/anthropic</code>.</p>
+<p>With simple configuration, you can integrate the capabilities of DeepSeek into the Anthropic API ecosystem.</p>
+<hr>
+<h2>Use DeepSeek in Claude Code<a href="https://api-docs.deepseek.com/guides/anthropic_api#use-deepseek-in-claude-code">​</a></h2>
+<p>Please refer to <a href="https://api-docs.deepseek.com/quick_start/agent_integrations/claude_code">Integrate with Claude Code</a>.</p>
+</div></div>]]></description><title><![CDATA[Using the Anthropic API | DeepSeek API Docs]]></title><pubDate>Sat, 22 Aug 2026 07:39:58 GMT</pubDate><author><![CDATA[noreply@api-docs.deepseek.com]]></author><link><![CDATA[https://api-docs.deepseek.com/guides/anthropic_api]]></link><guid isPermaLink="true"><![CDATA[https://api-docs.deepseek.com/guides/anthropic_api]]></guid></item><item><description><![CDATA[<a href="https://api-docs.deepseek.com/guides/vision"><img src="https://api-docs.deepseek.com/img/deepseek-social-card.jpeg"></a><div><div>
+<p>The <code>deepseek-v4-flash-vision-exp</code> model accepts images alongside text, so you can ask the model to describe pictures, read text from screenshots, analyze charts, and more.</p>
+<p>Supported image formats: <strong>JPEG, PNG, GIF, and WebP</strong>.</p>
+</div></div>]]></description><title><![CDATA[Vision | DeepSeek API Docs]]></title><pubDate>Fri, 21 Aug 2026 15:48:30 GMT</pubDate><author><![CDATA[noreply@api-docs.deepseek.com]]></author><link><![CDATA[https://api-docs.deepseek.com/guides/vision]]></link><guid isPermaLink="true"><![CDATA[https://api-docs.deepseek.com/guides/vision]]></guid></item><item><description><![CDATA[<a href="https://api-docs.deepseek.com/quick_start/agent_integrations/claude_code"><img src="https://api-docs.deepseek.com/img/deepseek-social-card.jpeg"></a><div><div>
+<p>Claude Code is an AI coding assistant that runs in the terminal.</p>
+<h2>Migrate from Existing Installation to DeepSeek<a href="https://api-docs.deepseek.com/quick_start/agent_integrations/claude_code#migrate-from-existing-installation-to-deepseek">​</a></h2>
+</div></div>]]></description><title><![CDATA[Integrate with Claude Code | DeepSeek API Docs]]></title><pubDate>Fri, 21 Aug 2026 15:48:30 GMT</pubDate><author><![CDATA[noreply@api-docs.deepseek.com]]></author><link><![CDATA[https://api-docs.deepseek.com/quick_start/agent_integrations/claude_code]]></link><guid isPermaLink="true"><![CDATA[https://api-docs.deepseek.com/quick_start/agent_integrations/claude_code]]></guid></item></channel></rss>

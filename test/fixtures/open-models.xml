@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Real excerpt of https://huggingface.co/blog/feed.xml (fetched 2026-08-30,
+     #340): 9 of the live feed's 852 items, verbatim. The live shape is
+     title + pubDate + link + guid ONLY - no per-item <description>, no
+     content:encoded (the single channel-level <description> below is the blog's
+     own tagline, not an item body). Chosen to exercise the open-models keep
+     filter both ways: six lab-name titles (GLM-5.2, DeepSeek-V4, the "DeepSeek
+     Moment" retrospective, MiniMax M2, Qwen3-8B, Qwen-3) and three that must
+     be dropped, including the Kimina-Prover near-miss ("Kimi" glued to a
+     following letter). -->
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+ <channel>
+  <atom:link href="https://huggingface.co/blog/feed.xml" rel="self" type="application/rss+xml"/>
+  <title>Hugging Face - Blog</title>
+  <link>https://huggingface.co/blog</link>
+  <description>The Hugging Face blog</description>
+  <language>en-US</language>
+  <item>
+   <title>The Open ASR Leaderboard Adds Its First Global South Language</title>
+   <pubDate>Fri, 28 Aug 2026 00:00:00 GMT</pubDate>
+   <link>https://huggingface.co/blog/open-asr-leaderboard-global-south</link>
+   <guid isPermaLink="true">https://huggingface.co/blog/open-asr-leaderboard-global-south</guid>
+  </item>
+  <item>
+   <title>Granite 4.2 LLMs: How They&apos;re Built</title>
+   <pubDate>Tue, 25 Aug 2026 15:14:14 GMT</pubDate>
+   <link>https://huggingface.co/blog/ibm-granite/granite-4-2</link>
+   <guid isPermaLink="false">https://huggingface.co/blog/ibm-granite/granite-4-2</guid>
+  </item>
+  <item>
+   <title>GLM-5.2: Built for Long-Horizon Tasks</title>
+   <pubDate>Wed, 17 Jun 2026 09:01:25 GMT</pubDate>
+   <link>https://huggingface.co/blog/zai-org/glm-52-blog</link>
+   <guid isPermaLink="false">https://huggingface.co/blog/zai-org/glm-52-blog</guid>
+  </item>
+  <item>
+   <title>DeepSeek-V4: a million-token context that agents can actually use</title>
+   <pubDate>Fri, 24 Apr 2026 00:00:00 GMT</pubDate>
+   <link>https://huggingface.co/blog/deepseekv4</link>
+   <guid isPermaLink="true">https://huggingface.co/blog/deepseekv4</guid>
+  </item>
+  <item>
+   <title>One Year Since the “DeepSeek Moment”</title>
+   <pubDate>Tue, 20 Jan 2026 15:02:10 GMT</pubDate>
+   <link>https://huggingface.co/blog/huggingface/one-year-since-the-deepseek-moment</link>
+   <guid isPermaLink="false">https://huggingface.co/blog/huggingface/one-year-since-the-deepseek-moment</guid>
+  </item>
+  <item>
+   <title>Aligning to What? Rethinking Agent Generalization in MiniMax M2</title>
+   <pubDate>Thu, 30 Oct 2025 10:03:45 GMT</pubDate>
+   <link>https://huggingface.co/blog/MiniMax-AI/aligning-to-what</link>
+   <guid isPermaLink="false">https://huggingface.co/blog/MiniMax-AI/aligning-to-what</guid>
+  </item>
+  <item>
+   <title>Accelerating Qwen3-8B Agent on Intel® Core™ Ultra with Depth-Pruned Draft Models</title>
+   <pubDate>Mon, 29 Sep 2025 00:00:00 GMT</pubDate>
+   <link>https://huggingface.co/blog/intel-qwen3-agent</link>
+   <guid isPermaLink="true">https://huggingface.co/blog/intel-qwen3-agent</guid>
+  </item>
+  <item>
+   <title>Kimina-Prover-RL</title>
+   <pubDate>Thu, 14 Aug 2025 12:13:01 GMT</pubDate>
+   <link>https://huggingface.co/blog/AI-MO/kimina-prover-rl</link>
+   <guid isPermaLink="false">https://huggingface.co/blog/AI-MO/kimina-prover-rl</guid>
+  </item>
+  <item>
+   <title>The 4 Things Qwen-3’s Chat Template Teaches Us</title>
+   <pubDate>Wed, 30 Apr 2025 00:00:00 GMT</pubDate>
+   <link>https://huggingface.co/blog/qwen-3-chat-template-deep-dive</link>
+   <guid isPermaLink="true">https://huggingface.co/blog/qwen-3-chat-template-deep-dive</guid>
+  </item>
+ </channel>
+</rss>

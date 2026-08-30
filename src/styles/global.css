@@ -56,6 +56,8 @@
 	--color-source-openai: #456d75; /* muted petrol (#337, OpenAI) */
 	--color-source-thinking-machines: #56518c; /* muted indigo (#338, Thinking Machines) */
 	--color-source-owenomics: #7a6a8a; /* muted heather (#333, Owenomics) */
+	--color-source-open-models: #8a3f5f; /* muted berry (#340, Open Models) */
+	--color-source-deepseek: #446288; /* muted azure (#340, DeepSeek) */
 }
 
 @layer base {
