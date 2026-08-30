@@ -271,6 +271,35 @@ Facts that drive our choices:
   Dispatch. Changing network settings invalidates the environment cache (setup
   script re-runs).
 
+## Playwright e2e in cloud sessions
+
+`npm run test:e2e` fails out of the box on the cloud VM. The VM preinstalls
+Playwright browsers at `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers` (and sets
+`PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`), but that build lags the repo's
+`@playwright/test` pin, and Playwright refuses to launch a build revision it
+didn't install (missing-executable error). `npx playwright install chromium` —
+the host guidance in CLAUDE.md — cannot fix it there: the Playwright browser
+CDN is egress-blocked under the environment's network policy (Trusted mode).
+
+Run **`scripts/pw-browser-shim.sh`** instead. It derives the pinned build
+revision from `node_modules/playwright-core/browsers.json` and globs the
+preinstalled dir for the available one (no hardcoded build numbers — it
+survives version bumps on either side), builds a symlink shim at
+`node_modules/.cache/pw-browser-shim` mapping the pinned build's expected
+directory layout onto the preinstalled binaries (the inner layout is
+arch-dependent and changed across builds: `chrome-linux/headless_shell` →
+`chrome-headless-shell-linux64/chrome-headless-shell` on linux-x64),
+probe-launches the shimmed headless shell, then **execs
+`PLAYWRIGHT_BROWSERS_PATH=<shim> npm run test:e2e`** — extra script arguments
+pass through to `playwright test` (e.g. `scripts/pw-browser-shim.sh --grep
+signup`). Where the installed build already matches the pin (the agent
+container; a host after `npx playwright install chromium`) it says so and
+exits 0 — run `npm run test:e2e` directly there.
+
+The skew this creates (an older headless shell under a newer client) is minor
+and fine for these UI specs, but it is a cloud-session convenience only — CI
+installs the pinned browser properly and never uses the shim.
+
 ## Deploy paths
 
 1. **Canonical:** branch → PR → CI `test` job (100% coverage gate) → merge to
