@@ -108,6 +108,22 @@ describe('parseOwenomics — edge cases and the parser-robustness contract (#165
 		);
 		expect(item.url).toBe('https://www.acadian-asset.com/investment-insights/owenomics/abs');
 		expect(item.url).not.toContain('.comhttps');
+		// A plain-http absolute URL is also passed through, never origin-prefixed.
+		const [http] = parseOwenomics(
+			wrap([{ Title: 'Http', Url: 'http://www.acadian-asset.com/investment-insights/owenomics/old' }]),
+		);
+		expect(http.url).toBe('http://www.acadian-asset.com/investment-insights/owenomics/old');
+	});
+
+	it('treats a relative path as relative even when a URL is embedded mid-path', () => {
+		// "absolute" means the scheme at position 0 — an https:// deeper in the
+		// path must not suppress the origin prefix.
+		const [item] = parseOwenomics(
+			wrap([{ Title: 'Embed', Url: '/investment-insights/owenomics/notes-on-https://bubbles' }]),
+		);
+		expect(item.url).toBe(
+			'https://www.acadian-asset.com/investment-insights/owenomics/notes-on-https://bubbles',
+		);
 	});
 
 	it('skips a record with no Url (nothing stable to dedupe on)', () => {
@@ -146,11 +162,22 @@ describe('parseOwenomics — edge cases and the parser-robustness contract (#165
 		expect(parseOwenomics(wrap([{ Url: '/d', Date: 'Smarch 2026' }]))[0].publishedAt).toBeNull();
 		// Non-string junk in the Date slot.
 		expect(parseOwenomics(wrap([{ Url: '/e', Date: 1785542400 }]))[0].publishedAt).toBeNull();
+		// "Month YYYY" must be the WHOLE string — leading or trailing extra text is
+		// junk, not a match (the regex is anchored on both ends).
+		expect(
+			parseOwenomics(wrap([{ Url: '/f', Date: 'circa August 2026' }]))[0].publishedAt,
+		).toBeNull();
+		expect(
+			parseOwenomics(wrap([{ Url: '/g', Date: 'August 2026 (revised)' }]))[0].publishedAt,
+		).toBeNull();
 	});
 
-	it('accepts surrounding whitespace and any month-name casing in Date', () => {
+	it('accepts surrounding/internal whitespace and any month-name casing in Date', () => {
 		const [item] = parseOwenomics(wrap([{ Url: '/a', Date: '  aUgUsT 2026 ' }]));
 		expect(item.publishedAt).toBe(Math.floor(Date.UTC(2026, 7, 1) / 1000));
+		// Multiple spaces between month and year still parse (\s+).
+		const [wide] = parseOwenomics(wrap([{ Url: '/b', Date: 'August  2026' }]));
+		expect(wide.publishedAt).toBe(Math.floor(Date.UTC(2026, 7, 1) / 1000));
 	});
 
 	it('returns no items for an empty Results array', () => {
