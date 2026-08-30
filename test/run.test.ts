@@ -76,6 +76,7 @@ describe('ingestAll', () => {
 			feed: 'https://cf.test/rss',
 			status: 200,
 			items: 2,
+			filtered: 0,
 			inserted: 2,
 			outcome: 'ok',
 		});
@@ -269,6 +270,40 @@ describe('ingestAll', () => {
 			feed: 'https://cf.test/rss',
 			err: 'Error: network down',
 		});
+	});
+});
+
+describe('ingestAll editorial keep filter (#321)', () => {
+	it('an ALL-noise poll stays anomaly-free: keep runs after reportAnomaly, not before', async () => {
+		// The load-bearing ordering pin. This feed's keep drops EVERYTHING, so if
+		// run.ts filtered before the shape-drift check, validateParse would see
+		// 0 parsed of 2 raw and emit zero_parsed_of_raw on a perfectly healthy
+		// poll. Filtering after keeps shape-drift honest: no anomaly, no error,
+		// a clean 200 state, and the total drop is still visible in the log.
+		const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+		const allNoiseFeed: FeedConfig = { ...cfFeed, keep: () => false };
+		const { fn } = fakeFetch({
+			'https://cf.test/rss': () => new Response(cloudflareXml, { status: 200 }),
+		});
+
+		await ingestAll(deps(fn), [allNoiseFeed]);
+
+		expect(errSpy).not.toHaveBeenCalled();
+		expect(await listItems(db, 10)).toEqual([]);
+		expect(logSpy).toHaveBeenCalledWith({
+			level: 'info',
+			event: 'ingest.poll',
+			source: 'cf',
+			feed: 'https://cf.test/rss',
+			status: 200,
+			items: 2,
+			filtered: 2,
+			inserted: 0,
+			outcome: 'ok',
+		});
+		const [state] = await getFeedStates(db);
+		expect(state).toMatchObject({ last_status: 200, failure_count: 0 });
 	});
 });
 
