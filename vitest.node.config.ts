@@ -53,6 +53,9 @@ export default getViteConfig(
 				// Pure-node deployInfo() unit spec (imports only vitest + deploy.ts) —
 				// split out of status.test.ts so deploy.ts is mutation-reachable (#236).
 				'test/deploy.test.ts',
+				// Plain-node sourceMeta() unit spec (#326) — reads the registry + CSS off
+				// disk via node:fs for the swatch↔token cross-check, so node project.
+				'test/source-meta.test.ts',
 				'test/public.test.ts',
 				'test/article.test.ts',
 				'test/worker.test.ts',

@@ -13,6 +13,7 @@
     "src/lib/return-path.ts",
     "src/lib/log.ts",
     "src/lib/email.ts",
+    "src/lib/sources.ts",
     "src/ingest/validate.ts",
     "src/ingest/sources.ts",
     "src/ingest/parse/atom.ts",

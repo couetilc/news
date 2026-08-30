@@ -350,6 +350,33 @@ describe('index page', () => {
 		});
 	});
 
+	it('renders an eye-on-the-market row and chip with the registered name and swatch (#326)', async () => {
+		vi.mocked(distinctSources).mockResolvedValue(['eye-on-the-market']);
+		feed({
+			unread: [
+				row({
+					source: 'eye-on-the-market',
+					title: 'EOTM: the Q3 outlook',
+					url: 'https://example.com/eotm-q3',
+				}),
+			],
+		});
+
+		const html = await render();
+		// The registered display name + swatch class appear in BOTH places a reader
+		// sees the source: the article dateline and the filter-bar chip. (The swatch
+		// span is `size-2 ${swatch}` in each.)
+		expect(html.match(/Eye on the Market/g)).toHaveLength(2);
+		expect(html.match(/size-2 bg-source-eotm/g)).toHaveLength(2);
+		// Not the unregistered-slug fallback: no neutral swatch, and the raw slug is
+		// never visible text (it appears only inside ?source= hrefs as plumbing).
+		expect(html).not.toContain('size-2 bg-muted');
+		expect(html).not.toMatch(/>\s*eye-on-the-market\s*</);
+		// The row itself stays intact around the chip: headline link + title.
+		expect(html).toContain('href="https://example.com/eotm-q3"');
+		expect(html).toContain('EOTM: the Q3 outlook');
+	});
+
 	it('falls back to the raw slug and the neutral flag for an unregistered source', async () => {
 		vi.mocked(distinctSources).mockResolvedValue(['mystery-wire']);
 		feed({ unread: [row({ source: 'mystery-wire', title: 'Unknown source' })] });
