@@ -4,6 +4,7 @@ import amdXml from './fixtures/amd.xml?raw';
 import anthropicXml from './fixtures/anthropic.xml?raw';
 import appleXml from './fixtures/apple.xml?raw';
 import gravitonJson from './fixtures/aws-graviton.json?raw';
+import awsRolloutsJson from './fixtures/aws-rollouts.json?raw';
 import ciscoXml from './fixtures/cisco.xml?raw';
 import ciscoEdgarJson from './fixtures/cisco-sec-edgar.json?raw';
 import cloudflareXml from './fixtures/cloudflare-blog.xml?raw';
@@ -115,6 +116,56 @@ describe('SOURCES', () => {
 		expect(items[0].url).toBe(
 			'https://aws.amazon.com/about-aws/whats-new/2026/06/ec2-m9g-m9gd-instances-graviton5-available/',
 		);
+	});
+
+	it('gives every aws term feed the region-rollout keep filter (#321)', () => {
+		// The drop rule is SOURCE-WIDE: q= is full-text over the release body, so
+		// every term (not just nitro/graviton) can surface region rollouts.
+		for (const s of SOURCES.filter((s) => s.source === 'aws')) {
+			expect(s.keep).toBeDefined();
+			expect(s.keep!({
+				guid: 'g',
+				url: 'https://aws.amazon.com/x',
+				title: 'Amazon EC2 R8g instances now available in additional regions',
+				summary: null,
+				contentHtml: null,
+				publishedAt: null,
+			})).toBe(false);
+		}
+	});
+
+	it('aws keep filter drops "… available in <region(s)>" rollout headlines (#321)', () => {
+		const aws = source('aws');
+		const items = aws.parse(awsRolloutsJson);
+		// The fixture carries all 12 sampled live headlines; parse keeps them all
+		// (the filter is NOT the parser's job — run.ts applies `keep` post-anomaly).
+		expect(items).toHaveLength(12);
+		const dropped = items.filter((i) => !aws.keep!(i)).map((i) => i.title);
+		expect(dropped).toEqual([
+			'Amazon EC2 R8g instances now available in additional regions',
+			'Amazon EC2 C7a instances are now available in the Asia Pacific (Singapore) Region',
+			'Amazon EC2 C8in instances are now available in additional regions',
+			'Amazon EC2 I8ge instances are now generally available in additional AWS regions',
+			'AWS VPC Encryption Controls now available in AWS GovCloud (US) Regions',
+		]);
+	});
+
+	it('aws keep filter preserves every genuine launch headline (#321)', () => {
+		// The boundary the issue pins: "Introducing …" / "Announcing …" /
+		// "launches …" / a first GA with NO region clause is the launch — kept.
+		const aws = source('aws');
+		const kept = aws.parse(awsRolloutsJson).filter((i) => aws.keep!(i)).map((i) => i.title);
+		expect(kept).toEqual([
+			'Announcing new Amazon EC2 M9g instances powered by AWS Graviton5 processors (Preview)',
+			'Amazon Redshift launches RG instances powered by AWS Graviton',
+			'Introducing Amazon EC2 C8in and C8ib instances',
+			'Announcing Amazon EC2 Trn3 UltraServers for faster, lower-cost generative AI training',
+			'Now generally available: Amazon EC2 M8gn and M8gb instances',
+			// First GA — "now available" with no region clause stays in.
+			'Amazon EC2 M9g and M9gd general purpose instances are now available',
+			// "now available with …" (a software release), not "available in a region".
+			'AWS Neuron SDK 2.30.0 now available with NKI 0.4.0 and expanded training support',
+		]);
 	});
 
 	it('parses the Cloudflare blog from content:encoded with a separate summary', () => {

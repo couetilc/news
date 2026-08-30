@@ -5,8 +5,10 @@ import { parseRss20 } from '../src/ingest/parse/rss20';
 import { parseAwsWhatsNew } from '../src/ingest/parse/aws-whats-new';
 import { parseSecEdgar } from '../src/ingest/parse/sec-edgar';
 import { ingestAll, type IngestDeps } from '../src/ingest/run';
+import { SOURCES } from '../src/ingest/sources';
 import type { FeedConfig } from '../src/ingest/types';
 import { countRss20 } from '../src/ingest/parse/count';
+import awsRolloutsJson from './fixtures/aws-rollouts.json?raw';
 import gravitonJson from './fixtures/aws-graviton.json?raw';
 import nitroJson from './fixtures/aws-nitro.json?raw';
 import cloudflareXml from './fixtures/cloudflare-blog.xml?raw';
@@ -274,6 +276,53 @@ describe('ingestAll', () => {
 });
 
 describe('ingestAll editorial keep filter (#321)', () => {
+	it('drops AWS region-rollout headlines via the real aws config, keeping every launch', async () => {
+		// End-to-end through ingestAll with the REAL aws FeedConfig (its keep
+		// predicate from sources.ts), against the 12-headline live sample fixture:
+		// the 5 "… available in <region(s)>" rollouts never reach the DB, the 7
+		// genuine launches all land, and the drop is quantified in ingest.poll.
+		const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+		const awsConfig: FeedConfig = {
+			...SOURCES.find((s) => s.source === 'aws')!,
+			feed: 'https://aws.test/rollouts',
+		};
+		const { fn } = fakeFetch({
+			'https://aws.test/rollouts': () => new Response(awsRolloutsJson, { status: 200 }),
+		});
+
+		await ingestAll(deps(fn), [awsConfig]);
+
+		const rows = await listItems(db, 50);
+		expect(rows).toHaveLength(7);
+		const guids = rows.map((r) => r.guid);
+		// Every keep-set launch is ingested…
+		expect(guids).toContain('whats-new-v2#launch-m9g-preview');
+		expect(guids).toContain('whats-new-v2#launch-redshift-rg');
+		expect(guids).toContain('whats-new-v2#launch-c8in-c8ib');
+		expect(guids).toContain('whats-new-v2#launch-trn3-ultraservers');
+		expect(guids).toContain('whats-new-v2#launch-m8gn-m8gb-ga');
+		expect(guids).toContain('whats-new-v2#launch-m9g-m9gd-ga');
+		expect(guids).toContain('whats-new-v2#launch-neuron-sdk-2-30');
+		// …and no rollout slipped through.
+		expect(guids.filter((g) => g.includes('rollout'))).toEqual([]);
+
+		// The anomaly check saw the FULL parsed count (12 of 12 raw): a 5/12 drop
+		// happens after it, so no ingest.anomaly fires on a healthy noisy poll.
+		expect(errSpy).not.toHaveBeenCalled();
+		expect(logSpy).toHaveBeenCalledWith({
+			level: 'info',
+			event: 'ingest.poll',
+			source: 'aws',
+			feed: 'https://aws.test/rollouts',
+			status: 200,
+			items: 12,
+			filtered: 5,
+			inserted: 7,
+			outcome: 'ok',
+		});
+	});
+
 	it('an ALL-noise poll stays anomaly-free: keep runs after reportAnomaly, not before', async () => {
 		// The load-bearing ordering pin. This feed's keep drops EVERYTHING, so if
 		// run.ts filtered before the shape-drift check, validateParse would see
