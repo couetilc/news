@@ -42,15 +42,11 @@ const TIME_DATETIME = /<time\s[^>]*\bdatetime="([^"]*)"/i;
 // The card's only <p> is the post title.
 const TITLE_P = /<p\b[^>]*>([\s\S]*?)<\/p>/;
 
-function textOf(value: string | undefined): string | null {
-	return typeof value === 'string' && value !== '' ? value : null;
-}
-
 // Inner text of an HTML fragment: strip tags, then decode character references
-// (#224) and trim. An empty result is null.
-function textContent(fragment: string): string | null {
-	const text = decodeEntities(fragment.replace(/<[^>]*>/g, '')).trim();
-	return text === '' ? null : text;
+// (#224) and trim — a title-less/blank card degrades to '' (which validate.ts
+// flags as a missing required field, the intended drift signal).
+function titleText(fragment: string): string {
+	return decodeEntities(fragment.replace(/<[^>]*>/g, '')).trim();
 }
 
 // Card hrefs are site-relative ("/blog/<slug>"); pass an absolute one through.
@@ -77,8 +73,9 @@ export function parseCursorBlog(html: string): ParsedItem[] {
 		const attrs = anchor[1];
 		// Breadcrumb/nav/footer anchors aren't listing rows — skip them.
 		if (!ROW_CLASS.test(attrs)) continue;
-		// The card link is the article URL and our dedupe key — skip without one.
-		const href = textOf(HREF.exec(attrs)?.[1]);
+		// The card link is the article URL and our dedupe key — skip a card with a
+		// missing or empty href (both falsy: nothing stable to dedupe on).
+		const href = HREF.exec(attrs)?.[1];
 		if (!href) continue;
 		// The card body runs to the anchor's close; a truncated card is junk.
 		const bodyStart = anchor.index + anchor[0].length;
@@ -90,7 +87,7 @@ export function parseCursorBlog(html: string): ParsedItem[] {
 		items.push({
 			guid: url,
 			url,
-			title: textContent(TITLE_P.exec(body)?.[1] ?? '') ?? '',
+			title: titleText(TITLE_P.exec(body)?.[1] ?? ''),
 			// Listing cards carry no teaser — link out for everything.
 			summary: null,
 			contentHtml: null,

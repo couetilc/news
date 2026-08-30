@@ -120,6 +120,17 @@ describe('parseCursorBlog — edge cases and the parser-robustness contract (#16
 		const items = parseCursorBlog(wrap(card('https://cursor.com/blog/abs', '<p>Abs</p>')));
 		expect(items[0].url).toBe('https://cursor.com/blog/abs');
 		expect(items[0].url).not.toContain('cursor.comhttps');
+		// Plain http:// counts as absolute too (the scheme test is https?).
+		const httpItems = parseCursorBlog(wrap(card('http://cursor.com/blog/plain', '<p>P</p>')));
+		expect(httpItems[0].url).toBe('http://cursor.com/blog/plain');
+	});
+
+	it('prefixes a relative href even when a URL appears later inside it (anchored scheme test)', () => {
+		// The absolute-vs-relative check must be anchored at the start: a relative
+		// path that merely CONTAINS "https://" (e.g. in a query param) is still
+		// relative and gets the origin prefix.
+		const items = parseCursorBlog(wrap(card('/blog/x?u=https://example.com', '<p>Q</p>')));
+		expect(items[0].url).toBe('https://cursor.com/blog/x?u=https://example.com');
 	});
 
 	it('leaves publishedAt null when <time> is missing or its value is unparseable', () => {
