@@ -15,6 +15,10 @@ import { defineConfig } from 'vitest/config';
 // with zero Cloudflare/D1/workerd dependencies (each spec → the module it
 // mutates; kept in lockstep with `mutate` in stryker.config.json):
 //   • src/lib/auth.ts                ← test/auth-validate.test.ts + test/auth-validate.prop.test.ts
+//   • src/lib/digest.ts              ← test/digest.test.ts + test/digest.prop.test.ts (#349)
+//   • src/ingest/schedule.ts         ← test/schedule.test.ts + test/schedule.prop.test.ts (#349)
+//   • src/ingest/merge.ts            ← test/merge.test.ts + test/merge.prop.test.ts (#349)
+//   • src/ingest/queries.ts          ← test/queries.test.ts (#349)
 //   • src/lib/deploy.ts              ← test/deploy.test.ts
 //   • src/lib/pagination.ts          ← test/pagination.test.ts
 //   • src/lib/return-path.ts         ← test/return-path.test.ts
@@ -49,6 +53,13 @@ export default defineConfig({
 		include: [
 			'test/auth-validate.test.ts',
 			'test/auth-validate.prop.test.ts',
+			'test/schedule.test.ts',
+			'test/schedule.prop.test.ts',
+			'test/merge.test.ts',
+			'test/merge.prop.test.ts',
+			'test/queries.test.ts',
+			'test/digest.test.ts',
+			'test/digest.prop.test.ts',
 			'test/deploy.test.ts',
 			'test/pagination.test.ts',
 			'test/return-path.test.ts',

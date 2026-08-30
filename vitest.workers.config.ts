@@ -53,6 +53,41 @@ export default defineConfig({
 			// Reads sources + stryker.config.json off disk via node:fs — runs in the
 			// node project, not the workerd pool (#229).
 			'test/stryker-scope.test.ts',
+			// ── Pure functional-core specs (#349) — node project ──────────────────
+			// Pure-module specs (parsers, normalization, validators, pagination,
+			// log/email) need no workerd runtime; they run in the fast node project.
+			// This pool keeps only the shell's real-runtime integration tests
+			// (D1 data layer, ingest orchestration, session/crypto parity).
+			'test/parse-atom.test.ts',
+			'test/parse-rss20.test.ts',
+			'test/parse-aws-whats-new.test.ts',
+			'test/parse-sec-edgar.test.ts',
+			'test/parse-ti-newsroom.test.ts',
+			'test/parse-thinking-machines-news.test.ts',
+			'test/parse-jpm-eotm.test.ts',
+			'test/parse-owenomics.test.ts',
+			'test/parse-cursor.test.ts',
+			'test/parse-entities.test.ts',
+			'test/parse-fuzz.test.ts',
+			'test/count.test.ts',
+			'test/dates.test.ts',
+			'test/validate.test.ts',
+			'test/sources.test.ts',
+			'test/pagination.test.ts',
+			'test/pagination.prop.test.ts',
+			'test/return-path.test.ts',
+			'test/log.test.ts',
+			'test/email.test.ts',
+			'test/auth-validate.test.ts',
+			'test/auth-validate.prop.test.ts',
+			// The extracted functional-core modules (#349) — node project.
+			'test/schedule.test.ts',
+			'test/schedule.prop.test.ts',
+			'test/merge.test.ts',
+			'test/merge.prop.test.ts',
+			'test/queries.test.ts',
+			'test/digest.test.ts',
+			'test/digest.prop.test.ts',
 		],
 		setupFiles: ['./test/helpers/apply-migrations.ts'],
 	},

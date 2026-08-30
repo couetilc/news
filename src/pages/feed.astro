@@ -2,6 +2,7 @@
 import { env } from 'cloudflare:workers';
 import { countItemsByRead, distinctSources, listItemsByRead } from '../ingest/db';
 import FeedPage from '../components/FeedPage.astro';
+import { activeSourceFilter, feedReturnTo } from '../lib/digest';
 import { PAGE_SIZE, isReadTab, parseOffset, parseTab } from '../lib/pagination';
 
 // Infinite-scroll partial for the authenticated feed (#151). The homepage renders
@@ -35,8 +36,7 @@ const queryUser = userId ?? 0;
 const tab = parseTab(Astro.url.searchParams.get('tab'));
 const offset = parseOffset(Astro.url.searchParams.get('offset'));
 const present = await distinctSources(env.NEWS_DB);
-const presentSet = new Set(present);
-const sources = Astro.url.searchParams.getAll('source').filter((s) => presentSet.has(s));
+const sources = activeSourceFilter(Astro.url.searchParams.getAll('source'), present);
 
 const read = isReadTab(tab);
 const total = await countItemsByRead(env.NEWS_DB, { userId: queryUser, read, sources });
@@ -49,12 +49,10 @@ const items = await listItemsByRead(env.NEWS_DB, {
 });
 
 // A toggle in an appended row returns to the top of the active tab + source
-// filter (the offset is deliberately dropped — see safeReturnPath), so the
-// reader lands back on the same tab/filter rather than the unfiltered home (#80).
-const returnParams = new URLSearchParams();
-returnParams.set('tab', tab);
-for (const s of sources) returnParams.append('source', s);
-const returnTo = `/?${returnParams.toString()}`;
+// filter (feedReturnTo in digest.ts — the offset is deliberately dropped, see
+// safeReturnPath), so the reader lands back on the same tab/filter, not the
+// unfiltered home (#80).
+const returnTo = feedReturnTo(tab, sources);
 ---
 
 <FeedPage

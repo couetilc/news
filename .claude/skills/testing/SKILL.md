@@ -53,21 +53,27 @@ all-boundary functions; their tests enumerate the boundaries on purpose.
 genuinely required:
 
 - **`workers`** (`vitest.workers.config.ts`) — runs **inside workerd** via
-  `@cloudflare/vitest-pool-workers`. Use it for anything needing the real
-  runtime: `cloudflare:workers` env, **D1 bindings**, and `ON CONFLICT` dedupe
-  semantics behave exactly as in production. A real local D1 (`NEWS_DB`) is
+  `@cloudflare/vitest-pool-workers`. Use it **only** for what needs the real
+  runtime: `cloudflare:workers` env, **D1 bindings**, `ON CONFLICT` dedupe
+  semantics, workerd Web Crypto parity. A real local D1 (`NEWS_DB`) is
   declared inline (`miniflare.d1Databases`) and the committed `migrations/*.sql`
   are applied per test file by `test/helpers/apply-migrations.ts`
-  (`applyD1Migrations` from `cloudflare:test`). **All `src/ingest/**` and the
-  worker's real D1 behavior live here.**
-- **`node`** (`vitest.node.config.ts`) — plain node environment, for the two
-  things the worker pool can't host: rendering `.astro` pages through Astro's
-  **Container API** (its Vite plugins pull in `xxhash-wasm`, which the worker
-  pool can't load), and the trivial **`src/worker.ts`** entry test. Keep the
-  `worker.ts` test here: under node, Istanbul's coverage of its async `scheduled`
-  handler is deterministic; under the worker pool that coverage is dropped
-  intermittently and red-fails the gate. Its workerd-specific imports are
-  `vi.mock`ed.
+  (`applyD1Migrations` from `cloudflare:test`). **The imperative shell's
+  integration tests live here** — the D1 data layer (`db.test.ts`,
+  `users.test.ts`, `auth-actions.test.ts`), the ingest orchestrator
+  (`run.test.ts`), the endpoints, and the crypto specs (`auth.test.ts`,
+  `auth.prop.test.ts`, deliberately on workerd's Web Crypto).
+- **`node`** (`vitest.node.config.ts`) — plain node environment, hosting
+  everything else, and it's the **fast** pool: rendering `.astro` pages through
+  Astro's **Container API** (its Vite plugins pull in `xxhash-wasm`, which the
+  worker pool can't load), the trivial **`src/worker.ts`** entry test (under
+  node, Istanbul's coverage of its async `scheduled` handler is deterministic;
+  under the worker pool it was dropped intermittently, red-failing the gate),
+  and **every pure functional-core spec** (#349): the parsers + `parse-fuzz`,
+  normalization (`dates`/`entities`/`count`), `validate`, the source registry,
+  pagination, schedule/merge/queries/digest, log/email, the auth validators.
+  A pure module's spec imports only vitest, the module, and `?raw` fixtures —
+  never `cloudflare:test` or D1 — so it never needs the workerd pool.
 
 Both configs keep `configFile: false` (the Cloudflare adapter's Vite plugin is
 incompatible with the test pipeline). Pages import `cloudflare:workers`, aliased
@@ -75,11 +81,13 @@ in the node project to `test/helpers/cloudflare-workers.ts`; a page's data acces
 is mocked there, and its **real** D1 behavior is covered by the `workers`
 project.
 
-**Which project does my new file go in?** Touches D1 / `cloudflare:workers` / an
-ingest parser → `workers`. Renders a `.astro` page or is `worker.ts` → `node`
-(and add the filename to the `include`/`exclude` lists in *both* configs — the
-node project lists its files explicitly; the workers project excludes them).
-Every `src/**` file must be exercised by exactly one project, or the gate fails.
+**Which project does my new spec go in?** Touches D1 / KV /
+`cloudflare:workers` / `cloudflare:test` → `workers`. Everything else — pure
+logic, parsers, `.astro` renders, `worker.ts` — → `node` (and add the filename
+to the `include`/`exclude` lists in *both* configs — the node project lists its
+files explicitly; the workers project excludes them). Every `src/**` file must
+be exercised by at least one project (its dedicated spec lives in exactly one),
+or the gate fails.
 
 ## The coverage gate
 
@@ -233,14 +241,26 @@ fault*.
 
 A devDependency. Reach for it when a function has an **invariant that should hold
 across a whole input space** the enumerated example tests can't reach — pagination
-math, the email/password validators, the record-envelope parser, and (above all)
-**fuzzing the untrusted-input parsers** for the contract above (never throws
-except the documented guard; otherwise a well-formed `ParsedItem[]`). Canonical
-examples: `test/pagination.prop.test.ts`, `test/auth-validate.prop.test.ts`,
-`test/parse-fuzz.test.ts`.
+math, the email/password validators, the record-envelope parser, the ingest
+algebra and scheduling laws, and (above all) **fuzzing the untrusted-input
+parsers** for the contract above (never throws except the documented guard;
+otherwise a well-formed `ParsedItem[]`). Canonical examples:
+`test/pagination.prop.test.ts`, `test/auth-validate.prop.test.ts`,
+`test/parse-fuzz.test.ts`, and the functional-core suites
+`test/schedule.prop.test.ts` / `test/merge.prop.test.ts` /
+`test/digest.prop.test.ts` (#349).
 
 - **Seed for determinism** — pass `{ seed: … }` to `fc.assert` so any failure is
   reproducible (the repo uses `const SEED = 0x163`).
+- **Pair every `.prop` suite with an example suite.** Properties prove the laws
+  (idempotence, commutativity, partition/subsequence, monotonicity,
+  boundary-iff); the sibling example spec pins the exact boundary values and
+  copy strings. When a property ever fails, **pin the shrunk counterexample as
+  an example-test regression case** in the sibling spec — the property proves
+  the law again, the example keeps the specific bug dead.
+- **Force collisions on purpose.** An arbitrary-string arbitrary almost never
+  collides, so dedupe/merge branches go unexplored; draw keys from a small
+  constant pool (see `merge.prop.test.ts`) so the interesting branches fire.
 - **Guard against vacuous properties.** A property that's trivially true catches
   nothing. A positive roundtrip needs a **negative cross-check** (assert the
   malformed/below-floor cases are *rejected*, not just that the good ones pass);
@@ -250,8 +270,11 @@ examples: `test/pagination.prop.test.ts`, `test/auth-validate.prop.test.ts`,
 
 ### Mutation testing (Stryker)
 
-**Advisory / on-demand** — `npm run test:mutation` (~22s), **not** in the
-per-commit gate and not in `npm test`; coverage stays the floor. It injects
+**Advisory / on-demand** — `npm run test:mutation` (~45s), **not** in the
+per-commit gate and not in `npm test`; coverage stays the floor. The standing
+policy is **report-only: record the score, no blocking threshold** (#349) —
+graduate to a required floor only after the score has held steady (see *The CI
+cadence*). It injects
 faults into the in-scope modules and checks the suite **kills** them. Read a
 **survivor as a weak or missing assertion** — a covered line whose value nothing
 pinned. But **distinguish equivalent mutants** (a redundant guard, log text, or
@@ -271,10 +294,42 @@ runtime** (D1/KV/`cloudflare:workers` env, the CPU + PBKDF2 caps, `ON CONFLICT`)
   parity; it's **out of mutation scope**.
 
 This is the functional-core / imperative-shell lever: split a module so the
-mutation-worthy logic is pure. The canonical example is the **`auth.ts` ↔
-`auth-crypto.ts` split (#228)** — the validators + the password-record envelope
-parser went into pure `auth.ts` (in mutation scope, fast plain-node tests), while
-the Web Crypto PBKDF2 shell stayed in `auth-crypto.ts` (glue, out of scope).
+mutation-worthy logic is pure. The canonical examples are the **`auth.ts` ↔
+`auth-crypto.ts` split (#228)** — validators + the password-record envelope
+parser pure, the Web Crypto PBKDF2 shell glue — and the **ingest/digest core
+(#349)**: `src/ingest/schedule.ts` (poll-due decisions, conditional headers,
+the three feed-state patches), `src/ingest/merge.ts` (keep filter + the insert
+plan), `src/ingest/queries.ts` (the read-partition and source-filter SQL
+clauses), and `src/lib/digest.ts` (source-filter intersection, filter-bar
+ordering, tab totals, empty-state copy, returnTo assembly) — with `run.ts`,
+`db.ts`, and the `.astro` pages left as shells that gather inputs, call the
+core, and execute what it returns.
+
+### The core/shell seam — how to keep new decision logic pure
+
+- **New decision logic starts in a pure module; the shell executes it.** A
+  branch you're about to write in `run.ts`/`db.ts`/a page frontmatter is a
+  decision — put it in the matching core module (scheduling → `schedule.ts`,
+  what-gets-stored → `merge.ts`, query clauses → `queries.ts`, page assembly →
+  `digest.ts`, or a new pure module) as `(data in) → (plan/decision out)`, and
+  keep the shell's branching to outcome plumbing (status dispatch, error
+  isolation). Pure modules get plain-node example + property specs and enter
+  mutation scope; the shell stays workers-tested glue.
+- **SQL that IS the logic stays SQL.** Don't duplicate a query's `ORDER BY` or
+  `COUNT` into a redundant JS function just to have a "core" — the digest's
+  ordering/partition/counting live in `db.ts` queries, pinned against real D1
+  by `db.test.ts`. Extract only clause *construction* that genuinely branches
+  in JS (`queries.ts`).
+- **When SQL semantics need a pure meaning, write an executable spec + a parity
+  test.** `merge.ts#planItemInserts` is the pure meaning of `insertItems`' bare
+  `ON CONFLICT DO NOTHING` over the `(source, guid)` + `(source, url)` keys; it
+  is not called in production — instead the **parity block in `db.test.ts`**
+  drives both against the same scenarios and asserts real D1 agrees (count and
+  resulting key sets). That makes the core the specification, keeps the SQL the
+  implementation, and lets the algebra (idempotent re-ingest, per-source
+  commutativity) be property-tested at node speed. If the schema's dedupe
+  semantics ever change, the parity test is what goes red — update both sides
+  together.
 
 ### Stryker lockstep + the M2 enforcement test
 

@@ -1,5 +1,6 @@
 import type { FeedConfig, ParsedItem } from './types';
-import { sourceMeta } from '../lib/sources';
+import { orderSourcesByName } from '../lib/digest';
+import { sectionWhere, sourceWhere } from './queries';
 
 // A row of the feeds state table (see migrations/0001_init.sql).
 export interface FeedState {
@@ -111,12 +112,11 @@ export async function listItems(
 	limit: number,
 	sources: string[] = [],
 ): Promise<ItemRow[]> {
-	const where = sources.length > 0 ? `WHERE source IN (${sources.map(() => '?').join(', ')})` : '';
 	const { results } = await db
 		.prepare(
 			`SELECT id, source, guid, url, title, summary, content_html, published_at, fetched_at, read_at
 			 FROM items
-			 ${where}
+			 ${sourceWhere(sources)}
 			 ORDER BY (read_at IS NOT NULL), COALESCE(published_at, fetched_at) DESC, id DESC
 			 LIMIT ?`,
 		)
@@ -146,14 +146,8 @@ export interface SectionQuery {
 // The per-user read state lives in item_reads keyed by (user_id, item_id), so a
 // row's read-ness is "does this user have a join row?" — not the legacy global
 // items.read_at column. We LEFT JOIN that user's rows (the join's ON clause binds
-// the user id) and read the section off the joined read_at: IS NOT NULL = read
-// for this user, IS NULL = unread. The bind order is therefore [userId, ...].
-function sectionWhere(read: boolean, sources: string[]): string {
-	const readClause = read ? 'r.read_at IS NOT NULL' : 'r.read_at IS NULL';
-	const sourceClause = sources.length > 0 ? ` AND i.source IN (${sources.map(() => '?').join(', ')})` : '';
-	return `WHERE ${readClause}${sourceClause}`;
-}
-
+// the user id) and read the section off the joined read_at (sectionWhere in
+// queries.ts holds the partition decision). The bind order is [userId, ...].
 export async function listItemsByRead(
 	db: D1Database,
 	{ userId, read, limit, offset, sources = [] }: SectionQuery,
@@ -227,14 +221,12 @@ export async function listRecentlyRead(
 
 // The source slugs actually present in the items table — the sources the feed
 // can be filtered by, so empty/unregistered registry entries never show. Ordered
-// by display name (via sourceMeta) for a stable, human-sensible filter bar.
+// by display name (orderSourcesByName in digest.ts) for a stable filter bar.
 export async function distinctSources(db: D1Database): Promise<string[]> {
 	const { results } = await db
 		.prepare('SELECT DISTINCT source FROM items')
 		.all<{ source: string }>();
-	return results
-		.map((r) => r.source)
-		.sort((a, b) => sourceMeta(a).name.localeCompare(sourceMeta(b).name));
+	return orderSourcesByName(results.map((r) => r.source));
 }
 
 // Flip one item's read state for ONE user (issue #70): readAt = unix seconds

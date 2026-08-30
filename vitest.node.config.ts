@@ -72,6 +72,45 @@ export default getViteConfig(
 				// Stryker mutate-scope enforcement (#229) — reads sources +
 				// stryker.config.json off disk via node:fs (the workers pool can't).
 				'test/stryker-scope.test.ts',
+				// ── Pure functional-core specs (#349) ─────────────────────────────
+				// These exercise pure, I/O-free modules (parsers, normalization,
+				// validators, pagination math, the log/email helpers) and import only
+				// vitest, the module under test, and ?raw fixtures — never
+				// cloudflare:test or D1. They run here (plain node) so the workers
+				// pool stays scoped to real-runtime integration tests; the same specs
+				// are what Stryker's plain-node config replays for mutation testing
+				// (vitest.stryker.config.ts).
+				'test/parse-atom.test.ts',
+				'test/parse-rss20.test.ts',
+				'test/parse-aws-whats-new.test.ts',
+				'test/parse-sec-edgar.test.ts',
+				'test/parse-ti-newsroom.test.ts',
+				'test/parse-thinking-machines-news.test.ts',
+				'test/parse-jpm-eotm.test.ts',
+				'test/parse-owenomics.test.ts',
+				'test/parse-cursor.test.ts',
+				'test/parse-entities.test.ts',
+				'test/parse-fuzz.test.ts',
+				'test/count.test.ts',
+				'test/dates.test.ts',
+				'test/validate.test.ts',
+				'test/sources.test.ts',
+				'test/pagination.test.ts',
+				'test/pagination.prop.test.ts',
+				'test/return-path.test.ts',
+				'test/log.test.ts',
+				'test/email.test.ts',
+				'test/auth-validate.test.ts',
+				'test/auth-validate.prop.test.ts',
+				// The extracted functional-core modules (#349): scheduling, dedup/merge,
+				// SQL-clause, and digest-assembly decisions, example + property suites.
+				'test/schedule.test.ts',
+				'test/schedule.prop.test.ts',
+				'test/merge.test.ts',
+				'test/merge.prop.test.ts',
+				'test/queries.test.ts',
+				'test/digest.test.ts',
+				'test/digest.prop.test.ts',
 			],
 		},
 	},

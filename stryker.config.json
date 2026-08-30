@@ -8,6 +8,10 @@
   "coverageAnalysis": "perTest",
   "mutate": [
     "src/lib/auth.ts",
+    "src/lib/digest.ts",
+    "src/ingest/schedule.ts",
+    "src/ingest/merge.ts",
+    "src/ingest/queries.ts",
     "src/lib/deploy.ts",
     "src/lib/pagination.ts",
     "src/lib/return-path.ts",

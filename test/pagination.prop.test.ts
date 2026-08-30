@@ -10,9 +10,8 @@ import {
 // Property/fuzz tests for the pagination math (#163). The example-based tests in
 // pagination.test.ts pin specific boundaries; these assert the INVARIANTS hold
 // across a generated input space the enumerated cases can't reach. Pure
-// functions, so they run in the default (workers) pool — see the note in
-// test/parse-fuzz.test.ts about fast-check under workerd. A fixed seed makes any
-// failure reproducible.
+// functions, so they run in the NODE project (#349) alongside the other
+// functional-core specs. A fixed seed makes any failure reproducible.
 const SEED = 0x163;
 
 describe('parseOffset — property', () => {
