@@ -94,41 +94,11 @@
 	}
 
 	/*
-	 * Visited indicator (#263) — a PERSISTENT mark that an item's article link has
-	 * been opened, INDEPENDENT of the read/unread square (read dims the whole row
-	 * opacity-55 + fills the square; this only de-emphasizes the headline ink and
-	 * reveals an agate "Opened" tag). Two layers, the second a progressive
-	 * enhancement over the first:
-	 *
-	 *   1. Native a:visited — the no-JS baseline. Privacy rules let :visited style
-	 *      only color/background/border/outline, so it can't reveal the tag; it just
-	 *      shifts the opened headline link toward the muted ink, a calm "already
-	 *      seen" cue that works with JavaScript off and needs zero stored state. The
-	 *      data-visited-link headline <a> is targeted so a visited <time>/source link
-	 *      elsewhere can't catch this. Only the <a> is styled — the <h2> INHERITS the
-	 *      muted link color at rest; deliberately NOT a descendant `…:visited h2` rule
-	 *      (#273), which would out-specify the headline's group-hover/group-focus-visible
-	 *      :text-accent utilities and trap an opened headline muted on hover/focus.
-	 *      Inheriting lets those interaction utilities set an explicit color and win.
-	 *
-	 *   2. [data-visited] — the richer, reliable layer src/scripts/visited.ts drives
-	 *      from localStorage (records exactly the links opened FROM the feed). It
-	 *      reveals the .visited-tag agate "Opened" box, which is hidden at rest. This
-	 *      is the distinguishing, unambiguous indicator; native :visited is the
-	 *      graceful fallback beneath it.
-	 *
-	 * Both stay in newsprint voice (muted ink + a hairline rule), never the accent
-	 * red (reserved for interaction) and never the read square's fill.
+	 * The #263 visited-indicator CSS (a[data-visited-link]:visited muting + the
+	 * hidden/revealed .visited-tag "Opened" box) was retired by #334: opened-state
+	 * now lives server-side — opening an article marks it read (item_reads), the
+	 * row leaves Unread, and it surfaces in the homepage's "Recently viewed" lane.
+	 * The read-row dimming (opacity-55) and the lane replace both cues, so no
+	 * per-device :visited echo remains.
 	 */
-	a[data-visited-link]:visited {
-		color: var(--color-muted);
-	}
-
-	/* The agate "Opened" tag is hidden until the row is marked visited. */
-	.visited-tag {
-		display: none;
-	}
-	[data-visited] .visited-tag {
-		display: inline;
-	}
 }
