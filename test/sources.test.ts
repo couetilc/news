@@ -11,6 +11,7 @@ import cloudflareXml from './fixtures/cloudflare-blog.xml?raw';
 import elonlitXml from './fixtures/elonlit.xml?raw';
 import ieeeXml from './fixtures/ieee-spectrum.xml?raw';
 import intelXml from './fixtures/intel.xml?raw';
+import mistralXml from './fixtures/mistral.xml?raw';
 import nvidiaBlogXml from './fixtures/nvidia-blog.xml?raw';
 import nvidiaNewsroomXml from './fixtures/nvidia-newsroom.xml?raw';
 import qualcommXml from './fixtures/qualcomm.xml?raw';
@@ -41,6 +42,7 @@ describe('SOURCES', () => {
 		expect(slugs).toContain('cisco');
 		expect(slugs).toContain('ti');
 		expect(slugs).toContain('eye-on-the-market');
+		expect(slugs).toContain('mistral');
 	});
 
 	it('registers both Cisco feeds (IR RSS primary + EDGAR 8-K backstop) under one source', () => {
@@ -312,5 +314,49 @@ describe('SOURCES', () => {
 
 	it('counts the Eye on the Market pages array as the drift denominator (#319)', () => {
 		expect(source('eye-on-the-market').countRaw!(eotmJson)).toBe(3);
+	});
+
+	it('registers the Mistral first-party feed on the /news/rss URL with a 6-hour poll (#339)', () => {
+		const mistral = source('mistral');
+		// The advertised /rss.xml 301s here; poll the final URL directly. The feed
+		// is served as text/plain — run.ts parses by content, never content-type.
+		expect(mistral.feed).toBe('https://mistral.ai/news/rss');
+		// ~1–2 posts/week → 6-hourly.
+		expect(mistral.pollIntervalSeconds).toBe(21600);
+		expect(mistral.countRaw).toBeDefined();
+	});
+
+	it('parses Mistral title-only items: no content, no summary, links out (#339)', () => {
+		// The newest live item has NO <description> at all — the AMD pattern:
+		// `description` mode yields null contentHtml and the reader links out.
+		const items = source('mistral').parse(mistralXml);
+		expect(items[0].title).toBe('Mistral x HUMAIN');
+		expect(items[0].url).toBe('https://mistral.ai/news/mistral-x-humain/');
+		// guid mirrors the permalink (isPermaLink="true").
+		expect(items[0].guid).toBe('https://mistral.ai/news/mistral-x-humain/');
+		expect(items[0].contentHtml).toBeNull();
+		expect(items[0].summary).toBeNull();
+		// Precise second-resolution pubDate, RFC-822 GMT.
+		expect(items[0].publishedAt).toBe(Math.floor(Date.UTC(2026, 7, 24, 16, 2, 41) / 1000));
+	});
+
+	it('parses a Mistral teaser description into contentHtml with no summary (#339)', () => {
+		// When an item does carry a <description>, it's a one-sentence plain-text
+		// teaser; `description` mode routes it into contentHtml and leaves summary
+		// null (same path as IEEE Spectrum/Qualcomm).
+		const items = source('mistral').parse(mistralXml);
+		expect(items[1].title).toBe(
+			'Agentic Search. More accurate and efficient results from your AI systems.',
+		);
+		expect(items[1].url).toBe('https://mistral.ai/news/agentic-search/');
+		expect(items[1].contentHtml).toBe(
+			'The retrieval layer that helps AI systems navigate, read, and verify information inside even the most complex documents',
+		);
+		expect(items[1].summary).toBeNull();
+		expect(items[1].publishedAt).toBe(Math.floor(Date.UTC(2026, 7, 20, 12, 0, 17) / 1000));
+	});
+
+	it('counts every Mistral <item> as the drift denominator (#339)', () => {
+		expect(source('mistral').countRaw!(mistralXml)).toBe(5);
 	});
 });

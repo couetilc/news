@@ -295,4 +295,23 @@ export const SOURCES: FeedConfig[] = [
 		parse: parseJpmEotm,
 		countRaw: countJpmEotm,
 	},
+	{
+		// #339 — Mistral AI news, first-party RSS 2.0. The advertised /rss.xml URL
+		// 301s to /news/rss (the news page's "RSS feed" card), so poll the final URL
+		// directly. GOTCHA: it's served as `Content-Type: text/plain; charset=UTF-8`,
+		// not an XML type — fine, run.ts never gates on content-type (it hands
+		// res.text() straight to parse). Items are title+link with at most a
+		// one-sentence teaser <description> (most items carry none), so `description`
+		// mode yields a teaser-or-null contentHtml and we link out — the AMD pattern.
+		// ~1–2 posts/week in an ~80-item window, so a 6-hour poll is ample. Fallback
+		// mirrors if the first-party feed rots: the Turing Institute mirror
+		// (raw.githubusercontent.com/alan-turing-institute/ai-rss-feeds → feeds/
+		// mistral-news.xml), 0xSMW/rss-feeds (feed_mistral_news.xml, full text in
+		// content:encoded), or the openrss.org proxy.
+		source: 'mistral',
+		feed: 'https://mistral.ai/news/rss',
+		pollIntervalSeconds: 21600,
+		parse: (xml) => parseRss20(xml, { content: 'description' }),
+		countRaw: countRss20,
+	},
 ];

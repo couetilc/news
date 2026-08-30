@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Mistral AI Blog</title>
+    <description>Latest news and updates from Mistral AI</description>
+    <link>https://mistral.ai/</link>
+    <item>
+      <title>Mistral x HUMAIN </title>
+      <link>https://mistral.ai/news/mistral-x-humain/</link>
+      <guid isPermaLink="true">https://mistral.ai/news/mistral-x-humain/</guid>
+      <pubDate>Mon, 24 Aug 2026 16:02:41 GMT</pubDate>
+    </item>
+    <item>
+      <title>Agentic Search. More accurate and efficient results from your AI systems.</title>
+      <link>https://mistral.ai/news/agentic-search/</link>
+      <guid isPermaLink="true">https://mistral.ai/news/agentic-search/</guid>
+      <description>The retrieval layer that helps AI systems navigate, read, and verify information inside even the most complex documents
+</description>
+      <pubDate>Thu, 20 Aug 2026 12:00:17 GMT</pubDate>
+    </item>
+    <item>
+      <title>In-region inference, open models, and new European infrastructure for sovereign AI.</title>
+      <link>https://mistral.ai/news/regional-inference-open-models-new-compute/</link>
+      <guid isPermaLink="true">https://mistral.ai/news/regional-inference-open-models-new-compute/</guid>
+      <description>Mistral is bringing together the inference infrastructure, open models, and long-term commitments Europe needs to control its AI future, and setting a roadmap for the world.</description>
+      <pubDate>Tue, 11 Aug 2026 12:00:27 GMT</pubDate>
+    </item>
+    <item>
+      <title>Introducing Shieldstral.</title>
+      <link>https://mistral.ai/news/shieldstral/</link>
+      <guid isPermaLink="true">https://mistral.ai/news/shieldstral/</guid>
+      <description>Shieldstral introduces a 3B open-weights multimodal safety classifier that outperforms models up to 7x its size.</description>
+      <pubDate>Tue, 04 Aug 2026 12:00:26 GMT</pubDate>
+    </item>
+    <item>
+      <title>Bringing open AI models to the frontier</title>
+      <link>https://mistral.ai/news/about-mistral-ai/</link>
+      <guid isPermaLink="true">https://mistral.ai/news/about-mistral-ai/</guid>
+      <description>Why we&apos;re building Mistral AI.</description>
+      <pubDate>Wed, 27 Sep 2023 08:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>

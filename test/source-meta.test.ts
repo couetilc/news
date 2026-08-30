@@ -29,6 +29,15 @@ describe('sourceMeta', () => {
 		});
 	});
 
+	it('maps mistral to its registered display name and swatch (#339)', () => {
+		// The exact pair the reader sees on the chip; a slug typo would fall back
+		// to { name: 'mistral', swatch: 'bg-muted' } and fail here.
+		expect(sourceMeta('mistral')).toEqual({
+			name: 'Mistral',
+			swatch: 'bg-source-mistral',
+		});
+	});
+
 	it('maps other registered slugs to their exact display metadata', () => {
 		// Per-slug pins (not exact-list equality) so sibling sources can land in
 		// parallel without touching this test.
