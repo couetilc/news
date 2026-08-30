@@ -12,6 +12,7 @@ import {
 	setItemRead,
 	updateFeedState,
 } from '../src/ingest/db';
+import { planItemInserts, type SourceKeys } from '../src/ingest/merge';
 import type { FeedConfig, ParsedItem } from '../src/ingest/types';
 
 const db = env.NEWS_DB;
@@ -134,6 +135,65 @@ describe('insertItems', () => {
 
 	it('does nothing for an empty batch', async () => {
 		expect(await insertItems(db, 'a', [], 500)).toBe(0);
+	});
+});
+
+describe('planItemInserts ⇄ insertItems parity (#349)', () => {
+	// The pure core (src/ingest/merge.ts) is the executable SPECIFICATION of
+	// insertItems' bare ON CONFLICT DO NOTHING; this block proves real D1 agrees
+	// with it, poll after poll. Each scenario: read the keys the source occupies,
+	// plan, execute the same batch through insertItems, and assert D1 inserted
+	// exactly the plan (count AND resulting key sets). If a schema/key change
+	// ever shifts the SQL's dedupe semantics, this is the test that goes red.
+	const sourceKeys = async (source: string): Promise<SourceKeys> => {
+		const { results } = await db
+			.prepare('SELECT guid, url FROM items WHERE source = ?')
+			.bind(source)
+			.all<{ guid: string; url: string }>();
+		return {
+			guids: new Set(results.map((r: { guid: string }) => r.guid)),
+			urls: new Set(results.map((r: { url: string }) => r.url)),
+		};
+	};
+
+	// Run one poll through BOTH implementations and assert they agree.
+	const pollBoth = async (source: string, batch: ParsedItem[]): Promise<number> => {
+		const before = await sourceKeys(source);
+		const plan = planItemInserts(before, batch);
+		const inserted = await insertItems(db, source, batch, 500);
+		expect(inserted).toBe(plan.inserts.length);
+		const after = await sourceKeys(source);
+		expect(after.guids).toEqual(new Set([...before.guids, ...plan.inserts.map((i) => i.guid)]));
+		expect(after.urls).toEqual(new Set([...before.urls, ...plan.inserts.map((i) => i.url)]));
+		return inserted;
+	};
+
+	it('agrees on a fresh batch, an idempotent re-poll, and a guid-drift dupe', async () => {
+		const batch = [
+			item({ guid: 'g1' }),
+			item({ guid: 'g2' }),
+			// In-batch (source, guid) duplicate: the earlier statement wins.
+			item({ guid: 'g1', url: 'https://example.com/other' }),
+		];
+		expect(await pollBoth('s', batch)).toBe(2);
+		// Re-ingesting the same feed is a no-op in both worlds.
+		expect(await pollBoth('s', batch)).toBe(0);
+		// Guid drifted, url held steady (#191): both worlds call it a dupe.
+		expect(await pollBoth('s', [item({ guid: 'g1-drifted', url: 'https://example.com/g1' })])).toBe(0);
+	});
+
+	it('agrees on the in-batch partial collision: the earlier item claims the shared url', async () => {
+		const a = item({ guid: 'gA', url: 'https://example.com/shared' });
+		const b = item({ guid: 'gB', url: 'https://example.com/shared' });
+		expect(await pollBoth('s', [a, b])).toBe(1);
+		const rows = await listItems(db, 10);
+		expect(rows.map((r) => r.guid)).toEqual(['gA']); // statement order decided
+	});
+
+	it('agrees that dedupe keys are per-source: the same batch lands under both sources', async () => {
+		const batch = [item({ guid: 'shared-guid', url: 'https://example.com/shared-url' })];
+		expect(await pollBoth('a', batch)).toBe(1);
+		expect(await pollBoth('b', batch)).toBe(1);
 	});
 });
 

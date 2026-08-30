@@ -14,6 +14,12 @@ import FilterBar from '../components/FilterBar.astro';
 import PinnedLinks from '../components/PinnedLinks.astro';
 import RecentlyViewed from '../components/RecentlyViewed.astro';
 import Layout from '../layouts/Layout.astro';
+import {
+	activeSourceFilter,
+	emptyMessage,
+	pickSectionTotal,
+	showRecentlyViewed,
+} from '../lib/digest';
 import { PAGE_SIZE, isReadTab, parseTab } from '../lib/pagination';
 import { PINNED } from '../lib/pinned';
 
@@ -47,8 +53,7 @@ const publicItems = isAuthed ? [] : await listItems(env.NEWS_DB, 100);
 // for multi-select) is intersected with them, so an unknown or absent slug just
 // drops out — an empty result means "All", never a 500.
 const present = isAuthed ? await distinctSources(env.NEWS_DB) : [];
-const presentSet = new Set(present);
-const active = Astro.url.searchParams.getAll('source').filter((s) => presentSet.has(s));
+const active = activeSourceFilter(Astro.url.searchParams.getAll('source'), present);
 
 // The active tab (#151): ?tab=unread|read, defaulting to unread, parsed
 // defensively (an unknown value falls back to unread). URL-addressable so it
@@ -80,7 +85,7 @@ const readTotal = isAuthed
 // The first 50 of the ACTIVE tab only — the inactive tab isn't fetched (its tally
 // comes from the count above). offset 0; /feed pages the rest as the reader
 // scrolls. The source filter narrows the window, same as the count.
-const activeTotal = isReadTab(tab) ? readTotal : unreadTotal;
+const activeTotal = pickSectionTotal(tab, unreadTotal, readTotal);
 const items = isAuthed
 	? await listItemsByRead(env.NEWS_DB, {
 			userId: queryUser,
@@ -101,21 +106,14 @@ const items = isAuthed
 // user row, so the query never runs and the lane never renders on the public
 // view; on the Read tab it's skipped the same way (empty → self-erasing lane).
 const RECENT_LIMIT = 3;
-const recent =
-	isAuthed && !isReadTab(tab) ? await listRecentlyRead(env.NEWS_DB, queryUser, RECENT_LIMIT) : [];
+const recent = showRecentlyViewed(isAuthed, tab)
+	? await listRecentlyRead(env.NEWS_DB, queryUser, RECENT_LIMIT)
+	: [];
 
-// Empty-state copy for the active tab. A source filter with no matches gets the
-// "from this source" line (so the reader knows to clear it); otherwise it's the
-// plain per-tab caught-up/none-read message. "Nothing aggregated yet" (no sources
-// at all) is handled separately below via `present`.
-const filtered = active.length > 0;
-const emptyMessage = isReadTab(tab)
-	? filtered
-		? 'Nothing read from this source yet.'
-		: 'Nothing read yet.'
-	: filtered
-		? 'Nothing unread from this source.'
-		: 'All caught up — nothing unread.';
+// Empty-state copy for the active tab (emptyMessage in digest.ts): filter-aware
+// caught-up/none-read copy. "Nothing aggregated yet" (no sources at all) is
+// handled separately below via `present`.
+const emptyCopy = emptyMessage(tab, active.length > 0);
 ---
 
 <Layout title="News">
@@ -158,7 +156,7 @@ const emptyMessage = isReadTab(tab)
 						/>
 						{items.length === 0 ? (
 							<p data-feed-empty class="py-16 text-center text-lg italic text-muted">
-								{emptyMessage}
+								{emptyCopy}
 							</p>
 						) : (
 							/* The active tab's list: the first 50 server-rendered, ending in
@@ -168,7 +166,7 @@ const emptyMessage = isReadTab(tab)
 							   filter-aware caught-up copy so the in-place read toggle (#223) can
 							   render this tab's empty state when its last row is toggled away,
 							   matching the server-rendered <p data-feed-empty> above. */
-							<ol data-feed-list data-empty-message={emptyMessage}>
+							<ol data-feed-list data-empty-message={emptyCopy}>
 								<FeedPage
 									items={items}
 									offset={0}

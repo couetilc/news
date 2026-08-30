@@ -84,6 +84,10 @@ const CORE_WITHOUT_ISOLATED_TEST: Record<string, string> = {
 // repo-relative, matching the include's own form.
 const MUTATE_SPECS: Record<string, string[]> = {
 	'src/lib/auth.ts': ['test/auth-validate.test.ts', 'test/auth-validate.prop.test.ts'],
+	'src/lib/digest.ts': ['test/digest.test.ts', 'test/digest.prop.test.ts'],
+	'src/ingest/schedule.ts': ['test/schedule.test.ts', 'test/schedule.prop.test.ts'],
+	'src/ingest/merge.ts': ['test/merge.test.ts', 'test/merge.prop.test.ts'],
+	'src/ingest/queries.ts': ['test/queries.test.ts'],
 	'src/lib/deploy.ts': ['test/deploy.test.ts'],
 	'src/lib/pagination.ts': ['test/pagination.test.ts'],
 	'src/lib/return-path.ts': ['test/return-path.test.ts'],

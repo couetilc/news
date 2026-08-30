@@ -6,6 +6,15 @@ import {
 	updateFeedState,
 	type FeedState,
 } from './db';
+import { keepItems } from './merge';
+import {
+	dueFeeds,
+	failurePatch,
+	nextPollAt,
+	notModifiedPatch,
+	pollHeaders,
+	successPatch,
+} from './schedule';
 import type { FeedConfig, ParsedItem } from './types';
 import { validateParse } from './validate';
 
@@ -26,35 +35,27 @@ export async function ingestAll(deps: IngestDeps, feeds: FeedConfig[]): Promise<
 	const { db, now } = deps;
 	await ensureFeedRows(db, feeds);
 
+	// One clock snapshot picks the tick's due set (the pure core decides; see
+	// schedule.ts). ensureFeedRows just guaranteed a state row for every config.
 	const states = new Map((await getFeedStates(db)).map((s) => [s.feed, s]));
-	for (const config of feeds) {
-		// ensureFeedRows just guaranteed a row for every config.feed.
-		const state = states.get(config.feed)!;
-		if (state.next_poll_at > now()) continue;
+	for (const { config, state } of dueFeeds(feeds, states, now())) {
 		await pollFeed(deps, config, state);
 	}
 }
 
+// The imperative shell for one poll (#349): fetch, execute the pure decisions
+// from schedule.ts/merge.ts/validate.ts, write the results to D1, log. The only
+// branching left here is outcome plumbing (status dispatch + error isolation).
 async function pollFeed(deps: IngestDeps, config: FeedConfig, state: FeedState): Promise<void> {
 	const { db, fetchFn, now } = deps;
-	const nextPollAt = now() + config.pollIntervalSeconds;
+	const rescheduleAt = nextPollAt(now(), config.pollIntervalSeconds);
 
 	try {
-		const headers: Record<string, string> = { 'User-Agent': USER_AGENT };
-		if (state.etag) headers['If-None-Match'] = state.etag;
-		if (state.last_modified) headers['If-Modified-Since'] = state.last_modified;
-
-		const res = await fetchFn(config.feed, { headers });
+		const res = await fetchFn(config.feed, { headers: pollHeaders(USER_AGENT, state) });
 
 		// Not modified since last poll: nothing to parse, just reschedule.
 		if (res.status === 304) {
-			await updateFeedState(db, config.feed, {
-				etag: state.etag,
-				lastModified: state.last_modified,
-				nextPollAt,
-				lastStatus: 304,
-				failureCount: 0,
-			});
+			await updateFeedState(db, config.feed, notModifiedPatch(state, rescheduleAt));
 			log.info('ingest.poll', {
 				source: config.source,
 				feed: config.feed,
@@ -85,16 +86,14 @@ async function pollFeed(deps: IngestDeps, config: FeedConfig, state: FeedState):
 		// noise would trip parse_drop / zero_parsed_of_raw on every healthy poll —
 		// and BEFORE the writes. The `filtered` count is logged below so the drop
 		// is visible and quantified, never silent.
-		const kept = config.keep ? items.filter(config.keep) : items;
+		const kept = keepItems(config.keep, items);
 
 		const inserted = await insertItems(db, config.source, kept, now());
-		await updateFeedState(db, config.feed, {
-			etag: res.headers.get('ETag'),
-			lastModified: res.headers.get('Last-Modified'),
-			nextPollAt,
-			lastStatus: 200,
-			failureCount: 0,
-		});
+		await updateFeedState(
+			db,
+			config.feed,
+			successPatch(res.headers.get('ETag'), res.headers.get('Last-Modified'), rescheduleAt),
+		);
 		log.info('ingest.poll', {
 			source: config.source,
 			feed: config.feed,
@@ -105,14 +104,8 @@ async function pollFeed(deps: IngestDeps, config: FeedConfig, state: FeedState):
 			outcome: 'ok',
 		});
 	} catch (err) {
-		// Keep prior etag/last_modified so a recovered feed can still 304.
-		await updateFeedState(db, config.feed, {
-			etag: state.etag,
-			lastModified: state.last_modified,
-			nextPollAt,
-			lastStatus: state.last_status,
-			failureCount: state.failure_count + 1,
-		});
+		// failurePatch keeps prior etag/last_modified so a recovered feed can 304.
+		await updateFeedState(db, config.feed, failurePatch(state, rescheduleAt));
 		log.error('ingest.error', {
 			source: config.source,
 			feed: config.feed,
