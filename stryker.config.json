@@ -23,6 +23,7 @@
     "src/ingest/parse/ti-newsroom.ts",
     "src/ingest/parse/jpm-eotm.ts",
     "src/ingest/parse/owenomics.ts",
+    "src/ingest/parse/cursor.ts",
     "src/ingest/parse/entities.ts",
     "src/ingest/parse/count.ts",
     "src/ingest/parse/dates.ts"

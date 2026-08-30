@@ -1,5 +1,6 @@
 import { parseAtom } from './parse/atom';
 import { parseAwsWhatsNew } from './parse/aws-whats-new';
+import { parseCursorBlog } from './parse/cursor';
 import { parseJpmEotm } from './parse/jpm-eotm';
 import { parseOwenomics } from './parse/owenomics';
 import { parseRss20 } from './parse/rss20';
@@ -8,6 +9,7 @@ import { parseTiNewsroom } from './parse/ti-newsroom';
 import {
 	countAtom,
 	countAwsWhatsNew,
+	countCursorBlog,
 	countJpmEotm,
 	countOwenomics,
 	countRss20,
@@ -445,5 +447,29 @@ export const SOURCES: FeedConfig[] = [
 		pollIntervalSeconds: 28800,
 		parse: (xml) => parseRss20(xml, { content: 'description' }),
 		countRaw: countRss20,
+	},
+	{
+		// #335 — Cursor blog, RESEARCH-TAGGED posts only (the owner's note:
+		// "especially posts tagged research"; widening to the whole blog is a
+		// future config change — swap/add the /blog listing URL). The official
+		// cursor.com/rss.xml is DEAD: stale since ~Sept 2025 (forum bug 149990,
+		// acked then auto-closed unfixed) and by 2026-08 the URL 200s with the
+		// marketing HOMEPAGE as text/html — no XML at all — so parseRss20 can't
+		// apply. The site is Next.js App Router/RSC (no __NEXT_DATA__, no JSON
+		// endpoint); we parse the server-rendered /blog/topic/research listing
+		// directly (title/link/date cards; no teaser → link out, null
+		// contentHtml). Poll the APEX host — www.cursor.com 308s to cursor.com.
+		// Pagination is a non-issue today: /blog/topic/research/page/2 308s back
+		// to page 1 (all research posts fit one page), and new posts land on page
+		// 1 anyway. The page streams the listing twice (duplicate SSR render):
+		// parse emits both copies and insertItems collapses them on (source,
+		// guid) — see parse/cursor.ts. Research posts are ~weekly, so poll
+		// daily. Fallbacks if the listing rots: cursor.com/sitemap.xml for
+		// discovery, or the openrss.org proxy of /blog.
+		source: 'cursor',
+		feed: 'https://cursor.com/blog/topic/research',
+		pollIntervalSeconds: 86400,
+		parse: parseCursorBlog,
+		countRaw: countCursorBlog,
 	},
 ];

@@ -99,6 +99,24 @@ export function countOwenomics(payload: string): number {
 	return arrayLength((parsed as { Results?: unknown }).Results);
 }
 
+// Cursor research-topic listing (#335): the server-rendered card anchors whose
+// class carries blog-directory__row — the exact container parseCursorBlog
+// iterates (keep the two regexes in sync). The live page streams the listing
+// TWICE (duplicate SSR render), and the parser emits one item per occurrence,
+// so counting every occurrence here keeps raw vs parsed comparable instead of
+// tripping parse_drop on every healthy poll. Cards are counted BEFORE the
+// parser's per-entry drops (a card with no href still counts — that gap IS the
+// drift signal). Pure regex scanning over the payload — never throws.
+export function countCursorBlog(payload: string): number {
+	const anchorOpen = /<a\s([^>]*)>/g;
+	let count = 0;
+	let anchor: RegExpExecArray | null;
+	while ((anchor = anchorOpen.exec(payload)) !== null) {
+		if (/\bclass="[^"]*\bblog-directory__row\b[^"]*"/.test(anchor[1])) count++;
+	}
+	return count;
+}
+
 // NOTE: SEC EDGAR deliberately has NO raw counter. `filings.recent` is the whole
 // columnar filings history (~1000 rows for TI), but parseSecEdgar keeps only the
 // configured 8-K forms within a 20-item recent window — so the columnar height

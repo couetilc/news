@@ -58,6 +58,7 @@
 	--color-source-owenomics: #7a6a8a; /* muted heather (#333, Owenomics) */
 	--color-source-open-models: #8a3f5f; /* muted berry (#340, Open Models) */
 	--color-source-deepseek: #446288; /* muted azure (#340, DeepSeek) */
+	--color-source-cursor: #455a54; /* muted pine-slate (#335, Cursor) */
 }
 
 @layer base {
