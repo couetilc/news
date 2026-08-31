@@ -33,32 +33,95 @@
 	--color-rule: #c9c3b3; /* hairline column rules */
 	--color-accent: #8b1a1a; /* masthead/section red */
 
-	/* Source-identity swatch colors: one muted, desaturated hue per feed so a
-	   reader can tell sources apart at a glance without breaking the newsprint
-	   palette (kept dark/low-chroma to sit on warm paper, not shout like a
-	   web-app accent). Each becomes `bg-source-*`; the slug→class mapping and a
-	   neutral fallback live in src/lib/sources.ts. Add a token here per source. */
-	--color-source-cloudflare: #a8662a; /* muted burnt-ochre */
-	--color-source-ieee: #3e587a; /* muted slate-blue */
-	--color-source-apple: #6b5640; /* muted sepia/coffee (#29, Apple) */
-	--color-source-science-daily: #4a6b52; /* muted forest-green */
-	--color-source-amd: #9a4a3a; /* muted brick-red (#24, AMD) */
-	--color-source-qualcomm: #8a5a2a; /* muted bronze/caramel (#28, Qualcomm) */
-	--color-source-intel: #5a6b7a; /* muted steel gray-blue (#27, Intel) */
-	--color-source-nvidia: #6f6b32; /* muted olive-gold (#25, NVIDIA) */
-	--color-source-elonlit: #5f4a78; /* muted plum (#23, elonlit) */
-	--color-source-anthropic: #2f6660; /* muted deep-teal (#22, Anthropic) */
-	--color-source-aws: #7a4a64; /* muted mauve (#26, AWS) */
-	--color-source-cisco: #7a3a4a; /* muted maroon/wine (#31, Cisco) */
-	--color-source-ti: #b06a4a; /* muted clay/coral (#30, Texas Instruments) */
-	--color-source-eotm: #8a7a3a; /* muted dark mustard/gold (#319, Eye on the Market) */
-	--color-source-mistral: #6d7a4a; /* muted willow-green (#339, Mistral) */
-	--color-source-openai: #456d75; /* muted petrol (#337, OpenAI) */
-	--color-source-thinking-machines: #56518c; /* muted indigo (#338, Thinking Machines) */
-	--color-source-owenomics: #7a6a8a; /* muted heather (#333, Owenomics) */
-	--color-source-open-models: #8a3f5f; /* muted berry (#340, Open Models) */
-	--color-source-deepseek: #446288; /* muted azure (#340, DeepSeek) */
-	--color-source-cursor: #455a54; /* muted pine-slate (#335, Cursor) */
+	/* Source-mark BEAT hues. Hue encodes the beat (which desk of the paper a
+	   feed reports to), not the individual source — 21 per-source hues had
+	   collapsed into indistinguishable neighborhoods at swatch size, so color
+	   now carries the one distinction it can make reliably at 10px: what kind
+	   of news. Within a beat, sources are told apart by the mark's FILL/SHAPE
+	   (the .mark-* component classes below) and, finally, by the printed name.
+	   Six hues, muted to sit on warm paper, spread far apart — and kept clearly
+	   distinct from --color-accent so the alert red stays loud. The slug→mark
+	   mapping lives in src/lib/sources.ts. */
+	--color-beat-silicon: #9a4a3a; /* muted brick — chipmakers */
+	--color-beat-ai: #2f6660; /* muted deep-teal — AI labs & model releases */
+	--color-beat-platform: #3e587a; /* muted slate-blue — platforms & clouds */
+	--color-beat-press: #4a6b52; /* muted forest — science & engineering press */
+	--color-beat-markets: #8a7a3a; /* muted mustard — markets & economics */
+	--color-beat-voices: #5f4a78; /* muted plum — personal blogs */
+}
+
+/* Source identity marks: a 10px glyph whose dimensions each
+ * encode one discriminating factor, resolved coarse-to-fine —
+ *   hue   = beat (the .mark-beat-* classes, one per --color-beat-* token);
+ *   shape = sub-beat, only where a real split exists (today: .mark-diamond
+ *           marks open-weight AI labs; the default square is frontier/closed);
+ *   fill  = source within the beat (solid → hollow → half → hatch → dots,
+ *           assigned in arrival order and never reshuffled; hatch is the
+ *           convention for a beat's aggregate/backstop feed);
+ *   name  = exact identity, always printed beside the mark.
+ * Any two sources differ in hue (different beat) or in an ink-pattern channel
+ * that survives grayscale (same beat) — the old 21-hue-only encoding did
+ * neither. Fill patterns are drawn with gradients, no images; 10px (up from
+ * 8px) is what lets hatch and dots read as texture. Base --mark-c is the
+ * neutral muted fallback for unregistered sources. */
+@layer components {
+	.mark {
+		--mark-c: var(--color-muted);
+		display: inline-block;
+		width: 0.625rem;
+		height: 0.625rem;
+		flex: none;
+	}
+	.mark-beat-silicon {
+		--mark-c: var(--color-beat-silicon);
+	}
+	.mark-beat-ai {
+		--mark-c: var(--color-beat-ai);
+	}
+	.mark-beat-platform {
+		--mark-c: var(--color-beat-platform);
+	}
+	.mark-beat-press {
+		--mark-c: var(--color-beat-press);
+	}
+	.mark-beat-markets {
+		--mark-c: var(--color-beat-markets);
+	}
+	.mark-beat-voices {
+		--mark-c: var(--color-beat-voices);
+	}
+	.mark-solid {
+		background-color: var(--mark-c);
+	}
+	.mark-hollow {
+		border: 1.5px solid var(--mark-c);
+	}
+	.mark-half {
+		border: 1px solid var(--mark-c);
+		background-image: linear-gradient(90deg, var(--mark-c) 50%, transparent 50%);
+	}
+	.mark-hatch {
+		border: 1px solid var(--mark-c);
+		background-image: repeating-linear-gradient(
+			45deg,
+			var(--mark-c) 0 1.4px,
+			transparent 1.4px 3.4px
+		);
+	}
+	.mark-dots {
+		border: 1px solid var(--mark-c);
+		background-image: radial-gradient(var(--mark-c) 0.9px, transparent 1px);
+		background-size: 3.2px 3.2px;
+	}
+	.mark-diamond {
+		transform: rotate(45deg) scale(0.8);
+	}
+	/* On an ink-inverted surface (the active filter chip) the muted beat hues
+	   are illegible; repaint the mark in paper — fill/shape survive, and the
+	   chip's own label carries the identity. */
+	.mark-on-ink {
+		--mark-c: var(--color-paper);
+	}
 }
 
 @layer base {

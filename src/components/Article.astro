@@ -27,7 +27,7 @@ const isRead = interactive && item.read_at !== null;
 
 // One briefing line: headline + agate dateline on the left, a read-state square
 // on the right. Read items dim back like continued/back-section matter; the
-// square fills with ink (echoing the source swatch) and its form posts the
+// square fills with ink (echoing the source mark) and its form posts the
 // opposite state so one tap flips it. The public feed omits the square entirely.
 const row = isRead
 	? 'flex items-baseline gap-3 border-b border-rule py-2.5 opacity-55'
@@ -81,7 +81,7 @@ const nextState = isRead ? '0' : '1';
 		<p
 			class="mt-0.5 flex items-center font-sans text-[0.65rem] uppercase tracking-wider text-muted"
 		>
-			<span class={`mr-1.5 inline-block size-2 ${source.swatch}`} aria-hidden="true" />
+			<span class={`mr-1.5 mark ${source.mark}`} aria-hidden="true" />
 			<span class="font-semibold text-ink-soft">{source.name}</span>
 			<span class="mx-1.5" aria-hidden="true">·</span>
 			<time datetime={isoTime(seconds)}>{shortDate(seconds)}</time>

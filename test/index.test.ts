@@ -108,11 +108,11 @@ describe('index page', () => {
 		expect(html).not.toContain('Nothing aggregated yet');
 		expect(html).toContain('href="https://example.com/new"');
 		expect(html).toContain('Newest');
-		// A registered source shows its display name and its color-flag class.
+		// A registered source shows its display name and its identity-mark classes.
 		expect(html).toContain('IEEE Spectrum');
-		expect(html).toContain('bg-source-ieee');
+		expect(html).toContain('mark-beat-press mark-solid');
 		expect(html).toContain('Cloudflare Blog');
-		expect(html).toContain('bg-source-cloudflare');
+		expect(html).toContain('mark-beat-platform mark-solid');
 		// published_at is used when present...
 		expect(html).toContain(`datetime="${new Date(5000 * 1000).toISOString()}"`);
 		// ...and fetched_at is the fallback when it is null.
@@ -449,7 +449,7 @@ describe('index page', () => {
 		});
 	});
 
-	it('renders an eye-on-the-market row and chip with the registered name and swatch (#326)', async () => {
+	it('renders an eye-on-the-market row and chip with the registered name and mark (#326)', async () => {
 		vi.mocked(distinctSources).mockResolvedValue(['eye-on-the-market']);
 		feed({
 			unread: [
@@ -462,14 +462,15 @@ describe('index page', () => {
 		});
 
 		const html = await render();
-		// The registered display name + swatch class appear in BOTH places a reader
-		// sees the source: the article dateline and the filter-bar chip. (The swatch
-		// span is `size-2 ${swatch}` in each.)
+		// The registered display name + mark classes appear in BOTH places a reader
+		// sees the source: the article dateline and the filter-bar chip. (The mark
+		// span is `mark ${mark}` in each.)
 		expect(html.match(/Eye on the Market/g)).toHaveLength(2);
-		expect(html.match(/size-2 bg-source-eotm/g)).toHaveLength(2);
-		// Not the unregistered-slug fallback: no neutral swatch, and the raw slug is
-		// never visible text (it appears only inside ?source= hrefs as plumbing).
-		expect(html).not.toContain('size-2 bg-muted');
+		expect(html.match(/mark mark-beat-markets mark-solid/g)).toHaveLength(2);
+		// Not the unregistered-slug fallback: no beat-less neutral mark, and the raw
+		// slug is never visible text (it appears only inside ?source= hrefs as
+		// plumbing).
+		expect(html).not.toContain('mark mark-solid');
 		expect(html).not.toMatch(/>\s*eye-on-the-market\s*</);
 		// The row itself stays intact around the chip: headline link + title.
 		expect(html).toContain('href="https://example.com/eotm-q3"');
@@ -482,7 +483,8 @@ describe('index page', () => {
 
 		const html = await render();
 		expect(html).toContain('mystery-wire');
-		expect(html).toContain('bg-muted');
+		// The beat-less fallback mark: .mark's base --mark-c renders it muted.
+		expect(html).toContain('mark mark-solid');
 	});
 
 	it('scopes the read/unread tabs to the logged-in user (#70)', async () => {
@@ -564,16 +566,16 @@ describe('index page', () => {
 	});
 
 	describe('source filter bar', () => {
-		it('renders a chip per present source with name + swatch, plus an All reset', async () => {
+		it('renders a chip per present source with name + mark, plus an All reset', async () => {
 			vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog', 'ieee-spectrum']);
 			feed({ unread: [row({})] });
 
 			const html = await render();
 			expect(html).toContain('Filter by source');
 			expect(html).toContain('Cloudflare Blog');
-			expect(html).toContain('bg-source-cloudflare');
+			expect(html).toContain('mark-beat-platform mark-solid');
 			expect(html).toContain('IEEE Spectrum');
-			expect(html).toContain('bg-source-ieee');
+			expect(html).toContain('mark-beat-press mark-solid');
 			// The All reset links to the bare path (clears the filter).
 			expect(html).toMatch(/href="\/"[^>]*>All</);
 			// With no ?source, nothing is marked active and every source is queried.
