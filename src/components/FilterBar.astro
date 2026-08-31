@@ -70,7 +70,10 @@ const off = `${base} border-rule text-ink-soft hover:border-ink hover:text-accen
 					class={isActive ? on : off}
 					aria-current={isActive ? 'true' : undefined}
 				>
-					<span class={`inline-block size-2 ${meta.swatch}`} aria-hidden="true" />
+					<span
+						class={`mark ${meta.mark}${isActive ? ' mark-on-ink' : ''}`}
+						aria-hidden="true"
+					/>
 					{meta.name}
 				</a>
 			);
