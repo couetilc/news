@@ -55,10 +55,10 @@ aggregator.
   sandbox; it's a throwaway container so that's fine. The baked browser lives at
   `PLAYWRIGHT_BROWSERS_PATH=/ms-playwright`; its version is pinned in lockstep
   with the `@playwright/test` devDependency (bump both together). Outside the
-  container, on a host run `npx playwright install chromium` first; in claude.ai
-  cloud sessions that can't work (browser CDN egress-blocked, VM's preinstalled
-  build lags the pin) — run `scripts/pw-browser-shim.sh` there instead. See the
-  `agentic-environments` skill.
+  container, run `npx playwright install chromium` first (hosts and claude.ai
+  cloud sessions alike); if the browser download fails in a cloud session, run
+  `scripts/pw-browser-shim.sh` as the no-download fallback (the VM's
+  preinstalled build lags the pin). See the `agentic-environments` skill.
 - `npm run build` — build worker + assets into `dist/`
 - `npm run preview` — serve the built worker locally in workerd
 - `npm run deploy` — `astro build && wrangler deploy`
@@ -145,7 +145,7 @@ skill at `.claude/skills/testing/SKILL.md`):
   dedicated spec lives in exactly one project.
 - **Hermetic — tests must never hit the network.** Inject `fetch` (the ingest
   runner takes a `fetchFn`) and use feed fixtures under `test/fixtures/`. Keeps
-  `npm test` green in CI, in claude.ai cloud sessions (Trusted network mode), and
+  `npm test` green and deterministic in CI, in claude.ai cloud sessions, and
   offline.
 - **Coverage is the floor, not proof of correctness.** A covered line isn't an
   asserted one — assert observable behavior and the edges, never just execute
@@ -243,8 +243,8 @@ human to review and merge rather than queueing auto-merge: skill updates (Skills
 container-config changes (explicit human go-ahead).
 
 Manual fallback: `npm run deploy` from a machine with `.env` or wrangler OAuth
-(never from cloud sessions — `api.cloudflare.com` isn't reachable there under
-Trusted network mode). Workflow-file edits should be made locally/Dispatch:
+(never from cloud sessions — they deliberately hold no Cloudflare credential;
+deploys belong to CI). Workflow-file edits should be made locally/Dispatch:
 cloud sessions' scoped git credential may not be allowed to push
 `.github/workflows/*` changes.
 

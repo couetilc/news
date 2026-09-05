@@ -121,8 +121,8 @@ then have to write a contrived test to cover.
 ## The hermetic, no-network rule
 
 **Tests in `npm test` must never hit the network** — so the suite is
-deterministic and green in CI, in claude.ai cloud sessions (Trusted network
-mode), and offline.
+deterministic and green in CI, in claude.ai cloud sessions, and offline,
+regardless of any environment's network mode.
 
 - The ingest runner takes an **injected `fetchFn`** — tests pass a fake, never
   real `fetch`. Parsers are pure `string → ParsedItem[]` functions; feed them
