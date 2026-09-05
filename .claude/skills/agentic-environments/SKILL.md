@@ -262,6 +262,10 @@ Facts that drive our choices:
 
 - `api.cloudflare.com` is **not** in the Trusted allowlist → `wrangler deploy`
   fails from a Trusted cloud session. That's fine: deploys belong to CI.
+- `https://news.cuteteal.com` is also unreachable under Trusted mode, so the
+  standard dev loop's post-merge `curl` verification can't run from a cloud
+  session — verify a deploy by watching the CI `deploy` job go green instead
+  (via the GitHub MCP actions tools or the run's page).
 - **Testing policy: vitest must never hit the network.** Mock all external
   HTTP. This keeps `npm test` working under Trusted, in CI, and offline.
 - When feature work needs to fetch live feeds/APIs *during cloud development*,
@@ -312,11 +316,14 @@ installs the pinned browser properly and never uses the shim.
 
 Surface behaviors:
 
-- **Cloud sessions cannot open PRs.** The sandbox has no `gh` CLI and no
-  GitHub API credential — its scoped git credential only clones, fetches, and
-  pushes the session branch. A cloud session's job ends at "branch pushed";
-  the PR is then created either from the session UI on claude.ai (Create PR
-  button) or by any credentialed session (`gh pr create --head <branch>`).
+- **Cloud sessions open PRs via the GitHub MCP server, not `gh`.** The sandbox
+  has no `gh` CLI, and its scoped *git* credential only clones, fetches, and
+  pushes the session branch — but the cloud harness attaches GitHub MCP tools
+  (`mcp__github__*`), scoped to the session's repos, that create PRs, enable
+  auto-merge, read CI runs/job logs, and manage issues. A cloud session can
+  therefore drive branch → PR → auto-merge → CI deploy end to end; the
+  claude.ai session UI (Create PR button) and credentialed sessions
+  (`gh pr create --head <branch>`) are fallbacks.
 - **Direct pushes to `main` are mechanically blocked** by the repo ruleset
   `protect-main` (requires a PR and a green `test` check; no bypass actors;
   branch deletion blocked). All surfaces must use branch → PR.
@@ -335,9 +342,10 @@ Surface behaviors:
   from the mobile app tell Claude to watch the PR. Caveats: it can't react
   to merge conflicts (no webhook — ask the session to rebase), and its review
   replies post from Connor's account (labeled as Claude Code).
-- Net flow from a phone: cloud session pushes branch → tap "Create PR" →
-  enable auto-merge (and optionally Auto-fix) → CI green → auto-merges →
-  CI deploys → news.cuteteal.com updated.
+- Net flow from a phone: cloud session pushes branch → PR created (by the
+  session via GitHub MCP tools, or tap "Create PR") → enable auto-merge (and
+  optionally Auto-fix) → CI green → auto-merges → CI deploys →
+  news.cuteteal.com updated.
 
 Caveat: pushes that modify `.github/workflows/*` may be rejected for cloud
 sessions (the GitHub proxy's scoped credential may lack the `workflow`
