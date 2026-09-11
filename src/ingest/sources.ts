@@ -1,4 +1,5 @@
 import { fetchOwenomics } from './fetch/owenomics';
+import { parseInceptionBlog } from './parse/inception';
 import { parseIntelNewsroom } from './parse/intel-newsroom';
 import { parseDeepseekUpdates } from './parse/deepseek-updates';
 import { parseAtom } from './parse/atom';
@@ -13,6 +14,7 @@ import { parseThinkingMachinesNews } from './parse/thinking-machines-news';
 import { parseTiNewsroom } from './parse/ti-newsroom';
 import {
 	countAtom,
+	countInceptionBlog,
 	countIntelNewsroom,
 	countDeepseekUpdates,
 	countAwsWhatsNew,
@@ -92,6 +94,17 @@ function awsFeed(term: string): FeedConfig {
 // further `Source:` issues add entries here. Each carries its own parser
 // closure so per-source quirks stay local to this list.
 export const SOURCES: FeedConfig[] = [
+	{
+		// Official Framer blog: featured and regular cards include UTC dates.
+		// Six-hour checks; start with August 2026 onward to avoid an archive
+		// flood while including the September 8 Mercury 2.5 announcement.
+		source: 'inception-labs',
+		feed: 'https://www.inceptionlabs.ai/blog',
+		pollIntervalSeconds: 21600,
+		parse: parseInceptionBlog,
+		countRaw: countInceptionBlog,
+		keep: (item) => item.publishedAt !== null && item.publishedAt >= Date.UTC(2026, 7, 1) / 1000,
+	},
 	{
 		// Meta's current research/model announcements, including Muse Voice
 		// Transcribe. No feed is declared; the old ai.meta.com/blog/rss/ is 404.

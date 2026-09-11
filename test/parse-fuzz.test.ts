@@ -1,3 +1,4 @@
+import { parseInceptionBlog } from '../src/ingest/parse/inception';
 import { parseIntelNewsroom } from '../src/ingest/parse/intel-newsroom';
 import { parseDeepseekUpdates } from '../src/ingest/parse/deepseek-updates';
 import fc from 'fast-check';
@@ -452,4 +453,29 @@ describe('parseRfc822 — fuzz (never throws, returns integer seconds or null)',
 describe('migrated HTML sources reject malformed input predictably', () => {
  it('Intel cards', () => fuzzParser(parseIntelNewsroom, /not an Intel newsroom listing/, fc.array(fc.oneof(fc.string(),fc.constantFrom('<div data-component="card-grid">','<a class="cmp-teaser__link">','<a href="https://[bad">','</a>','<h2>','</h2>')), {maxLength:40}).map(parts=>parts.join(''))));
  it('DeepSeek date sections', () => fuzzParser(parseDeepseekUpdates, /not a DeepSeek changelog/, fc.array(fc.oneof(fc.string(),fc.constantFrom('docs-doc-id-updates','<h2 id="date-2026-09-10">','<h2 id="date-0000-01-01">','<h2 id="date-2026-02-30">','</h2>','<h3>','</h3>','<a href="/news/news260910">','</a>')), {maxLength:40}).map(parts=>parts.join(''))));
+});
+
+
+describe('Inception blog — malformed input', () => {
+	it('only throws its documented guard and keeps first-party article identities', () => {
+		const markup = fc.array(fc.oneof(fc.string(), fc.constantFrom(
+			'<h1>Blog</h1>', '<a href="./blog/example">', '<a href="https://[bad">', '</a>',
+			'<h3>', '</h3>', '<time datetime="2026-09-08">', '</time>', '&amp;',
+		)), { maxLength: 40 }).map((parts) => parts.join(''));
+		fuzzParser(parseInceptionBlog, /^not an Inception blog listing/, fc.oneof(arbitraryText, markup));
+		fc.assert(fc.property(markup, (payload) => {
+			let items: ReturnType<typeof parseInceptionBlog>;
+			try {
+				items = parseInceptionBlog(`<h1>Blog</h1>${payload}`);
+			} catch (error) {
+				expect(error).toBeInstanceOf(Error);
+				expect((error as Error).message).toBe('not an Inception blog listing: card missing a valid date');
+				return;
+			}
+			for (const item of items) {
+				expect(item.url).toMatch(/^https:\/\/www\.inceptionlabs\.ai\/blog\/[a-z0-9-]+$/i);
+				expect(item.guid).toBe(item.url);
+			}
+		}), RUNS);
+	});
 });

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import inceptionHtml from './fixtures/inception-blog.html?raw';
 import { SOURCES } from '../src/ingest/sources';
 import amdXml from './fixtures/amd.xml?raw';
 import anthropicXml from './fixtures/anthropic.xml?raw';
@@ -32,6 +33,22 @@ import metaAiHtml from './fixtures/meta-ai-research.html?raw';
 const source = (name: string) => SOURCES.find((s) => s.source === name)!;
 
 describe('SOURCES', () => {
+	it('polls the official Inception blog with a bounded initial backfill and the Mercury 2.5 release', () => {
+		const feed = source('inception-labs');
+		expect(feed.feed).toBe('https://www.inceptionlabs.ai/blog');
+		expect(feed.pollIntervalSeconds).toBe(21600);
+		expect(feed.countRaw!(inceptionHtml)).toBe(5);
+		const items = feed.parse(inceptionHtml);
+		expect(items.filter(feed.keep).map((item) => item.title)).toEqual([
+			'Introducing Mercury 2.5',
+			'Mercury 2 for Search: Fast enough to run a hundred times per query',
+			'Mercury 2 for Search: Fast enough to run a hundred times per query',
+		]);
+		const at = Date.UTC(2026, 7, 1) / 1000;
+		expect(feed.keep!({ ...items[0], publishedAt: at - 1 })).toBe(false);
+		expect(feed.keep!({ ...items[0], publishedAt: at })).toBe(true);
+		expect(feed.keep!({ ...items[0], publishedAt: null })).toBe(false);
+	});
 	it('polls Meta AI research every six hours and includes the Muse transcription release', () => {
 		const meta = source('meta-ai');
 		expect(meta.feed).toBe('https://research.meta.ai/');
