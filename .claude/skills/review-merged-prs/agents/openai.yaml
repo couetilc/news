@@ -1,4 +1,0 @@
-interface:
-  display_name: "Review PR Findings"
-  short_description: "Route PR review findings into issues"
-  default_prompt: "Use $review-merged-prs to review open or merged GitHub PRs, file actionable findings as agent-review issues, and label reviewed merged PRs agent-reviewed."

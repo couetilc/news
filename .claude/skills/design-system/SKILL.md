@@ -1,464 +1,100 @@
 ---
-name: Design system
-description: Visual and styling guidelines for the news aggregator UI — how Tailwind CSS v4 is wired in, the mobile-first rule, the light newspaper theme, the design tokens, and the conventions for building pages and components so they stay on-brand.
-when_to_use: Building or restyling any page/component; adding UI; choosing colors, type, spacing, or breakpoints; touching src/styles/global.css, a .astro layout/page, or anything visual; deciding how a new screen should look; reviewing a UI change for consistency.
+name: design-system
+description: Build and review the news app's mobile newspaper UI, source marks, accessible controls, and progressive enhancement.
 ---
 
-# Design system
-
-The look and feel of https://news.cuteteal.com. Read this before writing any
-markup or CSS so new UI stays consistent with the established theme.
-
-## Inspiration: the briefing column
-
-The north star is the newspaper **news-in-brief digest** — the *Wall Street
-Journal* "What's News" rail, the *NYT* morning-briefing agate column. Its whole
-job is ours: compress a long chronological list of stories into a **dense,
-scannable, single serif column**, broken into a few labeled sections by hairline
-rules. Two consequences guide every layout call:
-
-- **One column, top-to-bottom = chronological.** Reading order *is* time order.
-  No CSS multi-column flow — it snakes items across columns, so "newest" isn't
-  "top-left." Don't introduce horizontal chronology.
-- **Density is the point.** Small headlines, tight leading, an inline agate
-  dateline, hairline separators — pack many items per screen without losing the
-  newsprint feel. Favor a ruled line over an airy block; favor a compact
-  nameplate so stories start above the fold.
-
-## Three rules, in priority order
-
-1. **Mobile-first.** Connor reads this on a phone. Design every screen for a
-   narrow single column first, then *progressively enhance* for wider viewports
-   with Tailwind's `sm:`/`md:`/`lg:` prefixes. Unprefixed utilities are the
-   phone layout; prefixed ones only ever *add* width/columns/size. Never write a
-   desktop layout and bolt on mobile overrides.
-2. **Light theme.** The initial and only theme is light — warm newsprint paper,
-   near-black ink. No dark mode yet. Don't add `dark:` variants or a theme
-   toggle until that's explicitly scoped (file an issue if it comes up).
-3. **A *modern, interactive* newspaper — not a SaaS app, not a static printout.**
-   The page should read like a printed paper: serif type, a ruled masthead with a
-   dateline, hairline rules between items, a single dense digest column, small
-   uppercase datelines. Avoid the SaaS-app look — no cards with drop shadows, no
-   rounded pill buttons, no gradients-as-decoration, no bright accent UI. **But
-   this is a paper you *use*, not just read:** controls that *do something* when
-   clicked (links, action buttons, toggles) must be visibly distinguishable from
-   static text. Print fidelity and discoverability are both required; when they
-   tension, resolve it in voice (a ruled treatment, an underline, the accent on
-   interaction — see **Interactive affordances** below), never by hiding the
-   affordance. Functional controls still stay in voice: the read/unread toggle is
-   a small ruled square, not a colored button — but it *reads as* a control at
-   rest, not as a dateline glyph. When in doubt, ask both "would this look at home
-   in print?" *and* "can a reader tell this is clickable without touching it?"
-
-## How Tailwind is wired in
-
-Tailwind CSS **v4** via the Vite plugin (`@tailwindcss/vite`) — no
-`@astrojs/tailwind` integration, no `tailwind.config.js`. Everything is
-configured in CSS.
-
-- `astro.config.mjs` registers `tailwindcss()` under `vite.plugins`. This is the
-  real build path.
-- `src/styles/global.css` is the single stylesheet: `@import "tailwindcss";`, the
-  `@theme` token block, and a small `@layer base`. It's imported once, in
-  `src/layouts/Layout.astro`, so every page that uses the layout gets it.
-- **Tests:** the `node` vitest project (`vitest.node.config.ts`) renders pages
-  through Astro's Container API with `configFile: false`, so it can't see the
-  plugin from `astro.config`. It registers `@tailwindcss/vite` itself. If you
-  ever change how the plugin is configured, change it in **both** places or the
-  page-render test breaks on the unresolved `@import "tailwindcss"`.
-
-## Design tokens
-
-Defined in the `@theme` block in `src/styles/global.css`. Tailwind turns each
-token into utilities automatically — use the utility, don't hardcode the hex.
-
-| Token | Value | Utilities | Use for |
-|---|---|---|---|
-| `--color-paper` | `#f7f5ef` | `bg-paper` | page background (newsprint) |
-| `--color-paper-edge` | `#efece2` | `bg-paper-edge` | zebra/panel tint |
-| `--color-ink` | `#17150f` | `text-ink`, `border-ink` | body text, masthead rules |
-| `--color-ink-soft` | `#3a3730` | `text-ink-soft` | secondary text (source names) |
-| `--color-muted` | `#6b665b` | `text-muted` | datelines, metadata, masthead dateline + tagline |
-| `--color-rule` | `#c9c3b3` | `border-rule` | hairline column/section rules |
-| `--color-accent` | `#8b1a1a` | `text-accent` | sparse accent: hover, section heads |
-| `--font-serif` | system serif stack | `font-serif` | body (the default on `body`) |
-| `--font-headline` | system serif stack | `font-headline` | h1–h3 (set in base layer) |
-| `--font-sans` | system sans stack | `font-sans` | datelines, metadata, UI chrome |
-
-Type is **system fonts only** — no webfont fetch, so the page paints instantly
-and works offline.
-
-The accent red is for *emphasis only* (link hover, section heads) — keep it rare
-so it stays loud.
-
-## Patterns
-
-- **Layout shell:** `src/layouts/Layout.astro` owns `<html>`, the masthead
-  (double-ruled nameplate "News" + dateline + tagline, kept compact so stories
-  start high) and `<main>`. There is no colophon line — the `/status` text-link
-  lives *in the dateline* (see **Masthead dateline** below). The session control
-  (Sign out / Log in) sits in the masthead's top-right corner. Pages render their
-  content as its `<slot>`. New top-level pages should use this layout, not
-  re-create the chrome.
-- **Masthead dateline (the `/status` link):** the dateline `<a href="/status">`
-  *is* the link to the public status page — there's no separate colophon, the
-  `/status` link is folded into the date so it stays discoverable in one fewer
-  line. It carries the **Interactive affordances** text-link obligations as a
-  navigational control — accent + underline on hover, a `focus-visible` ring, and
-  `cursor-pointer` (native to `<a>`) — with **one deliberate deviation**: the
-  underline is **hover-only, no resting underline**, so at rest the dateline reads
-  as plain agate masthead text and the `focus-visible` ring carries the resting
-  cue for keyboard readers. Its accessible name is **destination-oriented**: an
-  `aria-label={`Status for ${dateline}`}`, so a screen-reader user hears the
-  destination ("Status for …"), not just the date. Keep it in the agate/uppercase
-  masthead voice; don't let it crowd the nameplate.
-- **Container width:** the layout chrome (the masthead) spans
-  `mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8`. A reading column — the feed —
-  narrows further to `mx-auto max-w-2xl` for a comfortable line length; wrap list
-  content in that, don't let headlines run the full 5xl width.
-- **Rules over boxes:** separate items with `border-b border-rule`, not cards.
-  Section/masthead emphasis uses `border-double border-ink`. A section divider
-  with a centered label is a small-caps heading flanked by `h-px flex-1 bg-rule`
-  spans (see the homepage "Read" divider).
-- **Single digest column:** the feed is one `<ol>` of hairline-ruled rows, newest
-  first — no CSS columns. Each row is a component (`src/components/Article.astro`):
-  headline + agate dateline on the left, its control on the right, `py-2.5`
-  vertical rhythm. Mobile-first: it's already one column; wider screens only bump
-  the type (`sm:text-lg`), not the column count.
-- **Read/unread:** authenticated feeds use URL-addressable Unread and Read tabs,
-  each with a count and an infinite-scroll list. Read rows use
-  `data-read-state="read"` for muted opacity and a filled square; the unread state
-  is an empty ruled square. Keep the drawing at 16px inside a **44px × 44px actual
-  button**, with its own column that never overlaps the headline link. The form
-  remains a plain POST to `/api/read`, so it works without JavaScript. Enhanced
-  toggles preserve the scroll position, visible counts, and pagination cursor.
-- **Source selection:** on phones, a native Sources disclosure keeps the stories
-  high on the page. Its closed summary names the selected sources (or All sources)
-  and a visible Clear sources link resets the filter while preserving the active
-  tab. Inside, ruled links toggle individual sources using repeatable `?source`
-  parameters; multi-select and reset work without JavaScript. Wider screens retain
-  the source grid within the same `max-w-2xl` reading column.
-- **Recently viewed:** a native, initially collapsed disclosure shows the count
-  of up to three recently read items above the Unread tab. This history is global,
-  independent of the active source filter. Returning an item to Unread changes
-  the filtered feed only when its source matches; its chronology and pagination
-  stay intact. Remove the whole disclosure when its last item leaves.
-- **Datelines/metadata:** `font-sans`, small (`text-[0.65rem]`–`text-xs`),
-  `uppercase`, letter-spaced (`tracking-wider`/`tracking-[0.3em]`),
-  `text-muted`. This is the "set in small caps under the headline" newspaper
-  voice.
-- **Headlines:** serif (inherited), `text-base sm:text-lg`, `leading-snug`, tight
-  tracking — sized for a digest, not a feature splash. Links are plain ink that go
-  accent + underlined on hover (`group-hover:underline` + `group-hover:text-accent`),
-  not blue web links — and as navigation they owe the **Interactive affordances**
-  obligations, notably a `focus-visible` ring for keyboard readers. (A resting
-  underline on every headline can read heavy in a dense digest; see that section
-  for when layout, not a permanent rule, may carry the resting cue.)
-
-## Source identity marks
-
-Render the full printed source name beside an `aria-hidden` 10px `.mark` glyph.
-The four channels describe identity at different levels:
-
-- **Hue = beat:** muted, widely separated `--color-beat-*` tokens, clearly
-  distinct from the alert/interaction `--color-accent`. Classify the feed's subject,
-  not a company's logo.
-- **Shape = sub-beat:** a square by default; `mark-diamond` identifies the
-  open-weight AI sub-beat.
-- **Fill = source within the beat:** `solid`, `hollow`, `half`, `hatch`, `dots`.
-  Assign the next free fill in arrival order and never reshuffle learned marks.
-  Hatch is the convention for an aggregate/backstop feed. A beat outgrowing five
-  fills earns a meaningful sub-beat shape split; a new kind of feed earns a beat.
-- **Name = exact identity:** color and texture support the printed name; they
-  never replace it.
-
-Assignments live in `src/lib/sources.ts`; `.mark-*` rules and beat tokens live in
-`src/styles/global.css`. Add both the registry class and its CSS rule/token:
-`test/source-meta.test.ts` pins assignments and cross-checks them. Use
-`mark-on-ink` on selected ink-filled chips so the shape/fill render in paper ink.
-Hollow marks retain a **3px border and 4px center** at 10px outer size; they are
-identity glyphs, distinct from the thin ruled read-state controls.
-
-## Interactive affordances: making controls *look* clickable
-
-This section is the "does it look clickable in the first place" half of
-interaction; **Asynchronous activity** below is the complementary "what happens
-*after* you click" half. Both stay in newsprint voice.
-
-A modern interactive newspaper (rule #3) has a standing problem a printout
-doesn't: a reader must be able to tell, *without touching anything*, which marks
-on the page are controls. The failure mode is styling a control as plain
-metadata — small-caps muted text pixel-identical to a dateline, with no resting
-affordance, nothing saying "button" until you hover. The convention closes that
-gap: every actionable or navigational element carries a **resting** signal, plus
-matching `hover` **and** `focus-visible` states, all expressed with the existing
-tokens.
-
-### The four obligations of any control
-
-Every link, button, or toggle must satisfy all four. They're cheap — a handful of
-existing utilities — and non-negotiable for accessibility.
-
-1. **Resting affordance.** The control looks interactive *before* any pointer
-   touches it. In this system that's a **ruled treatment**: an underline (text
-   links / nav), a drawn border or filled ink block (action buttons), or the
-   ruled square (binary toggles). Never rely on hover alone to reveal that
-   something is a control — a touch device has no hover, and a sighted reader
-   shouldn't have to sweep the page to find the affordances.
-2. **`hover` state.** A pointer over the control shifts it — typically the
-   sparse **accent** ink (`hover:text-accent`) for text/links, or a darker ink
-   fill (`hover:bg-ink-soft`) for solid buttons. This is the accent's main job;
-   keep it to *interaction*, never decoration, so it stays loud by staying rare.
-3. **`focus-visible` state — keyboard a11y, non-negotiable.** Every control MUST
-   show a clear focus ring when reached by keyboard, via the `focus-visible:`
-   variant (not bare `focus:`, which also fires on mouse click and is noisy).
-   Use the existing ink tokens — `focus-visible:outline-2
-   focus-visible:outline-offset-2 focus-visible:outline-ink` — so it reads as a
-   drawn rule, not a browser-default blue glow. A control with hover but no
-   visible focus is **broken for keyboard users**; it's the obligation most
-   easily forgotten, so check it explicitly.
-4. **`cursor-pointer`.** The pointer becomes a hand over the control. Native
-   `<a href>` does this for free; a `<button>` does **not** in Tailwind's reset,
-   so add `cursor-pointer` to every button/toggle.
-
-### The three idioms
-
-Distinguish three kinds of control, each with its own on-brand resting signal.
-Pick by *what the control does*, not by what tag is convenient.
-
-- **Text links (navigation).** Going somewhere — a headline, an "Already have an
-  account? Sign in" link. Resting signal: a **hairline underline** in body ink,
-  going **accent on hover** — `underline underline-offset-2 hover:text-accent`,
-  plus the focus ring. Not blue, not bold-as-link. Two places reserve the
-  underline for `hover`/`focus-visible` rather than carrying it at rest, where a
-  permanent rule would read heavy: **headlines** in the dense digest (the row is a
-  single tap target, the link is the row's only serif headline, so layout carries
-  the resting cue) and the **masthead dateline** `/status` link (it stays plain
-  agate at rest so it doesn't read as a second nameplate rule; the `focus-visible`
-  ring is its resting affordance — see **Masthead dateline** above). The bar stays
-  "a reader can tell it's a link," just met by layout/context rather than a
-  permanent underline.
-- **Action buttons (do something here).** Triggering an action that isn't pure
-  navigation — Sign out, Create account, Sign in. Resting signal: a **drawn
-  control** — either a solid ink block (`border border-ink bg-ink text-paper`,
-  the primary submit) or a ruled outline (`border border-ink`, a secondary
-  action). Hover darkens the fill (`hover:bg-ink-soft`); focus draws the ring;
-  `cursor-pointer` always. A sign-out / session control is an *action button*,
-  **never** bare metadata text.
-- **Binary-state controls (toggle).** Flipping one piece of state in place — the
-  read/unread square. Resting signal: the **ruled square** idiom — empty
-  `border-rule` for the off state, filled `border-ink bg-ink` with a `✓` for on.
-  Hover firms the border (`hover:border-ink`); focus draws the ring;
-  `cursor-pointer`. Reuse this square for any future binary state; don't reach
-  for a colored pill or an iOS-style switch.
-
-### Do / don't, in tokens
-
-```
-✅  text link        <a class="underline underline-offset-2 hover:text-accent
-                              focus-visible:outline-2 focus-visible:outline-offset-2
-                              focus-visible:outline-ink" href="…">Sign in</a>
-
-✅  action button    <button class="cursor-pointer border border-ink bg-ink py-2
-                              font-sans text-sm uppercase tracking-[0.2em] text-paper
-                              hover:bg-ink-soft focus-visible:outline-2
-                              focus-visible:outline-offset-2 focus-visible:outline-ink">
-                       Sign out
-                     </button>
-
-✅  binary toggle    <button class="read-toggle cursor-pointer grid size-11 place-items-center
-                              focus-visible:outline-2 focus-visible:outline-offset-2
-                              focus-visible:outline-ink">
-                       <span class="read-square grid size-4 border" aria-hidden="true">✓</span>
-                     </button>
-
-❌  control as metadata   <button class="font-sans text-[0.65rem] uppercase
-                              tracking-[0.2em] text-muted hover:text-accent">Sign out</button>
-        — no resting affordance, no focus ring, no cursor; identical to a dateline
-          until hovered. This is the anti-pattern.
-
-❌  hover-only reveal      relying on group-hover/hover to first announce a control
-        — invisible on touch, undiscoverable by scanning, broken for keyboard.
-
-❌  bare focus:            focus:outline-… without -visible fires on mouse click too;
-          use focus-visible: so the ring is a keyboard cue, not click noise.
-
-❌  SaaS dressing          rounded-full pills, drop shadows, gradients, a bright
-          always-on accent fill. The accent appears on interaction and stays rare.
-```
-
-A control at rest is ink and rules; the accent (the **interaction** color and
-alert key, never a resting decoration) arrives when the reader engages it. That
-restraint keeps the page reading as newsprint even as it announces every control.
-
-## Asynchronous activity: loading, disabling, and feedback
-
-Any time the UI starts work the reader has to wait on — a form submit, an
-in-flight request — it must say so, in voice. Silence reads as "broken": no
-spinner, no disabled button, no error makes the UI feel unusable. Three
-obligations, layered so the no-JS contract still holds.
-
-**Progressive enhancement is the rule.** Every form works with JavaScript off:
-the server validates and a full-page POST → 303 → reload is the source of truth
-(as the auth forms and the read/unread toggle already are). Loading states,
-disabled controls, and inline in-flight errors are *enhancements layered on top*
-when JS is present, never a prerequisite. Build the no-JS version first, then
-enhance it.
-
-1. **Loading state on every wait.**
-   - A full-page POST navigation already gets the browser's native page-loading
-     indicator, but the **triggering control** must still show in-flight state
-     once JS is on: the button goes busy (`aria-busy`, label swaps to a
-     present-tense "Creating account…" / "Signing in…", reduced `opacity`) so
-     the reader sees the click registered.
-   - An **in-page** async request (one that does *not* navigate) **must** render
-     an explicit in-voice loading affordance where the result will appear — an
-     italic agate "Working…" line, not a SaaS spinner.
-   - Avoid flicker: it's fine to delay a *visible* loading indicator ~150 ms so
-     instant responses don't flash one, but disable the control immediately on
-     activation.
-
-2. **Disable controls + idempotent writes — double-submit defense, both layers.**
-   - On submit, disable the triggering control (and any input that would change
-     the request) so a second click can't fire a duplicate (the JS layer).
-   - **And** make the write safe to repeat server-side, so a double-POST with JS
-     off is still harmless — lean on a `UNIQUE` constraint / idempotent endpoint
-     rather than trusting the client (the server layer). Neither layer alone is
-     enough.
-
-3. **Surface errors, warnings, and completion — inline, at the point of action.**
-   - Errors render **next to the field or control that caused them**, in the
-     existing ruled `role="alert"` voice (`border-l-2 border-accent
-     bg-paper-edge`; see `AuthForm.astro`). A page-level failure also gets a
-     short summary at the top of the affected region. **No toasts or floating
-     popovers** — un-newspapery and easy to miss.
-   - Distinguish **validation** errors the reader can fix ("Password must be at
-     least 8 characters.") from **system/network** errors they can't ("Couldn't
-     reach the server. Try again."). Never let an async failure pass silently —
-     a swallowed error is the worst outcome.
-   - Confirm **completion** of anything the reader waited on. A redirect to a
-     visibly-changed page is confirmation enough when there is one (signup → the
-     unlocked homepage); an in-page action that leaves the reader on the same
-     screen needs an explicit in-voice acknowledgement.
-
-Keep all of it in the newspaper aesthetic — ruled lines, small-caps agate, the
-accent red reserved for the alert key — never a colored spinner, progress pill,
-or drop-shadowed toast. The accent stays loud by staying rare.
-
-## Motion & animation
-
-Paper is static. Motion is the earned exception, not the default — the same
-restraint that governs the accent red governs movement. The bar before animating
-anything: "would this look at home in print *coming to life*?", not "can I make
-this feel app-y?".
-
-- **When — functional only, and rare.** Animate exactly three things: a **state
-  transition** (a row settling into read, a control toggling), **feedback
-  acknowledgement** (a busy control, a saved confirmation), and **loading
-  affordances** (an in-flight "Working…" easing in). Nothing else. No decorative
-  parallax, no entrance flourishes on page load, no attention-grabbing pulse,
-  bounce, or shimmer. If the motion isn't *telling the reader something changed*,
-  cut it.
-- **Kind / duration / easing — subtle and fast.** ~150–200 ms, `ease-out`
-  (decelerate into rest). Animate `opacity` and small `transform`s; avoid
-  animating layout (width/height/top) — both janky and loud. Nothing bouncy,
-  springy, or playful — no `cubic-bezier` overshoot, no `@keyframes` spin. A quiet
-  fade, not a performance; instant responses shouldn't flash motion at all.
-- **CSS first, JS only as last resort.** Express motion with CSS
-  `transition`/`@keyframes` so it degrades as gracefully as the rest of the page.
-  Reach for JS only when CSS genuinely can't express it (e.g. FLIP-measuring a
-  reorder), and never make an animation a prerequisite for the action: the no-JS
-  POST → 303 → reload path stays the source of truth.
-- **Libraries — none.** No Framer Motion, no GSAP, no animation dependency,
-  mirroring the system-fonts/no-dependency stance. Don't adopt Astro's **View
-  Transitions API** (`<ClientRouter />`) either: it turns full-page POST → 303
-  reloads into client-side swaps, complicating the no-JS contract above, and its
-  default cross-fade reads as app-chrome, not newsprint — and the one-page digest
-  doesn't need cross-page transitions. If a multi-page reading flow ever makes it
-  worth revisiting, file an issue and scope it to a deliberate,
-  reduced-motion-respecting fade, not the library's defaults.
-- **Reduced motion is non-negotiable.** Every animation MUST honor
-  `prefers-reduced-motion: reduce` with an instant, no-motion fallback. The idiom:
-
-  ```css
-  @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after {
-      animation-duration: 0.01ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
-    }
-  }
-  ```
-
-  A global guard like this in `@layer base` covers the whole app; an individual
-  effect can also gate itself (`motion-safe:`/`motion-reduce:` Tailwind variants).
-  Either way the reduced-motion reader sees the *end state immediately* — same
-  information, no movement.
-
-## Coverage gotcha
-
-`src/**` is under a 100% statements/branches/functions/lines coverage gate. `.astro` components and
-`src/lib/**` count. Keep presentational helpers branch-free (see
-`src/lib/format.ts` — fixed name tables, no conditionals) and make sure any new
-component is actually rendered by a test, or the gate fails.
-
-## Screenshots for visual changes
-
-This skill governs look-and-feel by review, and a visual change is reviewed by
-eye — so the review has to *see* it. **Any PR that changes what a page or
-component looks like ships before/after screenshots in the PR body.** A unit
-test asserting markup is not a substitute; a reviewer can't tell from a diff
-whether the read square sits right or the dateline reads as agate.
-
-**Capture against the running app**, not a fixture render. In the agent
-container, drive the dev server with the baked headless Chromium (the
-`agentic-environments` skill has the container/dev-server specifics — host-port
-mapping, the baked browser path, where `$DEV_HOST_ASTRO` comes from). Concretely:
-
-- Start the dev server on workerd and bind all interfaces:
-  `npm run dev -- --host`, then point the browser at `http://$DEV_HOST_ASTRO/`
-  (the in-container `localhost:4321` maps to a different, randomized host port —
-  see `agentic-environments`).
-- Launch Chromium with `chromium.launch({ args: ['--no-sandbox'] })` — non-root
-  Chromium in the container can't use the sandbox (throwaway container, so it's
-  fine). The baked browser lives at `PLAYWRIGHT_BROWSERS_PATH=/ms-playwright`.
-- Seed a little local D1 so the feed isn't empty, and sign in so authenticated
-  states (read/unread, the visited tag) actually render — capture the *states
-  that matter* to the change, not just one happy shot.
-- Save before/after PNGs.
-
-**Attach by uploading the PNGs to R2**, not by committing them to git. Binaries
-must not accumulate in `main`'s history. Use the helper:
-
-```
-scripts/upload-screenshot.sh <issue-number> before docs/screenshot-before.png
-scripts/upload-screenshot.sh <issue-number> after  docs/screenshot-after.png
-```
-
-It puts each PNG to the public `news-cdn` R2 bucket (`--remote`) under a
-**content-addressed** key — `pr-screenshots/<issue>/<name>-<hash>.png`, where
-`<hash>` is a short hash of the PNG's bytes — and prints the resulting public
-URL on stdout (diagnostics go to stderr). **Embed exactly the URLs the helper
-prints; never hand-write a fixed key like `.../before.png`.** The hash in the
-URL is intentional: GitHub's image proxy (camo) caches proxied images by URL
-essentially permanently, so a fixed key would keep serving a stale screenshot
-after a re-capture, while changed bytes ⇒ a new hash ⇒ a new URL that camo
-fetches fresh (identical bytes re-upload idempotently to the same URL). In the
-PR body:
-
-```markdown
-**Before**
-
-![before](https://news-cdn.cuteteal.com/pr-screenshots/<issue>/before-<hash>.png)
-
-**After**
-
-![after](https://news-cdn.cuteteal.com/pr-screenshots/<issue>/after-<hash>.png)
-```
-
-Why this works: `news-cdn` is a public R2 bucket (the `CDN` binding in
-`wrangler.jsonc`) served at `news-cdn.cuteteal.com` via R2's native custom domain
-— CDN-cached, free egress, no Worker in the request path. The URL is public, so
-GitHub's image proxy (which fetches unauthenticated) renders it inline and the
-evidence persists on merged PRs. If the helper errors on auth or the URL doesn't
-resolve, its header documents the one-time R2 setup.
+# Newspaper UI
+
+A compact, light newsprint digest: one chronological serif column, warm paper,
+near-black ink, hairline rules and small uppercase metadata. Design for phones
+first. Wider screens improve spacing/type within the reading column; no CSS
+multi-column chronology, decorative card shadows, pill controls or theme switch.
+
+## Source of truth
+
+- `src/styles/global.css` owns Tailwind v4 tokens and component classes; use
+  utilities derived from its paper/ink/muted/rule/accent and beat colors.
+- `astro.config.mjs` registers `@tailwindcss/vite`; Node page-render tests
+  register it independently in `vitest.node.config.ts` (`configFile: false`).
+- `src/layouts/Layout.astro` owns masthead and main shell. The chrome is
+  `max-w-5xl`; feed controls and articles share a `max-w-2xl` reading column.
+- Use system serif fonts for headlines/body and sans for metadata/controls.
+  Accent red is sparse interaction/error emphasis, not source identity.
+
+## Existing interactions
+
+- Article rows are ruled and compact. Headlines are the primary links; controls
+  occupy their own column and never overlap the headline hit area.
+- Read-state controls draw a 16px square inside a real 44px button. Unread is
+  hollow; read is filled and the row is muted. The no-JS POST/303 path remains
+  functional; enhancement preserves scroll, counts and pagination.
+- Owner feeds have URL-addressable Unread/Read tabs and repeatable `?source`
+  filters. On mobile a native Sources disclosure keeps articles near the top;
+  its summary names the selection, and Clear sources preserves the active tab.
+- Recently viewed is a collapsed, global history of up to three items. Returning
+  one to Unread changes filtered totals only when its source matches. Remove
+  the disclosure when it becomes empty.
+- On phones, the session control stays in flow above the centered nameplate.
+  The dateline links to `/status` with a destination-oriented accessible name.
+  It intentionally has no resting underline. Its focus ring is a cue **when
+  focused**, not a resting affordance; preserve that approved visual exception
+  without claiming it is visibly discoverable at rest. The owner's separate
+  Feed health link is visibly underlined.
+
+## Identity marks
+
+Always print the full source name beside an `aria-hidden` 10px `.mark`.
+`src/lib/sources.ts` assigns classes; `test/source-meta.test.ts` checks registry
+and CSS consistency. Hue represents the beat, shape a meaningful sub-beat,
+fill a source within it, and the name is the exact identity. Preserve existing
+assignments. Squares are the default, diamonds identify open-weight AI and
+round marks identify diffusion models. Hatch is reserved for aggregate feeds.
+Use meaningful subdivisions when adding sources outgrows existing patterns.
+
+Hollow identity marks retain the thick 3px border and 4px center at 10px size;
+do not confuse them with the thinner read controls. Selected ink-filled chips
+use `mark-on-ink` so their marks render in paper color.
+
+## Controls and feedback
+
+Use visible ruled/underlined/filled affordances, hover feedback, keyboard
+`focus-visible` outlines and `cursor-pointer` on buttons. Headline layout and
+the dateline exception above are the existing exceptions to resting underlines.
+Maintain labels, useful hit areas, contrast and keyboard access.
+
+Forms work without JavaScript. With enhancement, disable duplicate submission,
+show an appropriate busy state, and surface errors beside the control/field
+using the existing ruled `role="alert"` treatment. Server writes still need
+idempotence/constraints; disabled buttons alone do not prevent duplicate POSTs.
+A visible navigation/state change can acknowledge completion. Avoid toasts,
+decorative spinners and swallowed errors.
+
+## Router and motion
+
+`Layout.astro` already mounts Astro's `ClientRouter`. Preserve it. Auth and
+session-changing forms use `data-astro-reload` so cookies/redirects use real
+browser document navigation. Other client enhancements must survive router
+swaps via delegated listeners or `astro:page-load`, without duplicate handlers.
+Verify the relevant no-JS and real-browser paths.
+
+Use restrained, functional motion and respect `prefers-reduced-motion`. Astro
+handles its transition preference; any custom animation needs its own instant
+fallback. Do not claim there is a global CSS guard unless the code provides it.
+Avoid introducing an animation library for effects existing CSS can express.
+
+## Visual verification
+
+Inspect changes in the running app with the native browser or isolated e2e
+harness, at phone and relevant wider sizes. Check the actual affected state,
+including signed-in controls when needed; use local synthetic data and never
+publish private production screenshots. Existing browser specs may be reused.
+A useful runtime guard is worth testing; coverage is not a reason to delete it.
+
+For PRs changing appearance, attach before/after screenshots of the running app
+with comparable data. Upload via `scripts/upload-screenshot.sh <issue> <name>
+<path>` and use the exact content-addressed URL it prints; do not commit images
+or invent a fixed R2 key. The helper documents configuration. For container or
+cloud capture, consult the environment skill only when using that surface.
+
+[CLAUDE.md Authorization](../../../CLAUDE.md#authorization) governs approvals;
+this skill does not create a second approval flow.
