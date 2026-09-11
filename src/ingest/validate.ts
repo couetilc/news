@@ -1,4 +1,5 @@
 import type { ParsedItem } from './types';
+import { isArticleUrl } from '../lib/article-url';
 
 // Shape-drift detection (#78). Our parser tests assert that the CURRENT feed
 // shapes parse; nothing catches when a live source's structure changes under us
@@ -64,11 +65,16 @@ function isPlausibleDate(publishedAt: number | null): boolean {
 // place. Date is checked for plausibility (null is fine; see above).
 function fieldViolations(item: ParsedItem): string[] {
 	const bad: string[] = [];
-	if (item.guid === '') bad.push('guid');
-	if (item.url === '') bad.push('url');
-	if (item.title === '') bad.push('title');
+	if (item.guid.trim() === '') bad.push('guid');
+	if (!isArticleUrl(item.url)) bad.push('url');
+	if (item.title.trim() === '') bad.push('title');
 	if (!isPlausibleDate(item.publishedAt)) bad.push('publishedAt');
 	return bad;
+}
+
+// Invalid records remain visible as health anomalies but must not enter items.
+export function isValidItem(item: ParsedItem): boolean {
+	return fieldViolations(item).length === 0;
 }
 
 export interface ValidateInput {

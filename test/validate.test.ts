@@ -21,7 +21,7 @@ function n(rawCount: number | null, items: ParsedItem[]): ValidateInput {
 
 describe('validateParse', () => {
 	it('returns null for a healthy poll (items present, all fields valid)', () => {
-		expect(validateParse(n(2, [item(), item({ guid: 'g2', url: 'u2' })]))).toBeNull();
+		expect(validateParse(n(2, [item(), item({ guid: 'g2', url: 'https://example.test/2' })]))).toBeNull();
 	});
 
 	it('treats a legitimately empty feed as healthy, not an anomaly (raw 0, parsed 0)', () => {

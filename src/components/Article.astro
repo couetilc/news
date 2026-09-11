@@ -2,6 +2,7 @@
 import type { ItemRow } from '../ingest/db';
 import { isoTime, shortDate } from '../lib/format';
 import { sourceMeta } from '../lib/sources';
+import { isArticleUrl } from '../lib/article-url';
 
 interface Props {
 	item: ItemRow;
@@ -35,6 +36,8 @@ const row = 'article-row flex items-start gap-3 border-b border-rule py-2.5';
 const square = 'read-toggle grid size-11 shrink-0 cursor-pointer place-items-center focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink disabled:cursor-default disabled:opacity-50';
 const label = isRead ? 'Mark as unread' : 'Mark as read';
 const nextState = isRead ? '0' : '1';
+// Defense for rows saved before the ingestion contract, or imported later.
+const Headline = isArticleUrl(item.url) ? 'a' : 'div';
 ---
 
 <li
@@ -61,9 +64,9 @@ const nextState = isRead ? '0' : '1';
 		    no hook — an anonymous visitor has no per-user read state to write, and
 		    the middleware would bounce the POST anyway. This replaced the #263
 		    localStorage "Opened" tag. */}
-		<a
-			href={item.url}
-			data-opened-link={interactive ? '' : undefined}
+		<Headline
+			href={Headline === 'a' ? item.url : undefined}
+			data-opened-link={interactive && Headline === 'a' ? '' : undefined}
 			class="group block focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
 		>
 			<h2
@@ -71,7 +74,8 @@ const nextState = isRead ? '0' : '1';
 			>
 				{item.title}
 			</h2>
-		</a>
+		</Headline>
+		{Headline === 'div' && <p class="font-sans text-xs text-muted">Link unavailable</p>}
 		<p
 			class="mt-0.5 flex items-center font-sans text-[0.65rem] uppercase tracking-wider text-muted"
 		>
