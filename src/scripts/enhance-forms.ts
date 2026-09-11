@@ -23,7 +23,8 @@
 // feed. So with JS on the listener INTERCEPTS the read-form submit, `fetch`es the
 // POST itself (no browser/ClientRouter navigation), and updates the row in place:
 // a toggled item leaves the tab it was on, so its <li data-feed-row> is removed
-// and both tab tallies are re-counted, all without a navigation — the reader's
+// and both tab tallies are re-counted. A Recently viewed toggle instead moves
+// a matching source back into the unread window, all without navigation — the reader's
 // scroll position is undisturbed. The auth/sign-out submits keep their original
 // "layer busy feedback, then let the real navigation happen" behavior.
 //
@@ -176,26 +177,58 @@ function removeRow(form: HTMLFormElement): void {
 	}
 }
 
-// Drive the in-place read toggle (#223): POST the form via fetch (no navigation),
-// then on success update the DOM in place — remove the row from its tab and
-// re-tally — so scroll is undisturbed. The /api/read endpoint 303-redirects back
-// to the feed (safeReturnPath only ever returns to '/' + ?source/?tab); fetch
-// follows that transparently, so a saved toggle is `res.ok` whose final URL is
-// still the homepage. The body is irrelevant (we already know the new state from
-// the form), so it's never read. On failure the square is restored and an inline
-// error shown so the reader can retry; the server write stays idempotent, so a
-// retry is safe.
-//
-// Auth-redirect guard (#250, the same failure class #216 fixed for infinite
-// scroll): /api/read is auth-gated by the middleware. If the session lapses while
-// the feed is open, an attempted toggle gets a 303 to /login; browser fetch
-// follows it, so res.ok is true and res.url is the LOGIN page — not a saved
-// toggle. Treating that as success would wrongly remove the row and change the
-// tallies while item_reads was never written, and never send the reader to log in.
-// So before mutating the DOM, detect a redirect to a non-feed path (any pathname
-// that isn't the homepage '/', e.g. /login) and instead do a full navigation to
-// res.url — handing the reader the real login flow — returning WITHOUT
-// removeRow()/retallyTabs(). The row stays, so a fresh login + retry is correct.
+// A global Recently viewed item can return to a filtered unread list. Reuse
+// its existing Article DOM so labels, the form, and the small read square stay
+// consistent, and insert using the same timestamp/id ordering as the D1 query.
+// Rows beyond a partially loaded window stay for its next page; inserting one
+// inside the window advances the cursor (including an in-flight page fetch).
+function returnRecentRow(form: HTMLFormElement, lane: HTMLElement): void {
+	const row = form.closest<HTMLElement>('[data-feed-row]')!;
+	const inActiveFeed = row.dataset.activeFeed !== 'false';
+	row.remove();
+	const remaining = lane.querySelectorAll('[data-feed-row]').length;
+	if (remaining === 0) lane.remove();
+	else lane.querySelector<HTMLElement>('[data-recent-count]')!.textContent = String(remaining);
+	if (!inActiveFeed) return;
+
+	retallyTabs(false);
+	let list = document.querySelector<HTMLElement>('[data-feed-list]');
+	if (!list) {
+		const empty = document.querySelector<HTMLElement>('[data-feed-empty]')!;
+		list = document.createElement('ol');
+		list.setAttribute('data-feed-list', '');
+		list.dataset.emptyMessage = empty.textContent!.trim();
+		empty.replaceWith(list);
+	}
+	const rows = Array.from(list.querySelectorAll<HTMLElement>('[data-feed-row]'));
+	const nextRow = rows.find((other) =>
+		Number(other.dataset.sortTime) < Number(row.dataset.sortTime) ||
+		(Number(other.dataset.sortTime) === Number(row.dataset.sortTime) &&
+			Number(other.dataset.itemId) < Number(row.dataset.itemId)),
+	);
+	const sentinel = list.querySelector<HTMLElement>('[data-feed-sentinel]');
+	// The unread item is older than the loaded window. Its future page already
+	// includes it, so leave the loaded rows and their positional cursor intact.
+	if (!nextRow && sentinel) return;
+
+	row.dataset.readState = 'unread';
+	form.querySelector<HTMLInputElement>('[name="read"]')!.value = '1';
+	const button = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+	button.setAttribute('aria-label', 'Mark as read');
+	restoreButton(button);
+	const working = form.querySelector<HTMLElement>('[data-read-working]')!;
+	working.hidden = true;
+	working.setAttribute('aria-hidden', 'true');
+	list.insertBefore(row, nextRow ?? null);
+	if (sentinel) {
+		const url = new URL(sentinel.dataset.nextUrl!, 'https://news.cuteteal.com');
+		url.searchParams.set('offset', String(Number(url.searchParams.get('offset')) + 1));
+		sentinel.dataset.nextUrl = `${url.pathname}${url.search}`;
+	}
+}
+
+// POST in place; a followed redirect away from the homepage means the session
+// expired. Leave the DOM unchanged and navigate to the real login flow.
 async function submitReadForm(
 	form: HTMLFormElement,
 	button: HTMLButtonElement | null,
@@ -214,8 +247,15 @@ async function submitReadForm(
 			window.location.assign(res.url);
 			return;
 		}
-		removeRow(form);
-		retallyTabs(nowRead);
+		// A tab/filter navigation can replace this form while the write is pending.
+		// Its response must not change the newly selected view.
+		if (!form.isConnected) return;
+		const lane = form.closest<HTMLElement>('[data-recently-viewed]');
+		if (lane) returnRecentRow(form, lane);
+		else {
+			removeRow(form);
+			retallyTabs(nowRead);
+		}
 	} catch {
 		if (button) restoreButton(button);
 		showReadError(form);

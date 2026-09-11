@@ -16,9 +16,11 @@ interface Props {
 	// (safeReturnPath). Defaults to '/', which preserves the old land-on-home
 	// behavior for any caller that doesn't pass the current view.
 	returnTo?: string;
+	// Whether a global Recently viewed item belongs to the active source filter.
+	inActiveFeed?: boolean;
 }
 
-const { item, interactive = true, returnTo = '/' } = Astro.props;
+const { item, interactive = true, returnTo = '/', inActiveFeed = true } = Astro.props;
 const seconds = item.published_at ?? item.fetched_at;
 const source = sourceMeta(item.source);
 // The read-state dimming is Connor's private state; on the public feed every
@@ -27,21 +29,10 @@ const isRead = interactive && item.read_at !== null;
 
 // One briefing line: headline + agate dateline on the left, a read-state square
 // on the right. Read items dim back like continued/back-section matter; the
-// square fills with ink (echoing the source mark) and its form posts the
+// square fills with ink and its form posts the
 // opposite state so one tap flips it. The public feed omits the square entirely.
-const row = isRead
-	? 'flex items-baseline gap-3 border-b border-rule py-2.5 opacity-55'
-	: 'flex items-baseline gap-3 border-b border-rule py-2.5';
-// The read/unread square is a binary-state control (#132): it owes the four
-// interactive-affordance obligations (#129). Resting affordance = the ruled
-// square itself (empty border-rule off / filled border-ink bg-ink + ✓ on);
-// hover firms the border; both variants now also carry cursor-pointer and the
-// ink focus-visible ring so a keyboard reader can see which square is focused.
-const squareBase =
-	'mt-0.5 grid size-4 shrink-0 cursor-pointer place-items-center border text-[0.6rem] leading-none transition-opacity duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink disabled:cursor-default disabled:opacity-50';
-const square = isRead
-	? `${squareBase} border-ink bg-ink text-paper`
-	: `${squareBase} border-rule text-transparent hover:border-ink`;
+const row = 'article-row flex items-start gap-3 border-b border-rule py-2.5';
+const square = 'read-toggle grid size-11 shrink-0 cursor-pointer place-items-center focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink disabled:cursor-default disabled:opacity-50';
 const label = isRead ? 'Mark as unread' : 'Mark as read';
 const nextState = isRead ? '0' : '1';
 ---
@@ -51,6 +42,9 @@ const nextState = isRead ? '0' : '1';
 	transition:name={`item-${item.id}`}
 	data-feed-row
 	data-item-id={item.id}
+	data-sort-time={seconds}
+	data-active-feed={inActiveFeed}
+	data-read-state={isRead ? 'read' : 'unread'}
 >
 	<div class="min-w-0 flex-1">
 		{/* Headline link — the text-link idiom (#129/#131). Resting affordance: per
@@ -99,7 +93,7 @@ const nextState = isRead ? '0' : '1';
 			   (#223). The enclosing <li data-feed-row> is the unit it removes from the
 			   active tab (a toggled item leaves the tab it was on), keeping the busy
 			   "Working…" state below in flight. */
-			<form method="POST" action="/api/read" class="flex items-baseline gap-2" data-read-form>
+			<form method="POST" action="/api/read" class="flex max-w-28 shrink-0 flex-col items-end gap-1" data-read-form>
 				<input type="hidden" name="id" value={item.id} />
 				<input type="hidden" name="read" value={nextState} />
 				<input type="hidden" name="return" value={returnTo} />
@@ -115,7 +109,7 @@ const nextState = isRead ? '0' : '1';
 					Working…
 				</span>
 				<button type="submit" class={square} aria-label={label}>
-					✓
+					<span class="read-square grid size-4 place-items-center border text-[0.6rem] leading-none" aria-hidden="true">✓</span>
 				</button>
 			</form>
 		)

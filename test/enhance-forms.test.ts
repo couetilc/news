@@ -772,3 +772,120 @@ describe('enhance-forms — retry resets the status slot to loading (#251)', () 
 		expect(button.getAttribute('aria-busy')).toBe('true');
 	});
 });
+
+// Recently viewed is global; its rows are not members of the active unread
+// query until their source matches AND the toggle has saved successfully.
+describe('Recently viewed reconciliation (#381)', () => {
+	function recent(active: boolean, sortTime = 20, id = 7) {
+		const controls = readRow('0');
+		controls.row.dataset.activeFeed = String(active);
+		controls.row.dataset.sortTime = String(sortTime);
+		controls.row.dataset.itemId = String(id);
+		controls.row.dataset.readState = 'read';
+		controls.button.setAttribute('aria-label', 'Mark as unread');
+		const lane = document.createElement('section');
+		lane.setAttribute('data-recently-viewed', '');
+		lane.innerHTML = '<span data-recent-count>1</span><ol></ol>';
+		lane.querySelector('ol')!.append(controls.row);
+		controls.list.replaceWith(lane);
+		return {...controls, lane};
+	}
+	function main(times: number[], sentinel = false) {
+		const {list, rows, sentinel: cursor} = readListWithSentinel(times.length, '1', `/feed?tab=unread&source=openai&offset=${times.length}`);
+		rows.forEach((row, i) => { row.dataset.sortTime = String(times[i]); row.dataset.itemId = String(i + 1); });
+		if (!sentinel) cursor.remove();
+		return {list, rows, cursor};
+	}
+	it('does not retally an unrelated source, and removes the last history section', async () => {
+		const {row, lane} = recent(false);
+		const {list} = main([30, 10], true);
+		const counts = tabTallies(2, 0);
+		await toggleRow(row);
+		expect(lane.isConnected).toBe(false);
+		expect(list.querySelectorAll('[data-feed-row]')).toHaveLength(2);
+		expect(counts.unread.textContent).toBe('2');
+		expect(counts.read.textContent).toBe('0');
+		expect(list.querySelector<HTMLElement>('[data-feed-sentinel]')!.dataset.nextUrl).toContain('offset=2');
+	});
+	it('returns a matching row in chronological order and updates its complete control state', async () => {
+		const {row, form, button, working, lane} = recent(true);
+		const {list, rows, cursor} = main([30, 10], true);
+		const counts = tabTallies(2, 1);
+		await toggleRow(row);
+		expect([...list.querySelectorAll('[data-feed-row]')]).toEqual([rows[0], row, rows[1]]);
+		expect(row.dataset.readState).toBe('unread');
+		expect(form.querySelector<HTMLInputElement>('[name="read"]')!.value).toBe('1');
+		expect(button.getAttribute('aria-label')).toBe('Mark as read');
+		expect(button.disabled).toBe(false);
+		expect(button.hasAttribute('aria-busy')).toBe(false);
+		expect(working.hidden).toBe(true);
+		expect(working.getAttribute('aria-hidden')).toBe('true');
+		expect(counts.unread.textContent).toBe('3');
+		expect(counts.read.textContent).toBe('0');
+		expect(cursor.dataset.nextUrl).toBe('/feed?tab=unread&source=openai&offset=3');
+		expect(lane.isConnected).toBe(false);
+	});
+	it('uses descending item ids to break timestamp ties and keeps the remaining lane count', async () => {
+		const {row, lane} = recent(true, 30, 7);
+		const other = document.createElement('li'); other.setAttribute('data-feed-row', '');
+		lane.querySelector('ol')!.append(other);
+		const {list, rows} = main([30]);
+		await toggleRow(row);
+		expect([...list.querySelectorAll('[data-feed-row]')]).toEqual([row, rows[0]]);
+		expect(lane.querySelector('[data-recent-count]')!.textContent).toBe('1');
+		expect(lane.querySelectorAll('[data-feed-row]')).toHaveLength(1);
+	});
+	it('appends older items once the unread list is fully loaded', async () => {
+		const {row} = recent(true, 20, 0);
+		const {list, rows} = main([20]);
+		await toggleRow(row);
+		expect([...list.querySelectorAll('[data-feed-row]')]).toEqual([...rows, row]);
+	});
+	it('leaves an older returned item for its future page without moving the loaded cursor', async () => {
+		const {row} = recent(true, 5);
+		const {list, rows, cursor} = main([30, 10], true);
+		const counts=tabTallies(10, 1);
+		await toggleRow(row);
+		expect([...list.querySelectorAll('[data-feed-row]')]).toEqual(rows);
+		expect(cursor.dataset.nextUrl).toBe('/feed?tab=unread&source=openai&offset=2');
+		expect(counts.unread.textContent).toBe('11');
+	});
+	it('replaces the caught-up message with a working list and retains its empty copy', async () => {
+		const {row} = recent(true);
+		const empty = document.createElement('p'); empty.setAttribute('data-feed-empty', '');
+		empty.textContent = 'All caught up for these sources.'; document.body.append(empty);
+		await toggleRow(row);
+		expect(empty.isConnected).toBe(false);
+		const list = document.querySelector<HTMLElement>('[data-feed-list]')!;
+		expect(list.dataset.emptyMessage).toBe('All caught up for these sources.');
+		expect(list.querySelector('[data-feed-row]')).toBe(row);
+		await toggleRow(row);
+		expect(document.querySelector('[data-feed-empty]')!.textContent).toBe('All caught up for these sources.');
+	});
+	it('ignores a completed write from a form replaced by tab/filter navigation', async () => {
+		const {row} = recent(true);
+		let done!: (response: FakeResponse) => void;
+		fetchImpl = () => new Promise((resolve) => { done = resolve; });
+		const {form, button} = rowControls(row); dispatchSubmit(form, button);
+		document.body.innerHTML = '';
+		const {list} = main([30, 10]); const counts=tabTallies(2,0);
+		done({ok:true,status:200}); await flush();
+		expect(list.querySelectorAll('[data-feed-row]')).toHaveLength(2);
+		expect(counts.unread.textContent).toBe('2');
+		expect(counts.read.textContent).toBe('0');
+	});
+	it('keeps both regions and counts unchanged on failure, then allows retry', async () => {
+		const {row, lane, button} = recent(true);
+		const {list} = main([30, 10]); const counts=tabTallies(2,1);
+		fetchImpl=()=>Promise.reject(new Error('offline'));
+		await toggleRow(row);
+		expect(row.closest('[data-recently-viewed]')).toBe(lane);
+		expect(list.querySelectorAll('[data-feed-row]')).toHaveLength(2);
+		expect(counts.unread.textContent).toBe('2');
+		expect(button.disabled).toBe(false);
+		expect(lane.querySelector('[role="alert"]')!.textContent).toBe('Couldn’t save — try again.');
+		fetchImpl=()=>Promise.resolve({ok:true,status:200}); await toggleRow(row);
+		expect(list.querySelectorAll('[data-feed-row]')).toHaveLength(3);
+		expect(lane.isConnected).toBe(false);
+	});
+});

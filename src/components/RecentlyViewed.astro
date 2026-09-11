@@ -18,24 +18,26 @@ interface Props {
 	items: ItemRow[];
 	// The view each row's read/unread toggle returns to after it flips (#80).
 	returnTo: string;
+	activeSources: string[];
 }
 
-const { items, returnTo } = Astro.props;
+const { items, returnTo, activeSources } = Astro.props;
 ---
 
 {
 	items.length > 0 && (
 		<section aria-label="Recently viewed" data-recently-viewed>
-			<h2 class="flex items-center gap-3 pt-1 font-sans text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-muted">
-				<span class="h-px flex-1 bg-rule" aria-hidden="true" />
-				Recently viewed
-				<span class="h-px flex-1 bg-rule" aria-hidden="true" />
-			</h2>
-			<ol>
-				{items.map((item) => (
-					<Article item={item} returnTo={returnTo} />
-				))}
-			</ol>
+			<details class="mb-3 border-y border-rule">
+				<summary class="cursor-pointer py-3 font-sans text-[0.65rem] uppercase tracking-wider focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink">
+					Recently viewed <span data-recent-count>{items.length}</span>
+				</summary>
+				<h2 class="sr-only">Recently viewed</h2>
+				<ol>
+					{items.map((item) => (
+						<Article item={item} returnTo={returnTo} inActiveFeed={activeSources.length === 0 || activeSources.includes(item.source)} />
+					))}
+				</ol>
+			</details>
 		</section>
 	)
 }

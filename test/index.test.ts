@@ -349,7 +349,7 @@ describe('index page', () => {
 			expect(call[2]).toBe(3);
 			// Lane rows are ordinary read Article rows: dimmed, filled square, and an
 			// un-read control that returns the item to Unread.
-			expect(html).toContain('opacity-55');
+			expect(html).toContain('data-read-state="read"');
 			expect(html).toContain('aria-label="Mark as unread"');
 		});
 

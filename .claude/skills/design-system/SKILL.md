@@ -125,15 +125,24 @@ so it stays loud.
   headline + agate dateline on the left, its control on the right, `py-2.5`
   vertical rhythm. Mobile-first: it's already one column; wider screens only bump
   the type (`sm:text-lg`), not the column count.
-- **Read/unread:** `listItems` returns unread-first; the homepage splits on
-  `read_at` into the live feed and a quieter **Read** section below (read rows at
-  `opacity-55`, no other restyle). The toggle is a `size-4` ruled square — empty
-  `border-rule` when unread, filled `border-ink bg-ink` with a `✓` when read —
-  inside a `<form method="POST" action="/api/read">` so it works without JS
-  (POST → 303 → reload). Reuse this square idiom for binary state; don't reach for
-  a colored pill. As a control it owes the four obligations in **Interactive
-  affordances** — resting ruled square, `hover:border-ink`, `focus-visible` ring,
-  `cursor-pointer`.
+- **Read/unread:** authenticated feeds use URL-addressable Unread and Read tabs,
+  each with a count and an infinite-scroll list. Read rows use
+  `data-read-state="read"` for muted opacity and a filled square; the unread state
+  is an empty ruled square. Keep the drawing at 16px inside a **44px × 44px actual
+  button**, with its own column that never overlaps the headline link. The form
+  remains a plain POST to `/api/read`, so it works without JavaScript. Enhanced
+  toggles preserve the scroll position, visible counts, and pagination cursor.
+- **Source selection:** on phones, a native Sources disclosure keeps the stories
+  high on the page. Its closed summary names the selected sources (or All sources)
+  and a visible Clear sources link resets the filter while preserving the active
+  tab. Inside, ruled links toggle individual sources using repeatable `?source`
+  parameters; multi-select and reset work without JavaScript. Wider screens retain
+  the source grid within the same `max-w-2xl` reading column.
+- **Recently viewed:** a native, initially collapsed disclosure shows the count
+  of up to three recently read items above the Unread tab. This history is global,
+  independent of the active source filter. Returning an item to Unread changes
+  the filtered feed only when its source matches; its chronology and pagination
+  stay intact. Remove the whole disclosure when its last item leaves.
 - **Datelines/metadata:** `font-sans`, small (`text-[0.65rem]`–`text-xs`),
   `uppercase`, letter-spaced (`tracking-wider`/`tracking-[0.3em]`),
   `text-muted`. This is the "set in small caps under the headline" newspaper
@@ -145,6 +154,30 @@ so it stays loud.
   obligations, notably a `focus-visible` ring for keyboard readers. (A resting
   underline on every headline can read heavy in a dense digest; see that section
   for when layout, not a permanent rule, may carry the resting cue.)
+
+## Source identity marks
+
+Render the full printed source name beside an `aria-hidden` 10px `.mark` glyph.
+The four channels describe identity at different levels:
+
+- **Hue = beat:** muted, widely separated `--color-beat-*` tokens, clearly
+  distinct from the alert/interaction `--color-accent`. Classify the feed's subject,
+  not a company's logo.
+- **Shape = sub-beat:** a square by default; `mark-diamond` identifies the
+  open-weight AI sub-beat.
+- **Fill = source within the beat:** `solid`, `hollow`, `half`, `hatch`, `dots`.
+  Assign the next free fill in arrival order and never reshuffle learned marks.
+  Hatch is the convention for an aggregate/backstop feed. A beat outgrowing five
+  fills earns a meaningful sub-beat shape split; a new kind of feed earns a beat.
+- **Name = exact identity:** color and texture support the printed name; they
+  never replace it.
+
+Assignments live in `src/lib/sources.ts`; `.mark-*` rules and beat tokens live in
+`src/styles/global.css`. Add both the registry class and its CSS rule/token:
+`test/source-meta.test.ts` pins assignments and cross-checks them. Use
+`mark-on-ink` on selected ink-filled chips so the shape/fill render in paper ink.
+Hollow marks retain a **3px border and 4px center** at 10px outer size; they are
+identity glyphs, distinct from the thin ruled read-state controls.
 
 ## Interactive affordances: making controls *look* clickable
 
@@ -233,9 +266,11 @@ Pick by *what the control does*, not by what tag is convenient.
                        Sign out
                      </button>
 
-✅  binary toggle    <button class="cursor-pointer grid size-4 place-items-center
-                              border border-rule hover:border-ink focus-visible:outline-2
-                              focus-visible:outline-offset-2 focus-visible:outline-ink">…</button>
+✅  binary toggle    <button class="read-toggle cursor-pointer grid size-11 place-items-center
+                              focus-visible:outline-2 focus-visible:outline-offset-2
+                              focus-visible:outline-ink">
+                       <span class="read-square grid size-4 border" aria-hidden="true">✓</span>
+                     </button>
 
 ❌  control as metadata   <button class="font-sans text-[0.65rem] uppercase
                               tracking-[0.2em] text-muted hover:text-accent">Sign out</button>

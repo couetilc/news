@@ -33,9 +33,11 @@ test('filters to Meta AI and links to the official model announcement', async ({
 	await other.getByRole('button', { name: 'Mark as read', exact: true }).click();
 	await expect(other).toHaveCount(0);
 
+	await page.locator('.source-filter summary').click();
 	const filter = page.getByRole('navigation', { name: 'Filter by source' });
 	await filter.getByRole('link', { name: 'Meta AI', exact: true }).click();
 	await expect(page).toHaveURL(/\?source=meta-ai$/);
+	await page.locator('.source-filter summary').click();
 	await expect(filter.getByRole('link', { name: 'Meta AI', exact: true })).toHaveAttribute(
 		'aria-current', 'true',
 	);

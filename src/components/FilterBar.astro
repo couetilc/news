@@ -58,25 +58,38 @@ const on = `${base} border-ink bg-ink text-paper`;
 const off = `${base} border-rule text-ink-soft hover:border-ink hover:text-accent`;
 ---
 
-<nav aria-label="Filter by source" class="mb-6 flex flex-wrap items-center gap-2">
-	<a href={allHref} class={allActive ? on : off} aria-current={allActive ? 'true' : undefined}>All</a>
-	{
-		sources.map((slug) => {
-			const meta = sourceMeta(slug);
-			const isActive = activeSet.has(slug);
-			return (
-				<a
-					href={hrefFor(slug)}
-					class={isActive ? on : off}
-					aria-current={isActive ? 'true' : undefined}
-				>
-					<span
-						class={`mark ${meta.mark}${isActive ? ' mark-on-ink' : ''}`}
-						aria-hidden="true"
-					/>
-					{meta.name}
-				</a>
-			);
-		})
-	}
-</nav>
+<div class="mb-4">
+	<details class="source-filter">
+		<summary class="cursor-pointer border-y border-rule py-3 font-sans text-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink">
+			<span class="font-semibold uppercase tracking-wider">Sources</span>
+			<span class="ml-2" data-filter-summary>{allActive ? 'All sources' : active.map((slug) => sourceMeta(slug).name).join(', ')}</span>
+		</summary>
+		<nav aria-label="Filter by source" class="flex flex-wrap items-center gap-2 py-3 sm:py-0">
+			<a href={allHref} class={allActive ? on : off} aria-current={allActive ? 'true' : undefined}>All</a>
+			{
+				sources.map((slug) => {
+					const meta = sourceMeta(slug);
+					const isActive = activeSet.has(slug);
+					return (
+						<a
+							href={hrefFor(slug)}
+							class={isActive ? on : off}
+							aria-current={isActive ? 'true' : undefined}
+						>
+							<span
+								class={`mark ${meta.mark}${isActive ? ' mark-on-ink' : ''}`}
+								aria-hidden="true"
+							/>
+							{meta.name}
+						</a>
+					);
+				})
+			}
+		</nav>
+	</details>
+	{!allActive && <a href={allHref} class="mt-2 inline-block font-sans text-xs underline underline-offset-2 hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink">Clear sources</a>}
+</div>
+
+<script>
+	import '../scripts/disclosures';
+</script>

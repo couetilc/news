@@ -65,6 +65,20 @@
  * 8px) is what lets hatch and dots read as texture. Base --mark-c is the
  * neutral muted fallback for unregistered sources. */
 @layer components {
+	.article-row[data-read-state="read"] { opacity: 0.55; }
+	.read-square { border-color: var(--color-rule); color: transparent; }
+	.read-toggle:hover .read-square { border-color: var(--color-ink); }
+	[data-read-state="read"] .read-square {
+		border-color: var(--color-ink);
+		background-color: var(--color-ink);
+		color: var(--color-paper);
+	}
+	/* A native disclosure works with no JavaScript. Desktop keeps the familiar
+	   source grid visible; on a phone the active summary leads to the stories. */
+	@media (min-width: 40rem) {
+		.source-filter[open] > summary { display: none; }
+	}
+
 	.mark {
 		--mark-c: var(--color-muted);
 		display: inline-block;

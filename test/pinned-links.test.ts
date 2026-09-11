@@ -72,11 +72,11 @@ describe('PinnedLinks (#316)', () => {
 		expect(html).toContain('A web reference');
 		// No "PDF" tag when the entry isn't flagged as a PDF.
 		expect(html).not.toMatch(/>\s*PDF\s*</);
-		// And no "Scrape-protected" tag when the entry isn't flagged either (#330).
-		expect(html).not.toContain('Scrape-protected');
+		// And no "Visit site" tag when the entry isn't flagged either (#330).
+		expect(html).not.toContain('Visit site');
 	});
 
-	it('marks a scrape-protected link with the agate "Scrape-protected" tag (#330)', async () => {
+	it('marks a scrape-protected link with the agate "Visit site" tag (#330)', async () => {
 		const link: PinnedLink = {
 			label: 'A walled-off source',
 			href: 'https://example.com/walled',
@@ -87,7 +87,7 @@ describe('PinnedLinks (#316)', () => {
 		// The tag renders in the same ruled agate voice as the PDF tag — muted ink,
 		// hairline box, never the accent — as a per-entry mark, not a separate
 		// section (whitespace-tolerant: Astro may pad the element's text).
-		expect(html).toMatch(/>\s*Scrape-protected\s*</);
+		expect(html).toMatch(/>\s*Visit site\s*</);
 		expect(html).not.toMatch(/>\s*PDF\s*</);
 
 		// Still the standard external pinned link: new tab + safe rel + the #129
@@ -129,7 +129,7 @@ describe('PinnedLinks (#316)', () => {
 		expect(html).toContain(
 			'href="https://www.citadelsecurities.com/news-and-insights/category/market-insights/"',
 		);
-		expect(html).toMatch(/>\s*Scrape-protected\s*</);
+		expect(html).toMatch(/>\s*Visit site\s*</);
 	});
 });
 

@@ -147,7 +147,7 @@ const emptyCopy = emptyMessage(tab, active.length > 0);
 						    and the lane self-erases). Sits between the filter chips and the
 						    tabs so it reads as its own ruled newspaper section, not part of
 						    the active tab's list. Also empty while nothing has been opened. */}
-						<RecentlyViewed items={recent} returnTo={returnTo} />
+						<RecentlyViewed items={recent} returnTo={returnTo} activeSources={active} />
 						<FeedTabs
 							active={tab}
 							sources={active}

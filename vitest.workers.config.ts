@@ -48,6 +48,7 @@ export default defineConfig({
 			// DOM unit tests for browser-only client modules — need a happy-dom
 			// environment the workerd pool can't provide; they run in the node project.
 			'test/enhance-forms.test.ts',
+			'test/disclosures.test.ts',
 			'test/infinite-scroll.test.ts',
 			'test/opened.test.ts',
 			// Reads sources + stryker.config.json off disk via node:fs — runs in the
