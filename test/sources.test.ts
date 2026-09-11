@@ -27,10 +27,22 @@ import owenomicsJson from './fixtures/owenomics.json?raw';
 import thinkingMachinesXml from './fixtures/thinking-machines.xml?raw';
 import tmNewsHtml from './fixtures/thinking-machines-news.html?raw';
 import cursorHtml from './fixtures/cursor-blog-research.html?raw';
+import metaAiHtml from './fixtures/meta-ai-research.html?raw';
 
 const source = (name: string) => SOURCES.find((s) => s.source === name)!;
 
 describe('SOURCES', () => {
+	it('polls Meta AI research every six hours and includes the Muse transcription release', () => {
+		const meta = source('meta-ai');
+		expect(meta.feed).toBe('https://research.meta.ai/');
+		expect(meta.pollIntervalSeconds).toBe(21600);
+		expect(meta.countRaw!(metaAiHtml)).toBe(3);
+		const items = meta.parse(metaAiHtml);
+		expect(items).toHaveLength(3);
+		expect(items[2].url).toBe('https://research.meta.ai/blog/introducing-muse-voice-transcribe');
+		expect(items[2].title).toBe('Introducing Muse Voice Transcribe');
+		expect(items[2].publishedAt).toBe(Date.UTC(2026, 8, 1) / 1000);
+	});
 	// Per-source presence checks (not an exact-list equality) so this stays green
 	// as sibling PRs add more sources.
 	it('includes each configured source', () => {
@@ -51,6 +63,7 @@ describe('SOURCES', () => {
 		expect(slugs).toContain('eye-on-the-market');
 		expect(slugs).toContain('mistral');
 		expect(slugs).toContain('openai');
+		expect(slugs).toContain('meta-ai');
 		expect(slugs).toContain('thinking-machines');
 		expect(slugs).toContain('owenomics');
 		expect(slugs).toContain('open-models');

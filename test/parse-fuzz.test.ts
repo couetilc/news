@@ -6,6 +6,7 @@ import { parseAwsWhatsNew } from '../src/ingest/parse/aws-whats-new';
 import { parseOwenomics } from '../src/ingest/parse/owenomics';
 import { parseJpmEotm } from '../src/ingest/parse/jpm-eotm';
 import { parseCursorBlog } from '../src/ingest/parse/cursor';
+import { parseMetaAiResearch } from '../src/ingest/parse/meta-ai';
 import { parseSecEdgar } from '../src/ingest/parse/sec-edgar';
 import { parseThinkingMachinesNews } from '../src/ingest/parse/thinking-machines-news';
 import { parseTiNewsroom } from '../src/ingest/parse/ti-newsroom';
@@ -14,6 +15,7 @@ import {
 	countAtom,
 	countAwsWhatsNew,
 	countJpmEotm,
+	countMetaAiResearch,
 	countOwenomics,
 	countCursorBlog,
 	countRss20,
@@ -87,6 +89,29 @@ function fuzzParser(
 // Arbitrary bytes-as-text: the truly adversarial case (binary, control chars,
 // truncated markup). Most of these hit the malformed-XML / invalid-JSON guard.
 const arbitraryText = fc.string();
+
+const metaAiHtml = fc.array(fc.oneof(fc.string(), fc.constantFrom(
+	'<div data-testid="home-content-column">', '<article data-blog-post-summary="card">',
+	'<article data-blog-post-summary="featured">', '</article>', '<article>',
+	'<a href="/blog/example">', '<a href="https://[bad">', '</a>',
+	'<h2>', '</h2>', '<time dateTime="2026-09-01">', '</time>', '&amp;',
+)), { maxLength: 40 }).map((parts) => parts.join(''));
+
+describe('Meta AI research listing — malformed input', () => {
+	it('only rejects with its documented guard, otherwise returning well-formed first-party links', () => {
+		fuzzParser(parseMetaAiResearch, /^not a Meta AI research listing/, fc.oneof(arbitraryText, metaAiHtml));
+		fc.assert(fc.property(metaAiHtml, (payload) => {
+			const items = parseMetaAiResearch(`<div data-testid="home-content-column">${payload}</div>`);
+			for (const item of items) {
+				expect(item.url).toMatch(/^https:\/\/(?:research\.meta\.ai|ai\.meta\.com)\/blog\/[a-z0-9-]+$/i);
+				expect(item.guid).toBe(item.url);
+			}
+			const raw = countMetaAiResearch(payload);
+			expect(Number.isInteger(raw)).toBe(true);
+			expect(raw).toBeGreaterThanOrEqual(items.length);
+		}), RUNS);
+	});
+});
 
 // Plausible-but-malformed JSON values rendered to strings, so the parsers'
 // post-JSON.parse field logic (the deeper branches #165 hardened) is actually

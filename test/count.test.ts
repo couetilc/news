@@ -4,6 +4,7 @@ import {
 	countAwsWhatsNew,
 	countCursorBlog,
 	countJpmEotm,
+	countMetaAiResearch,
 	countOwenomics,
 	countRss20,
 	countThinkingMachinesNews,
@@ -18,6 +19,18 @@ import eotmJson from './fixtures/eye-on-the-market.json?raw';
 import owenomicsJson from './fixtures/owenomics.json?raw';
 import cursorHtml from './fixtures/cursor-blog-research.html?raw';
 import tmNewsHtml from './fixtures/thinking-machines-news.html?raw';
+import metaAiHtml from './fixtures/meta-ai-research.html?raw';
+
+describe('countMetaAiResearch', () => {
+	it('counts featured and regular containers independently of successful extraction', () => {
+		expect(countMetaAiResearch(metaAiHtml)).toBe(3);
+		expect(countMetaAiResearch('<article>Missing attributes</article><article href="broken">')).toBe(2);
+		expect(countMetaAiResearch('<ARTICLE></ARTICLE>')).toBe(1);
+		expect(countMetaAiResearch('<a href="/blog/example">Navigation</a>')).toBe(0);
+		expect(countMetaAiResearch('truncated <article')).toBe(0);
+		expect(countMetaAiResearch('<article '.repeat(20_000))).toBe(0);
+	});
+});
 
 // The counters report RAW container size, independent of parse keep/drop logic —
 // they're the denominator the shape-drift check (#78) compares parsed count to.

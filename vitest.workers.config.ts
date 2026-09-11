@@ -64,6 +64,7 @@ export default defineConfig({
 			'test/parse-sec-edgar.test.ts',
 			'test/parse-ti-newsroom.test.ts',
 			'test/parse-thinking-machines-news.test.ts',
+			'test/parse-meta-ai.test.ts',
 			'test/parse-jpm-eotm.test.ts',
 			'test/parse-owenomics.test.ts',
 			'test/parse-cursor.test.ts',

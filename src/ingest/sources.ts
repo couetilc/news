@@ -2,6 +2,7 @@ import { parseAtom } from './parse/atom';
 import { parseAwsWhatsNew } from './parse/aws-whats-new';
 import { parseCursorBlog } from './parse/cursor';
 import { parseJpmEotm } from './parse/jpm-eotm';
+import { parseMetaAiResearch } from './parse/meta-ai';
 import { parseOwenomics } from './parse/owenomics';
 import { parseRss20 } from './parse/rss20';
 import { parseSecEdgar } from './parse/sec-edgar';
@@ -11,6 +12,7 @@ import {
 	countAtom,
 	countAwsWhatsNew,
 	countCursorBlog,
+	countMetaAiResearch,
 	countJpmEotm,
 	countOwenomics,
 	countRss20,
@@ -85,6 +87,18 @@ function awsFeed(term: string): FeedConfig {
 // further `Source:` issues add entries here. Each carries its own parser
 // closure so per-source quirks stay local to this list.
 export const SOURCES: FeedConfig[] = [
+	{
+		// Meta's current research/model announcements, including Muse Voice
+		// Transcribe. No feed is declared; the old ai.meta.com/blog/rss/ is 404.
+		// Semantic <article> cards expose title/link/date in server-rendered HTML.
+		// The ten-post window is small enough to backfill in full; six-hour polls
+		// track new releases without repeatedly fetching the uncached listing.
+		source: 'meta-ai',
+		feed: 'https://research.meta.ai/',
+		pollIntervalSeconds: 21600,
+		parse: parseMetaAiResearch,
+		countRaw: countMetaAiResearch,
+	},
 	{
 		// #19 — full HTML in content:encoded; no conditional GET; 20-item window
 		// that bursts during Innovation Weeks, so poll hourly.

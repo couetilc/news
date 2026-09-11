@@ -26,6 +26,9 @@ const repoFile = (rel: string): string =>
 	readFileSync(fileURLToPath(new URL(`../${rel}`, import.meta.url)), 'utf8');
 
 describe('sourceMeta', () => {
+	it('gives Meta AI a distinct mark on the AI desk', () => {
+		expect(sourceMeta('meta-ai')).toEqual({ name: 'Meta AI', mark: 'mark-beat-ai mark-dots' });
+	});
 	it('maps eye-on-the-market to its registered display name and mark (#326)', () => {
 		// The exact pair the reader sees — not toBeDefined. A slug typo would fall
 		// back to { name: 'eye-on-the-market', mark: 'mark-solid' } and fail here.
