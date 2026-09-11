@@ -1,22 +1,62 @@
 ---
 name: Agentic dev environments
-description: How Claude sessions run against this repo across all four surfaces — local CLI/desktop, Claude Dispatch, claude.ai cloud sessions, and GitHub Actions — including credentials, cloud environment configuration, setup scripts vs SessionStart hooks, network access modes, and deploy paths.
-when_to_use: Configuring or debugging any Claude execution surface for this repo; deploy failures in CI or from an agent session; questions about which credentials/tokens exist where; setting up the claude.ai cloud environment or Dispatch; deciding network access modes; onboarding a new agent surface; verifying an environment works (test plan).
+description: Set up native laptop agent development, verify GitHub and Cloudflare credentials, and follow the PR-to-deploy path. Includes optional container and Claude cloud execution guidance.
+when_to_use: Setting up a laptop or fresh worktree; debugging credentials, command resolution, or deploys; explicitly using an optional container or cloud surface.
 ---
 
 # Agentic dev environments for this repo
 
-This repo (`couetilc/news` → https://news.cuteteal.com) is developed by Claude
-sessions on four surfaces, each with a different execution context, credential
-set, and set of allowed actions. This skill is the source of truth for those
-differences.
+This repo (`couetilc/news` → https://news.cuteteal.com) defaults to native
+Codex or Claude agents on Connor's laptop. GitHub Actions deploys merged work.
+Container and Claude cloud sections are optional surface-specific guidance;
+do not configure them as part of native setup.
+
+## Native laptop workflow
+
+Follow the short setup in `CLAUDE.md`: Node 24, a topic branch or separate
+worktree, `npm ci`, `npm run db:migrate:local`, and
+`npx playwright install chromium`. The cloud-only SessionStart hook does
+nothing locally, so dependencies and local migrations are explicit steps.
+
+- **Native commands:** `.envrc` leaves PATH unchanged. `command -v codex` and
+  `command -v claude` should resolve installed host CLIs, never `.agent/bin`.
+  In a previously enabled direnv checkout, run `direnv allow` and let the
+  shell reload the changed entry. `command codex` still searches PATH; it
+  cannot bypass a container shim. Optional launchers are explicitly
+  `./.agent/bin/agent codex` and `./.agent/bin/agent claude`. If `agent init`
+  regenerates wrapper guidance or `.envrc`, retain this native PATH default.
+- **State isolation:** run commands inside the task's worktree. Keep its own
+  `node_modules`, `.wrangler`, `.astro`, and `dist`; do not symlink another
+  worktree's state. Use a distinct dev port and the printed loopback address.
+  `npm run test:e2e` creates and removes its own build/state/port automatically.
+- **Runtime secrets:** create ignored `.dev.vars` with a random local-only
+  `AUTH_PEPPER` (needed for auth in built preview). Do not copy production
+  peppers or sessions. `.env` holds tooling credentials only; neither file
+  is provided by `git worktree add`.
+- **GitHub:** inspect `git remote get-url origin` and `gh auth status` without
+  printing token values. HTTPS can use the gh keyring; SSH requires a working
+  key. Existing native authentication normally needs no extra `GH_TOKEN`.
+  Workflow-file pushes require OAuth/classic PAT `workflow` scope or
+  fine-grained Workflows write; a laptop or ordinary push is not proof of
+  that permission. Check the credential or connected GitHub integration.
+- **Git hooks:** inspect `git config --show-origin --get core.hooksPath`.
+  Connor's current global hooks are machine configuration; a fresh clone
+  doesn't install them. Commit and push explicitly, then verify the remote
+  branch instead of assuming auto-push.
+- **Cloudflare:** local development and tests use local bindings without a
+  production token. For production inspection/manual fallback, verify the
+  existing `.env` token or Wrangler OAuth with `npx wrangler whoami`; never
+  print credentials. Canonical deployment uses the CI repo secret.
+- **Delivery:** PR → both `test` and `e2e` green on the PR head → merge →
+  successful CI `deploy` → inspect https://news.cuteteal.com. Existing review
+  policies still apply; environment setup does not grant new permissions.
 
 ## Execution contexts
 
 | Surface | Where code runs | Triggered from | Repo access | Can deploy? |
 |---|---|---|---|---|
-| Local CLI / desktop app | Connor's Mac, `~/repos/news` | Terminal / Code tab | Working tree, SSH push | Yes (manual fallback) |
-| **Dispatch** | **Connor's Mac** (desktop app must be running & awake) | Phone / Cowork tab | Same local working tree, SSH push | Yes (same as local) |
+| Local CLI / desktop app | Connor's Mac, `~/repos/news` | Terminal / Code tab | Working tree, verified HTTPS/keyring or SSH push | Yes (manual fallback) |
+| **Dispatch** | **Connor's Mac** (desktop app must be running & awake) | Phone / Cowork tab | Same local working tree and verified git auth | Yes (same as local) |
 | Cloud sessions (claude.ai/code, `claude --remote`) | Anthropic-managed Ubuntu 24.04 VM (4 vCPU / 16 GB / 30 GB) | Web, mobile, CLI | Fresh clone via GitHub App proxy; **push restricted to the session's own branch**; changes land via PR | **No** (by design) |
 | Agent container (`agent claude`) | Docker on Connor's Mac, full-auto (`--dangerously-skip-permissions`) | Terminal | Fresh clone from GitHub into container-private `/workspace`; HTTPS push via `GH_TOKEN` | Possible but discouraged — use PRs |
 | GitHub Actions | GitHub-hosted runner | Push / PR events | `actions/checkout` | **Yes — the canonical deploy path** |
@@ -42,7 +82,7 @@ Current state:
 
 | Surface | Cloudflare | GitHub |
 |---|---|---|
-| Local + Dispatch | `CLOUDFLARE_API_TOKEN` in `.env` (or `npx wrangler login` OAuth) | SSH key + gh keyring |
+| Local + Dispatch | `CLOUDFLARE_API_TOKEN` in `.env` (or `npx wrangler login` OAuth) | Verified HTTPS/gh keyring or SSH key |
 | Cloud sessions | **None — deliberately credential-free** | Scoped credential via GitHub App proxy (automatic) |
 | GitHub Actions | Repo Actions secret `CLOUDFLARE_API_TOKEN` (same token value as `.env`) | Built-in `GITHUB_TOKEN` |
 
@@ -51,7 +91,7 @@ they need no network exception. The claude.ai environment has no dedicated
 secrets store (env vars are visible to anyone who can edit the environment), so
 keeping it empty is the safest default.
 
-## Cloud environment recipe (claude.ai settings)
+## Optional cloud environment recipe (claude.ai settings)
 
 The environment for this repo should be configured as:
 
@@ -94,10 +134,11 @@ Division of labor: tools/runtimes the VM lacks → setup script (cached
 snapshot); project dependency install → SessionStart hook (runs every session,
 repo-versioned).
 
-## Agent container (`agent claude` / `agent codex`)
+## Optional agent container (`./.agent/bin/agent claude` / `./.agent/bin/agent codex`)
 
 Local full-auto surface, driven by the published **`@couetilc/agentic-coding`**
-tool (host prereqs: node, docker, git) and configured by this repo's committed
+tool (use `./.agent/bin/agent` for `agent` below; host prereqs: node, docker,
+git) and configured by this repo's committed
 **`.agent/`** directory — `config.js` names the project/repo/ports/agents/caches,
 `Dockerfile` is the overlay, `init.sh` is the in-container bootstrap, and
 `.agent/README.md` is the host-side config reference. `agent claude` runs
@@ -302,7 +343,7 @@ installs the pinned browser properly and never uses the shim.
 
 ## Deploy paths
 
-1. **Canonical:** branch → PR → CI `test` job (100% coverage gate) → merge to
+1. **Canonical:** branch → PR → CI `test` (100% coverage) + `e2e` jobs → merge to
    `main` → CI `deploy` job (`npm run build` + `cloudflare/wrangler-action`).
    Works identically for changes authored locally, via Dispatch, or in cloud
    sessions.
@@ -318,13 +359,13 @@ Surface behaviors:
   the PR is then created either from the session UI on claude.ai (Create PR
   button) or by any credentialed session (`gh pr create --head <branch>`).
 - **Direct pushes to `main` are mechanically blocked** by the repo ruleset
-  `protect-main` (requires a PR and a green `test` check; no bypass actors;
+  `protect-main` (requires a PR and green `test` + `e2e` checks; no bypass actors;
   branch deletion blocked). All surfaces must use branch → PR.
 
 ## Merge automation (phone-friendly loop)
 
 - **Auto-merge** is enabled on the repo (`allow_auto_merge: true`). Because
-  the ruleset makes the `test` check required, a PR can be queued to merge
+  the ruleset requires both `test` and `e2e`, a PR can be queued to merge
   the moment CI goes green:
   `gh pr merge <num> --auto --squash` (or the Enable auto-merge button).
   Merging to main then triggers the CI deploy.
@@ -341,13 +382,15 @@ Surface behaviors:
 
 Caveat: pushes that modify `.github/workflows/*` may be rejected for cloud
 sessions (the GitHub proxy's scoped credential may lack the `workflow`
-permission). Make workflow edits locally/Dispatch.
+permission). Local/Dispatch credentials also need workflow permission; verify
+the actual credential or available GitHub integration before planning a push.
 
 ## Verification checklists
 
-**CI + deploy** (any local session can run this): open a PR with a visible
-page change → `test` job green → merge → `deploy` job green (`gh run watch`)
-→ `curl -s https://news.cuteteal.com` shows the change.
+**CI + deploy** (a credentialed session): use the task's actual PR → `test`
+and `e2e` green on its head → merge → `deploy` green (`gh run watch`) →
+`curl -s https://news.cuteteal.com` and browser inspection verify the deployed
+app. Do not invent a page change just to exercise deployment.
 
 **Cloud session** (Connor starts at claude.ai/code): task it with running
 `npm test`, reporting `node --version` and `$CLAUDE_CODE_REMOTE`, then making
@@ -358,7 +401,7 @@ via the normal PR → CI flow.
 **Dispatch** (Connor, from phone/Cowork; desktop app running): task it with
 running `npm test` in the news repo. Verify the session appears in the Code
 tab with a "Dispatch" badge and tests pass. Optional: commit/push/PR to
-exercise SSH + CI deploy.
+exercise the configured git transport + CI deploy.
 
 ## Official documentation
 

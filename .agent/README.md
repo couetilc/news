@@ -7,9 +7,13 @@ mounted; work leaves the container only via `git push`. The whole directory is
 committed — the engine itself ships as a versioned npm package and is never
 vendored here.
 
-This README is engine-owned and regenerated on every `agent init`; edit
-`config.js` and `init.sh` instead. It is written so a host-side coding agent can
-maintain the config without further context.
+Native laptop agents are the default for this repo. Containers are optional:
+invoke `./.agent/bin/agent codex` or `./.agent/bin/agent claude` explicitly.
+
+The upstream engine regenerates this README and the shims on `agent init`.
+This repo retains local corrections to its PATH guidance; review the generated
+diff before committing it. Container configuration lives in `config.js` and
+`init.sh`.
 
 [pkg]: https://www.npmjs.com/package/@couetilc/agentic-coding
 
@@ -22,12 +26,12 @@ maintain the config without further context.
 | `Dockerfile` | you | OPTIONAL overlay for root/system deps (not created by default) |
 | `package.json` | engine | `{"type":"module"}` so `config.js` parses as ESM |
 | `README.md` | engine | this file |
-| `bin/{agent,claude,codex}` | engine | PATH shims → `npx @couetilc/agentic-coding` |
+| `bin/{agent,claude,codex}` | engine | explicit launchers → `npx @couetilc/agentic-coding` |
 | `env.example` | engine | documents the tokens; real values go elsewhere |
 
 Engine-owned files are regenerated each `agent init`; your files are never
-overwritten. Commands: `agent claude`, `agent codex`, `agent shell`,
-`agent clean`, `agent doctor`, `agent init`.
+overwritten. In the commands below, use `./.agent/bin/agent` for `agent`
+unless you independently installed the launcher on PATH.
 
 ## Adding a port
 
@@ -92,15 +96,23 @@ The shims pin the major: `npx -y @couetilc/agentic-coding@^0 ...`. Patch
 and minor releases arrive automatically the next time you run a command (npx
 resolves the newest matching version). A **major** bump is deliberate: re-run
 `agent init` to rewrite the shims to the new major (`@^0` → the next).
-Re-running `agent init` is always safe — it regenerates engine-owned files and
-leaves `config.js` and `init.sh` untouched.
+Re-running `agent init` regenerates engine-owned files and leaves `config.js`
+and `init.sh` untouched. Review `.envrc`, the shim comments, and this README
+afterward: retain the native PATH default and the corrections below.
 
-## PATH shadowing
+## Native PATH default
 
-The `.agent/bin` shims are added to PATH via `.envrc` (`direnv allow` to
-activate). While active, typing `claude` or `codex` in this project launches the
-**container**, not the host CLI. Escape hatch: `command claude` runs the real
-host binary. `agent` is unambiguous.
+`.envrc` deliberately leaves PATH unchanged. `codex` and `claude` resolve the
+installed native CLIs; optional containers use `./.agent/bin/agent codex` or
+`./.agent/bin/agent claude`. No Docker installation is needed for native work.
+
+After updating an existing direnv-enabled checkout, run `direnv allow` to
+authorize the changed `.envrc`, then let the shell reload it. Verify with
+`command -v codex` and `command -v claude`. Neither should resolve under
+`.agent/bin`. If a shell profile independently adds that directory, remove that
+entry and clear the shell command cache (`hash -r` in bash). `command codex`
+only bypasses shell functions/aliases; it still searches PATH and cannot
+bypass a shim earlier on PATH.
 
 ## Recovery
 
