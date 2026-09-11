@@ -1,13 +1,11 @@
 # Playwright browser gate. `protect-main` requires both `test` and `e2e`.
-# Keep the workflow name E2E: the heavy-run review detector uses it to identify
-# scheduled browser runs independently of the deploy workflow.
+# Browser checks run independently of the deploy workflow.
 # The isolated harness builds the app and serves it in local workerd. PR failures
 # block merge; scheduled/dispatch sweeps remain separate from deployment.
 #
 # Triggers:
 #   • pull_request     — a required per-PR browser check.
-#   • schedule         — a nightly sweep, so the detector (default event:
-#     schedule) surfaces a baseline→delta run-over-run report. Additionally
+#   • schedule         — a nightly sweep. Additionally
 #     CHANGE-GATED in-job against the last successful run's SHA (skip when
 #     nothing relevant changed) — mirrors mutation.yml.
 #   • workflow_dispatch — on demand.
