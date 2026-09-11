@@ -13,6 +13,7 @@ Reviewed the full issue bodies and comments, plus the two open PR diffs and revi
 | [#370](https://github.com/couetilc/news/issues/370) | Implement genuinely isolated PR environments if remote previews are still wanted. |
 | [#369](https://github.com/couetilc/news/issues/369) | Narrow the observability scope and verify credential availability first. |
 | [#341](https://github.com/couetilc/news/issues/341) | Defer until there are specific additional users and an access policy. |
+| [#394](https://github.com/couetilc/news/issues/394) | Review the exact README draft separately, then land the approved wording. |
 
 ## Recommended order
 
@@ -20,6 +21,8 @@ Reviewed the full issue bodies and comments, plus the two open PR diffs and revi
 2. Build isolated, CI-owned PR previews under #370 if remote visual review is still useful after the new isolated local browser harness. A fixed shared staging Worker does not satisfy per-PR isolation.
 3. Rework #369 around the actual minimal observability capability and current credential UI availability. Keep cloud sessions credential-free until that is verified; the existing local/CI deployment path and owner health UI work meanwhile.
 4. Leave #341 as a product decision until there are specific additional users to onboard. Prefer the hybrid SSO entry path if passwordless access becomes a real need.
+
+The small README follow-up [#394](https://github.com/couetilc/news/issues/394) can run alongside the environment-documentation work. It contains an exact draft for the new health capability, the two test runtimes, isolated browser checks and advisory mutation reporting. The repository's README policy requires Connor's sign-off before that separate README-only change lands; no implementation is waiting on it.
 
 ## Documentation: #366, #368, PR #367, PR #371
 

@@ -63,6 +63,8 @@ batch error. IEEE Spectrum recorded HTTP 200 and a clean successful check.
 All 32 active feeds had zero failure streaks and none were overdue. At this
 snapshot, one feed had new tracker history and 31 awaited their normal cadence;
 unknown historical timestamps were not invented or treated as successful polls.
+The [production health acceptance report](2026-09-11-health-production-acceptance.md)
+includes migration and indexed-log corroboration.
 
 Production `/status` and `/status/` were checked in HTTP responses and the
 browser: both exposed the expected deployment, sent `private, no-store` with
@@ -84,5 +86,6 @@ browser: both exposed the expected deployment, sent `private, no-store` with
   read production D1 and historical telemetry and upload review screenshots to
   the configured R2 bucket. Credentials were kept out of reports and commits.
 
-No dependency or README change was needed. The older open PRs and issues are
-covered by a concrete proposal rather than merged as incidental cleanup.
+No dependencies were added. A separate [README proposal (#394)](https://github.com/couetilc/news/issues/394)
+contains the exact draft for review under the repository's README policy. The
+remaining six issues and two older PRs each have a disposition in the backlog proposal.
