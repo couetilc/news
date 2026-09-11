@@ -51,6 +51,18 @@ describe('the ten approved AI lab sources', () => {
 			url: 'https://sakana.ai/fugu-max-release/', publishedAt: 1789052400,
 		}]);
 	});
+	it('keeps feed summaries separate from full article content', () => {
+		const xml = '<rss><channel><item><guid>g</guid><link>https://lab.example/post</link><title>Model</title><description>Short teaser</description><content:encoded><![CDATA[<p>Full body</p>]]></content:encoded></item></channel></rss>';
+		for (const slug of ['deepmind', 'ai2', 'mythic']) {
+			expect(feed(slug).parse(xml)[0]).toMatchObject({ summary: 'Short teaser', contentHtml: '<p>Full body</p>' });
+		}
+		const atom = '<feed><entry><id>g</id><link href="/model"/><title>Model</title><summary>Short teaser</summary><content type="html">&lt;p&gt;Full body&lt;/p&gt;</content></entry></feed>';
+		expect(feed('sakana-ai').parse(atom)[0]).toMatchObject({ summary: 'Short teaser', contentHtml: '<p>Full body</p>' });
+	});
+	it('keeps Normal chip names without matching letter-only or letter-suffixed near misses', () => {
+		expect(feed('normal-computing').keep!({ ...item, title: 'CN101 research paper' })).toBe(true);
+		expect(feed('normal-computing').keep!({ ...item, title: 'CNabc company guide' })).toBe(false);
+	});
 	it('includes Grok model and voice updates with distinct fragment URLs and unknown dates', () => {
 		const items = feed('xai').parse(xai).filter(feed('xai').keep!);
 		expect(items.map((i) => i.title)).toContain('Grok Voice Think Fast 2.0 is available');

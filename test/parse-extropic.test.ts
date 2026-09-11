@@ -29,6 +29,14 @@ describe('Extropic Flight listing', () => {
 	it('handles semicolon calls, unrelated stream records, and slug-only posts', () => {
 		const html = flight({ featuredPosts: [{ _type: 'post', title: 'TSU', slug: 'tsu', publishDate: '2026-08-01' }] }).replace(')</script>', ');</script>') + script([1, 'broken:{\n0:D{}\n']);
 		expect(parseExtropic(html)[0].url).toBe('https://extropic.ai/writing/tsu');
+		expect(parseExtropic(html.replace('<script>', '<script> \n ').replace('</script>', ' \n </script>'))[0].title).toBe('TSU');
+	});
+	it('does not extract push calls from arbitrary surrounding JavaScript', () => {
+		const valid = flight({ featuredPosts: [post] });
+		for (const html of [valid.replace('<script>', '<script>other();'), valid.replace('</script>', ';other()</script>')]) {
+			expect(countExtropic(html)).toBe(0);
+			expect(() => parseExtropic(html)).toThrow('not an AI lab listing');
+		}
 	});
 	it.each([
 		{ ...post, title: null }, { ...post, title: ' ' }, { ...post, url: null },

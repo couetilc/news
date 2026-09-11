@@ -8,6 +8,7 @@ describe('bounded HTML listing helpers', () => {
 		expect(text(undefined)).toBe('');
 		expect(elements(doc, (n) => n.name === 'h1' || hasClass(n, 'two')).map(text)).toEqual(['A & B', 'C']);
 		expect(elements(document('text'), () => true)).toEqual([]);
+		expect(text(document('<p>Alpha \n\t  Beta</p>'))).toBe('Alpha Beta');
 	});
 	it('bounds adversarial nesting without call-stack overflow', () => {
 		expect(() => document('<div>'.repeat(128))).not.toThrow();
@@ -27,10 +28,11 @@ describe('bounded HTML listing helpers', () => {
 			expect(calendarDate(`${name} 1, 2026`)).toBe(Date.UTC(2026, month, 1) / 1000);
 		}
 	});
-	it.each(['', '2026-02-30', '2026-13-01', '2026-01-00', '0026-01-01', 'February 29, 2026', '13.1.2026', '2026-09-11T12:00:00Z'])('rejects missing or invalid calendar date %s', (value) => {
+	it.each(['', '2026-02-30', '2026-13-01', '2026-01-00', '0026-01-01', 'February 29, 2026', '13.1.2026', '2026-09-11T12:00:00Z', 'x2026-09-11', 'x9.11.2026', '9.11.2026 extra', 'xSeptember 11, 2026', 'September 11, 2026 extra'])('rejects missing or invalid calendar date %s', (value) => {
 		expect(() => calendarDate(value)).toThrow('not an AI lab listing');
 	});
 	it('extracts only an actual calendar date and preserves stable fragment identities', () => {
+		expect(calendarDate('12.31.2026')).toBe(Date.UTC(2026, 11, 31) / 1000);
 		expect(dateInText('Research September 11, 2026 Team')).toBe('September 11, 2026');
 		expect(dateInText('September 2026')).toBe('');
 		expect(article('/release?utm_source=x#model', 'Model', null, 'https://lab.example')).toEqual({

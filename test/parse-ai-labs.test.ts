@@ -28,6 +28,7 @@ describe('official HTML lab listings', () => {
 		}
 	});
 	it('Liquid reads the sibling date, skips its duplicate hero, and rejects broken cards', () => {
+		expect(countLiquid('<li><span>Navigation</span><a href="/news/models">Models</a></li>' + liquid)).toBe(3);
 		expect(parseLiquid('<a href="/hero"><time datetime="2026-09-11"></time>Hero</a>' + liquid)).toHaveLength(3);
 		for (const card of [
 			'<li><time datetime="2026-09-11"></time></li>',
@@ -40,6 +41,7 @@ describe('official HTML lab listings', () => {
 		}
 	});
 	it('Normal uses the visible link, not the hidden alternative or navigation filters', () => {
+		expect(countNormal('<div class="blog-item">Not a list item</div>' + normal)).toBe(3);
 		expect(parseNormal(normal)[1].url).toBe('https://www.normalcomputing.com/blog/ai-inference-needs-new-hardware');
 		expect(countNormal('<div role="listitem" class="nav-filter-txt">All</div>' + normal)).toBe(3);
 		for (const field of ['item-title', 'item-eyebrow', 'link-abs']) {
@@ -47,6 +49,9 @@ describe('official HTML lab listings', () => {
 		}
 	});
 	it('PI requires the title attribute, and World Labs requires the actual card heading/date', () => {
+		const unrelated = '<a href="https://other.example/blog/post">Other</a><span href="/blog/fake">Not a link</span><a href="/blog/">Index</a>';
+		expect(countPhysicalIntelligence(unrelated + pi)).toBe(3);
+		expect(countWorldLabs(unrelated + world)).toBe(4);
 		expect(() => parsePhysicalIntelligence('<a href="/blog/model">September 11, 2026</a>')).toThrow('not an AI lab listing');
 		expect(() => parsePhysicalIntelligence(pi.replaceAll('title=', 'data-old-title='))).toThrow('not an AI lab listing');
 		expect(() => parseWorldLabs('<a href="/blog/model"><h2>Model</h2></a>')).toThrow('not an AI lab listing');
