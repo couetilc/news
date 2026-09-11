@@ -89,5 +89,9 @@ describe('parseMetaAiResearch', () => {
 	it('scans many unclosed cards without repeatedly searching to the end', () => {
 		expect(parseMetaAiResearch(wrap('<article data-blog-post-summary="card">'.repeat(20_000))))
 			.toEqual([]);
+		expect(parseMetaAiResearch(wrap('<article '.repeat(20_000)))).toEqual([]);
+		expect(parseMetaAiResearch(wrap(card(
+			'<a href="/blog/example">' + '<h2>'.repeat(20_000),
+		)))[0].title).toBe('');
 	});
 });

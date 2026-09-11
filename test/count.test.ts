@@ -28,6 +28,7 @@ describe('countMetaAiResearch', () => {
 		expect(countMetaAiResearch('<ARTICLE></ARTICLE>')).toBe(1);
 		expect(countMetaAiResearch('<a href="/blog/example">Navigation</a>')).toBe(0);
 		expect(countMetaAiResearch('truncated <article')).toBe(0);
+		expect(countMetaAiResearch('<article '.repeat(20_000))).toBe(0);
 	});
 });
 

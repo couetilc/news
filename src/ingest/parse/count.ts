@@ -137,7 +137,7 @@ export function countThinkingMachinesNews(payload: string): number {
 // Count the containers even if their semantic marker or link has drifted, so
 // a broken extraction reports a nonzero raw count instead of looking empty.
 export function countMetaAiResearch(payload: string): number {
-	return [...payload.matchAll(/<article\b[^>]*>/gi)].length;
+	return [...payload.matchAll(/<article\b[^<>]*>/gi)].length;
 }
 
 // NOTE: SEC EDGAR deliberately has NO raw counter. `filings.recent` is the whole
