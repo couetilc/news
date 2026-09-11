@@ -1,4 +1,5 @@
-@import "tailwindcss";
+/* Scan app sources explicitly, including builds whose root is an isolated test directory. */
+@import "tailwindcss" source("../");
 
 /*
  * Newspaper theme — light, mobile-first.

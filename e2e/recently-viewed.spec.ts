@@ -1,5 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
-import { d1Query, resetUsers } from './d1';
+import { test, expect, type Page } from './fixtures';
+import { d1Query } from './d1';
 
 // Browser e2e for the "Recently viewed" lane (#334).
 //
@@ -36,16 +36,13 @@ async function signUp(page: Page): Promise<void> {
 }
 
 test.describe('recently viewed lane (#334)', () => {
-	test.beforeEach(() => {
-		resetUsers();
-	});
 
 	test('opening an article moves it out of Unread into the Recently viewed lane', async ({
 		page,
 		baseURL,
 	}) => {
 		// Seed a small unread feed BEFORE any page load (the preview server and
-		// `wrangler d1 execute --local` share the same .wrangler/state/v3/d1
+		// `wrangler d1 execute --local` share the same run-specific test persistence
 		// persistence). Distinct fetched_at so the order is stable, newest first;
 		// URLs stay on the local server.
 		d1Query('DELETE FROM items');

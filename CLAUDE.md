@@ -46,9 +46,11 @@ aggregator.
   the host port is randomized per container — see the agentic-environments skill)
 - `npm test` — vitest; **enforces 100% statements / branches / functions / lines coverage over `src/**`**
   (the suite fails below that — this is the standing test policy)
-- `npm run test:e2e` — Playwright browser tests (`playwright test`), a
+- `npm run test:e2e` — isolated Playwright browser tests (`node e2e/run.mjs`), a
   **separate** entry point kept out of `npm test` and the coverage gate (it
-  loads the real dev server). The agent container bakes in a headless Chromium
+  builds the real app into a fresh test root and starts workerd on an owned
+  loopback port). Test D1/KV state, build artifacts and runtime vars are isolated
+  from development; import `test` from `e2e/fixtures.ts` and seed in `beforeEach`. The agent container bakes in a headless Chromium
   shell so this and the `verify`/`run` skills can drive the local app in a real
   browser. **Launch Chromium with `--no-sandbox`** (`chromium.launch({ args:
   ['--no-sandbox'] })`) — non-root Chromium in the container can't use the

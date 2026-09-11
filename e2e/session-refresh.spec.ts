@@ -1,5 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
-import { resetUsers } from './d1';
+import { test, expect, type Page } from './fixtures';
 
 // Browser e2e for the sliding session refresh (issue #320, PR #315 follow-up).
 //
@@ -19,9 +18,8 @@ import { resetUsers } from './d1';
 const EMAIL = 'connor@couetil.com'; // the default signup allowlist (issue #76)
 const PASSWORD = 'correct-horse-battery'; // >= 8 chars, a valid password
 
-// First-signup flow, mirroring e2e/auth-signup.spec.ts: globalSetup empties the
-// users table (and resetUsers below re-empties it per test), so a fresh signup
-// is the established way to reach an authenticated session.
+// The automatic fixture starts each case with empty users and sessions, so
+// signup is the established way to reach an authenticated session.
 async function signUp(page: Page): Promise<void> {
 	await page.goto('/signup');
 	await page.getByLabel('Email').fill(EMAIL);
@@ -39,9 +37,6 @@ async function sessionCookie(page: Page) {
 }
 
 test.describe('sliding session refresh in a real browser (#314/#320)', () => {
-	test.beforeEach(() => {
-		resetUsers();
-	});
 
 	test('authenticated activity re-issues the session cookie with a later expiry', async ({
 		page,

@@ -1,39 +1,68 @@
 import { execFileSync } from 'node:child_process';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { getPlatformProxy } from 'wrangler';
+import { builtConfigPath, stateDir } from './runtime.mjs';
 
-// Talk to the SAME local D1 the dev server uses. `astro dev` (workerd via the
-// Cloudflare Vite plugin) and `wrangler d1 execute NEWS_DB --local` both default
-// to the .wrangler/state/v3/d1 persistence dir, so a row the browser writes
-// through the app is visible here and vice-versa (verified for issue #124). Used
-// by global-setup (reset) and the auth spec (assert the row count).
-
-// Invoke the repo-pinned wrangler binary directly. (`npm exec wrangler …`
-// swallows the trailing --json/--command flags as npm's own.)
 const WRANGLER = fileURLToPath(new URL('../node_modules/.bin/wrangler', import.meta.url));
-const DB_ARGS = ['d1', 'execute', 'NEWS_DB', '--local'];
+const LOCAL_ARGS = ['--local', '--config', builtConfigPath, '--persist-to', stateDir];
 
-// Run one SQL command against local D1 and return its parsed `results` rows.
+function wrangler(args: string[]): string {
+	return execFileSync(WRANGLER, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+}
+
+// The server and helpers share only this invocation's dedicated persistence.
 export function d1Query<T = Record<string, unknown>>(sql: string): T[] {
-	const out = execFileSync(WRANGLER, [...DB_ARGS, '--json', '--command', sql], {
-		encoding: 'utf8',
-		// wrangler prints progress chatter to stderr; keep it off the test output.
-		stdio: ['ignore', 'pipe', 'ignore'],
-	});
-	// `--json` emits an array of statement results; we run a single statement.
+	const out = wrangler(['d1', 'execute', 'NEWS_DB', ...LOCAL_ARGS, '--json', '--command', sql]);
 	const parsed = JSON.parse(out) as Array<{ results: T[] }>;
 	return parsed[0]?.results ?? [];
 }
 
-// Apply committed migrations to local D1 (idempotent — already-applied ones are
-// skipped) so a fresh worktree's empty state has the `users` table.
-export function applyLocalMigrations(): void {
-	execFileSync(WRANGLER, ['d1', 'migrations', 'apply', 'NEWS_DB', '--local'], {
-		encoding: 'utf8',
-		stdio: 'ignore',
+// One local binding proxy per Playwright worker avoids repeated CLI startup for
+// resets. getPlatformProxy takes the v3 directory itself; CLI --persist-to and
+// the Vite plugin take its parent. Remote resources are never enabled here.
+let proxy: ReturnType<typeof getPlatformProxy<{ NEWS_DB: D1Database; SESSION: KVNamespace }>> | undefined;
+function bindings() {
+	return proxy ??= getPlatformProxy<{ NEWS_DB: D1Database; SESSION: KVNamespace }>({
+		configPath: builtConfigPath,
+		persist: { path: join(stateDir, 'v3') },
+		remoteBindings: false,
 	});
 }
 
-// Empty the users table so the first-signup path is deterministic.
-export function resetUsers(): void {
-	d1Query('DELETE FROM users');
+export async function disposeBindings(): Promise<void> {
+	if (proxy) await (await proxy).dispose();
+	proxy = undefined;
+}
+
+async function clearSessions(): Promise<void> {
+	const { env } = await bindings();
+	let cursor: string | undefined;
+	do {
+		const result = await env.SESSION.list({ cursor });
+		await Promise.all(result.keys.map(({ name }) => env.SESSION.delete(name)));
+		cursor = result.list_complete ? undefined : result.cursor;
+	} while (cursor);
+}
+
+// IDs can be reused after DELETE: invalidate sessions and read history before
+// users. The regression spec calls this inside a case to check stale cookies.
+export async function resetUsers(): Promise<void> {
+	await clearSessions();
+	const { env } = await bindings();
+	await env.NEWS_DB.batch([
+		env.NEWS_DB.prepare('DELETE FROM item_reads'),
+		env.NEWS_DB.prepare('DELETE FROM users'),
+	]);
+}
+
+export async function resetTestState(): Promise<void> {
+	await clearSessions();
+	const { env } = await bindings();
+	await env.NEWS_DB.batch([
+		env.NEWS_DB.prepare('DELETE FROM item_reads'),
+		env.NEWS_DB.prepare('DELETE FROM users'),
+		env.NEWS_DB.prepare('DELETE FROM items'),
+		env.NEWS_DB.prepare('DELETE FROM feeds'),
+	]);
 }

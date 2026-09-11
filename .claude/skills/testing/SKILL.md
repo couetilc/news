@@ -83,9 +83,10 @@ project.
 
 **Which project does my new spec go in?** Touches D1 / KV /
 `cloudflare:workers` / `cloudflare:test` → `workers`. Everything else — pure
-logic, parsers, `.astro` renders, `worker.ts` — → `node` (and add the filename
-to the `include`/`exclude` lists in *both* configs — the node project lists its
-files explicitly; the workers project excludes them). Every `src/**` file must
+logic, parsers, `.astro` renders, `worker.ts` — → `node`. Node discovers all
+`test/**/*.test.ts` except the explicit `WORKER_TESTS` array in `test/runtime.ts`;
+the workers project includes that same array. Add only runtime-bound specs there.
+New pure/DOM specs need no runtime-config edit. Every `src/**` file must
 be exercised by at least one project (its dedicated spec lives in exactly one),
 or the gate fails.
 
@@ -166,13 +167,30 @@ outside `npm test` and the coverage gate** — slower and flakier — so it earn
 its place by covering what the hermetic pools *can't*, never by duplicating a
 unit test that already holds.
 
+### Isolated browser state
+
+Run `npm run test:e2e -- [spec or Playwright options]`. Its launcher allocates a
+unique `.playwright/run-*` root and free loopback port, builds the production
+pages into that root, and removes it when the run ends. Workerd's D1/KV/R2,
+Astro generated files, build output, preview redirect and test-only runtime vars
+all live there. Existing dev servers, `.dev.vars`, `dist/` and `.wrangler/state`
+are untouched. Direct `playwright test` fails with a launcher instruction rather
+than falling back to development state. A port collision fails instead of reusing
+an unexpected server.
+
+Import `test`, `expect` and Playwright types from `e2e/fixtures.ts` in every spec.
+Its automatic fixture clears sessions, read history, users, items and feed state
+before **each case** through a local binding proxy. Seed rows in `beforeEach` or
+inside the test, never `beforeAll`. `d1Query` targets this run's D1; `resetUsers`
+is async and invalidates read history and sessions as well as accounts. Cases
+stay serial within a run; separate invocations have independent state and ports.
+
 CI runs this suite in its **own workflow** (`.github/workflows/e2e.yml`,
 `name: E2E`), separate from `ci.yml`. The **per-PR run is a real gate, not
 advisory**: it has no `continue-on-error`, so a genuine e2e failure reports red
 and fails the check (it also uploads the `playwright-report` JSON artifact).
-Whether that red check *blocks merge* depends on the `protect-main` ruleset
-requiring the `e2e` check; until it's required there, the check is
-honest-but-non-required. The **scheduled/dispatch sweeps stay out-of-band** from
+The `protect-main` ruleset requires both `test` and `e2e`, so a red browser
+check blocks merge. The **scheduled/dispatch sweeps stay out-of-band** from
 deploy and are reviewed by the heavy-run detector. The workflow is separate from
 `ci.yml` so that detector finds it by workflow name — see the CI cadence section
 below.
@@ -186,9 +204,8 @@ left to e2e. The shared setup:
 - The spec lives in the **node** project under a per-file
   `// @vitest-environment happy-dom` docblock (first line of the test), so
   `document` / `HTMLFormElement` / `SubmitEvent` / `IntersectionObserver` resolve.
-  The workerd pool can't host a DOM environment, so add the spec to
-  **`vitest.node.config.ts`'s `include` and `vitest.workers.config.ts`'s
-  `exclude`** (`happy-dom` is a devDependency).
+  The workerd pool can't host a DOM environment. Node discovers the spec
+  automatically; do not add it to `test/runtime.ts` (`happy-dom` is a devDependency).
 
 Then drive every branch one of **two valid ways**, depending on how the module
 exposes its behavior:
@@ -272,8 +289,10 @@ otherwise a well-formed `ParsedItem[]`). Canonical examples:
 
 **Advisory / on-demand** — `npm run test:mutation` (~45s), **not** in the
 per-commit gate and not in `npm test`; coverage stays the floor. The standing
-policy is **report-only: record the score, no blocking threshold** (#349) —
-graduate to a required floor only after the score has held steady (see *The CI
+policy is **report-only: record the score, no blocking threshold** (#349).
+Runner errors and missing, invalid or incomplete reports fail the advisory job;
+low scores and surviving mutants do not. This job is not a required merge check.
+Graduate to a required floor only after the score has held steady (see *The CI
 cadence*). It injects
 faults into the in-scope modules and checks the suite **kills** them. Read a
 **survivor as a weak or missing assertion** — a covered line whose value nothing
@@ -289,7 +308,7 @@ For each `src/**` module, ask: **does this code's behavior depend on the workerd
 runtime** (D1/KV/`cloudflare:workers` env, the CPU + PBKDF2 caps, `ON CONFLICT`)?
 
 - **No → pure (functional core).** Write plain-node-runnable tests so the module
-  is **mutation-reachable**; it *still* runs in the workers pool for coverage.
+  is **mutation-reachable** and runs in the node project for coverage.
 - **Yes → glue (imperative shell).** Keep its tests in the workers pool for
   parity; it's **out of mutation scope**.
 
@@ -347,8 +366,9 @@ the core-without-test allowlist. So scope **can't silently rot** — drift
 red-fails until you classify it:
 
 - **Adding a pure, plain-node-tested module** → add it to `mutate` in
-  `stryker.config.json` **and** to the `include` in `vitest.stryker.config.ts`
-  (keep the two in lockstep).
+  `stryker.config.json` and map its source to its specs in `test/mutation-scope.ts`.
+  `vitest.stryker.config.ts` derives its include list from that mapping; the scope
+  guard checks the source list and that the mapped specs exist outside workerd.
 - **Adding a glue module** → add it to the M2 test's glue-allowlist with a reason.
 - **Adding a pure module not yet given a dedicated plain-node spec** → add it to
   the core-without-test allowlist with a reason (and prefer giving it one).
@@ -363,18 +383,16 @@ CI runs on tiers, and which tier a tool lands in is a deliberate choice:
   network and must stay quick — nothing heavyweight blocks on it.
 - **Playwright e2e runs per PR as a real check, not advisory.** `e2e.yml`
   (`name: E2E`) runs on every `pull_request` with **no `continue-on-error`**, so a
-  genuine failure reports red and fails the check. Whether red *blocks merge*
-  depends on the `protect-main` ruleset requiring the `e2e` check; when not yet
-  required, the check is honest-but-non-required. To require it, add the `e2e`
-  check — the **job** name (like the existing required `test` check), not the
-  workflow display name `E2E` (that name is only what the heavy-run detector
-  keys off).
+  genuine failure blocks merge: `protect-main` requires both `test` and `e2e`.
+  Required statuses use the **job** names, not the workflow display name `E2E`
+  (that name is what the heavy-run detector keys off).
 - **Heavyweight tools also run out-of-band.** Mutation testing (`mutation.yml`,
   `name: Mutation (advisory)`) and the e2e **scheduled/dispatch sweeps** run on
   `schedule:` (nightly) + `workflow_dispatch:` — off the deploy path and reviewed
   by the heavy-run detector. **Mutation stays advisory**: its per-PR run is
   path-filtered and it only **reports** (a step summary, an uploaded artifact, a
-  tracking issue on regression), never blocking. The standing graduation path is
+  tracking issue on regression). A broken runner/report fails visibly, but the
+  advisory check is not required for merge. The standing graduation path is
   **advisory first → required check once the signal is stable**; only promote a
   tool to a required check (e.g. a Stryker break threshold) after its score has
   held steady.
@@ -383,7 +401,7 @@ Mechanics worth keeping when you touch or add an out-of-band job:
 
 - **Change-gate the scheduled run** so a nightly sweep is skipped when nothing
   relevant changed: resolve the last successful run's SHA and
-  `git diff --quiet <lastSHA> HEAD -- src test '*.config.ts' stryker.config.json package.json package-lock.json .github/workflows/mutation.yml`
+  `git diff --quiet <lastSHA> HEAD -- src test scripts/mutation-score.mjs '*.config.ts' stryker.config.json package.json package-lock.json .github/workflows/mutation.yml`
   → skip. Per-PR runs get the same effect from a `paths:` filter over that set,
   so doc/skill-only changes don't trigger the heavy tool. The path-set must
   include **`package.json`** alongside `package-lock.json` — it defines the
@@ -431,7 +449,7 @@ Mechanics worth keeping when you touch or add an out-of-band job:
    type-level guarantee over an unreachable runtime guard).
 7. A new `src/lib/**` or `src/ingest/**` module is **classified for mutation
    scope** (`test/stryker-scope.test.ts` enforces it): pure+tested → `mutate` +
-   `vitest.stryker.config.ts` `include`; glue → glue-allowlist; pure-untested →
+   `test/mutation-scope.ts` source-to-spec mapping; glue → glue-allowlist; pure-untested →
    core-without-test allowlist.
 
 ## Cross-references

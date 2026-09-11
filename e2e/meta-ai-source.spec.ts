@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test';
-import { d1Query, resetUsers } from './d1';
+import { expect, test } from './fixtures';
+import { d1Query } from './d1';
 
 // Red -> green pin: without Meta AI's presentation registration, the filter
 // and dateline show the raw meta-ai slug. Exercise the real authenticated
@@ -10,15 +10,14 @@ const URL = 'https://research.meta.ai/blog/introducing-muse-voice-transcribe';
 
 test.use({ viewport: { width: 390, height: 844 } });
 
-test.beforeAll(() => {
-	resetUsers();
+test.beforeEach(() => {
 	d1Query(`DELETE FROM items WHERE guid IN ('${GUID}', '${GUID}-other')`);
 	d1Query(`INSERT INTO items (source, guid, url, title, fetched_at) VALUES
 		('meta-ai', '${GUID}', '${URL}', '${TITLE}', 4100000100),
 		('apple', '${GUID}-other', 'https://example.com/${GUID}', 'Other source fixture', 4100000099)`);
 });
 
-test.afterAll(() => {
+test.afterEach(() => {
 	d1Query(`DELETE FROM items WHERE guid IN ('${GUID}', '${GUID}-other')`);
 });
 
@@ -42,7 +41,7 @@ test('filters to Meta AI and links to the official model announcement', async ({
 		'aria-current', 'true',
 	);
 	// Recently viewed deliberately ignores the source filter. Scope assertions
-	// to the main feed, even when a prior test or this reader has read history.
+	// to the main feed, even when this reader has read history.
 	await expect(page.getByRole('region', { name: 'Recently viewed' })).toContainText('Other source fixture');
 	const rows = page.locator('[data-feed-list] li[data-feed-row]');
 	await expect(rows).toHaveCount(1);

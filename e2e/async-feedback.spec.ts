@@ -1,5 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
-import { d1Query, resetUsers } from './d1';
+import { test, expect, type Page } from './fixtures';
+import { d1Query } from './d1';
 
 // Browser e2e for the async-feedback enhancement (issue #96). vitest renders the
 // .astro server-side and never runs the client <script> blocks (the Container API
@@ -41,9 +41,6 @@ async function signUp(page: Page): Promise<void> {
 }
 
 test.describe('async-feedback UX in a real browser (#96)', () => {
-	test.beforeEach(() => {
-		resetUsers();
-	});
 
 	test('auth submit goes busy + disabled on submit, swapping to the present-tense label', async ({
 		page,
@@ -77,7 +74,7 @@ test.describe('async-feedback UX in a real browser (#96)', () => {
 		// Seed one item BEFORE any page load so the dev server's D1 binding sees it on
 		// the first render (avoids racing a CLI write against an already-open workerd
 		// D1 connection). The dev server and `wrangler d1 execute --local` share the
-		// same .wrangler/state/v3/d1 persistence, so this row is in the same DB the
+		// same run-specific test persistence persistence, so this row is in the same DB the
 		// browser reads. Also clear any leftover read state so the row is unread.
 		d1Query('DELETE FROM items');
 		d1Query('DELETE FROM item_reads');

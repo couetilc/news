@@ -1,14 +1,8 @@
 # Out-of-band ADVISORY mutation testing (Stryker) — issue #166.
 #
-# This is the first heavyweight tool wired into CI under the cadence the testing
-# skill establishes: the per-commit `npm test` + 100% coverage gate (ci.yml)
-# stays the ONLY PR-blocking check; everything heavy runs here, advisory-first,
-# graduating to a blocking threshold only once the score is stable. Nothing in
-# this file is a required status check, so it can never block a merge.
-#
-# It lives in its own workflow file (not ci.yml) on purpose: mutation testing is
-# logically separate from the deploy pipeline, and a standalone file keeps the
-# union-merge surface with sibling ci.yml PRs (#209, #77) minimal.
+# Mutation scores stay advisory and this job is not a required merge check.
+# Runner failures and missing/invalid reports fail visibly: a broken measurement
+# must not look like a successful run. Unit coverage and browser checks gate PRs.
 #
 # Triggers:
 #   • pull_request  — a fast per-PR advisory run (mutation is ~22s over the
@@ -28,6 +22,7 @@ on:
     paths:
       - 'src/**'
       - 'test/**'
+      - 'scripts/mutation-score.mjs'
       - '**/*.config.ts'
       - 'stryker.config.json'
       - 'package.json'
@@ -100,7 +95,7 @@ jobs:
             exit 0
           fi
           if git cat-file -e "${last_sha}^{commit}" 2>/dev/null; then
-            if git diff --quiet "$last_sha" HEAD -- src test '*.config.ts' stryker.config.json package.json package-lock.json .github/workflows/mutation.yml; then
+            if git diff --quiet "$last_sha" HEAD -- src test scripts/mutation-score.mjs '*.config.ts' stryker.config.json package.json package-lock.json .github/workflows/mutation.yml; then
               echo "No relevant change since $last_sha — skipping the nightly sweep."
               echo "run=false" >> "$GITHUB_OUTPUT"
             else
@@ -131,12 +126,14 @@ jobs:
       - run: npm ci
         if: steps.decide.outputs.should_run == 'true'
 
-      # Advisory: never fail the job on a non-zero Stryker exit (no break
-      # threshold is set, but surviving mutants must not red the run regardless).
+      # No Stryker break threshold: surviving mutants still exit zero. Runner
+      # errors must fail the job, even if a partial report happens to exist.
       - name: Run Stryker mutation tests
         id: stryker
         if: steps.decide.outputs.should_run == 'true'
-        run: npm run test:mutation || true
+        run: |
+          rm -rf reports/mutation
+          npm run test:mutation
 
       # Compute the mutation score from the machine-readable report
       # (reports/mutation/mutation.json, emitted by the `json` reporter in
@@ -146,27 +143,7 @@ jobs:
         id: score
         if: steps.decide.outputs.should_run == 'true'
         run: |
-          report=reports/mutation/mutation.json
-          if [ ! -f "$report" ]; then
-            echo "No report produced — Stryker likely failed to run." >&2
-            echo "score=" >> "$GITHUB_OUTPUT"
-            echo "ok=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          score="$(node -e '
-            const r = require("./reports/mutation/mutation.json");
-            let killed = 0, timeout = 0, survived = 0, nocov = 0;
-            for (const f of Object.values(r.files)) {
-              for (const m of f.mutants) {
-                if (m.status === "Killed") killed++;
-                else if (m.status === "Timeout") timeout++;
-                else if (m.status === "Survived") survived++;
-                else if (m.status === "NoCoverage") nocov++;
-              }
-            }
-            const valid = killed + timeout + survived + nocov;
-            process.stdout.write(valid ? (100 * (killed + timeout) / valid).toFixed(2) : "0.00");
-          ')"
+          score="$(node scripts/mutation-score.mjs)"
           echo "Mutation score: ${score}%"
           echo "score=$score" >> "$GITHUB_OUTPUT"
           echo "ok=true" >> "$GITHUB_OUTPUT"
@@ -187,7 +164,7 @@ jobs:
         with:
           name: mutation-report
           path: reports/mutation/
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 30
 
       # Advisory PR feedback: post (or update) a single sticky comment with the

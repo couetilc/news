@@ -1,5 +1,6 @@
-// @vitest-environment node
-import { readdirSync, readFileSync } from 'node:fs';
+import { MUTATE_SPECS } from './mutation-scope';
+import { WORKER_TESTS } from './runtime';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -8,8 +9,7 @@ import { describe, expect, it } from 'vitest';
 //
 // Mutation testing (`npm run test:mutation`, advisory — see stryker.config.json)
 // only mutates PURE-CORE modules whose specs run in plain node. The scope is
-// hand-listed in two places (stryker.config.json `mutate` + the include in
-// vitest.stryker.config.ts), so it can silently rot: a new pure module added
+// classified in stryker.config.json `mutate` + test/mutation-scope.ts, so it can silently rot: a new pure module added
 // without a spec, or a new workerd-glue module, drifts the scope without anyone
 // noticing. This test partitions every src/lib + src/ingest source file by
 // scanning for glue markers and asserts the partition matches the declared
@@ -72,59 +72,8 @@ const CORE_WITHOUT_ISOLATED_TEST: Record<string, string> = {
 	// not here.
 };
 
-// MUTATE→SPEC lockstep map (#237). The testing skill documents that bringing a
-// pure module into Stryker requires updating BOTH stryker.config.json `mutate`
-// AND the include in vitest.stryker.config.ts in lockstep. The guards above
-// enforce the source-classification side; this map closes the second half:
-// every `mutate` source file lists the plain-node spec(s) that exercise it, and
-// the test below asserts each appears in the Stryker vitest include. So a new
-// `mutate` entry whose spec was never added to that include red-fails `npm
-// test`. The map is also asserted EXHAUSTIVE over `mutate` (a `mutate` entry
-// with no mapping is itself caught), so there's no silent gap. Spec paths are
-// repo-relative, matching the include's own form.
-const MUTATE_SPECS: Record<string, string[]> = {
-	'src/ingest/parse/intel-newsroom.ts': ['test/parse-intel-newsroom.test.ts'],
-	'src/ingest/parse/deepseek-updates.ts': ['test/parse-deepseek-updates.test.ts'],
-	'src/ingest/fetch/owenomics.ts': ['test/fetch-owenomics.test.ts'],
-	'src/lib/auth.ts': ['test/auth-validate.test.ts', 'test/auth-validate.prop.test.ts'],
-	'src/lib/digest.ts': ['test/digest.test.ts', 'test/digest.prop.test.ts'],
-	'src/ingest/schedule.ts': ['test/schedule.test.ts', 'test/schedule.prop.test.ts'],
-	'src/ingest/merge.ts': ['test/merge.test.ts', 'test/merge.prop.test.ts'],
-	'src/ingest/queries.ts': ['test/queries.test.ts'],
-	'src/lib/deploy.ts': ['test/deploy.test.ts'],
-	'src/lib/pagination.ts': ['test/pagination.test.ts'],
-	'src/lib/return-path.ts': ['test/return-path.test.ts'],
-	'src/lib/log.ts': ['test/log.test.ts'],
-	'src/lib/email.ts': ['test/email.test.ts'],
-	'src/lib/sources.ts': ['test/source-meta.test.ts'],
-	'src/ingest/validate.ts': ['test/validate.test.ts'],
-	'src/ingest/sources.ts': ['test/sources.test.ts'],
-	'src/ingest/parse/atom.ts': ['test/parse-atom.test.ts'],
-	'src/ingest/parse/rss20.ts': ['test/parse-rss20.test.ts'],
-	'src/ingest/parse/aws-whats-new.ts': ['test/parse-aws-whats-new.test.ts'],
-	'src/ingest/parse/sec-edgar.ts': ['test/parse-sec-edgar.test.ts'],
-	'src/ingest/parse/ti-newsroom.ts': ['test/parse-ti-newsroom.test.ts'],
-	'src/ingest/parse/thinking-machines-news.ts': ['test/parse-thinking-machines-news.test.ts'],
-	'src/ingest/parse/meta-ai.ts': ['test/parse-meta-ai.test.ts'],
-	'src/ingest/parse/jpm-eotm.ts': ['test/parse-jpm-eotm.test.ts'],
-	'src/ingest/parse/owenomics.ts': ['test/parse-owenomics.test.ts'],
-	'src/ingest/parse/cursor.ts': ['test/parse-cursor.test.ts'],
-	'src/ingest/parse/entities.ts': ['test/parse-entities.test.ts'],
-	'src/ingest/parse/count.ts': ['test/count.test.ts'],
-	'src/ingest/parse/dates.ts': ['test/dates.test.ts'],
-};
-
-// Read the include list out of vitest.stryker.config.ts itself (its default
-// export is a plain `defineConfig` object, so a dynamic import resolves it via
-// vite's transform — no network, no regex). This is the same array Stryker's
-// vitest-runner uses, so asserting against it tracks the real config, not a copy.
-async function strykerVitestInclude(): Promise<string[]> {
-	const mod = await import('../vitest.stryker.config.ts');
-	const include = (mod.default as { test?: { include?: string[] } }).test?.include;
-	if (!Array.isArray(include))
-		throw new Error('vitest.stryker.config.ts test.include is not an array');
-	return include;
-}
+// Source-to-spec mapping lives in mutation-scope.ts and also generates the
+// Stryker runner include. This guard checks real files and runtime eligibility.
 
 function listSources(): string[] {
 	const out: string[] = [];
@@ -187,7 +136,7 @@ describe('Stryker mutate-scope is self-maintaining (#229)', () => {
 		const accounted = new Set([...mutate, ...Object.keys(CORE_WITHOUT_ISOLATED_TEST)]);
 		const unaccounted = pureSet.filter((p) => !accounted.has(p));
 		// A forgotten new pure module red-fails: add it to stryker `mutate` +
-		// vitest.stryker.config.ts `include`, or to CORE_WITHOUT_ISOLATED_TEST.
+		// the source-to-spec mapping, or to CORE_WITHOUT_ISOLATED_TEST.
 		expect(unaccounted).toEqual([]);
 	});
 
@@ -205,24 +154,18 @@ describe('Stryker mutate-scope is self-maintaining (#229)', () => {
 			expect(reason.length).toBeGreaterThan(0);
 	});
 
-	// #237: lockstep with the vitest.stryker.config.ts include list. The guards
-	// above keep the SOURCE classification honest; these two keep the second
-	// hand-listed half (the Stryker vitest include) from drifting out of sync.
+	// Keep mutation source classification and actual runnable specs in sync.
 
 	it('the MUTATE_SPECS map is exhaustive over `mutate` (no unmapped entry)', () => {
 		// Every `mutate` entry must declare its spec(s); a new `mutate` entry with
-		// no mapping red-fails here, so the include check below can't be silently
+		// no mapping red-fails here, so mutation coverage cannot be silently
 		// bypassed. Also asserts no stale mapping for a non-`mutate` module.
 		expect(Object.keys(MUTATE_SPECS).sort()).toEqual([...mutate].sort());
 	});
 
-	it('every `mutate` module’s spec is in the vitest.stryker.config.ts include', async () => {
-		const include = await strykerVitestInclude();
-		const required = [...new Set(Object.values(MUTATE_SPECS).flat())].sort();
-		const missing = required.filter((spec) => !include.includes(spec));
-		// A pure module added to stryker `mutate` without its plain-node spec added
-		// to vitest.stryker.config.ts `include` red-fails here — close the lockstep
-		// gap the testing skill documents (#237). Add the spec to that include.
-		expect(missing).toEqual([]);
+	it('every mutation spec exists and is eligible for the plain-node runner', () => {
+		const specs = [...new Set(Object.values(MUTATE_SPECS).flat())];
+		expect(specs.filter((spec) => !existsSync(join(repoRoot, spec)))).toEqual([]);
+		expect(specs.filter((spec) => WORKER_TESTS.includes(spec))).toEqual([]);
 	});
 });

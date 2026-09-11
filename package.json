@@ -11,7 +11,7 @@
     "preview": "astro preview",
     "deploy": "astro build && wrangler deploy",
     "test": "vitest run --coverage",
-    "test:e2e": "playwright test",
+    "test:e2e": "node e2e/run.mjs",
     "test:mutation": "stryker run",
     "astro": "astro",
     "cf-typegen": "wrangler types",

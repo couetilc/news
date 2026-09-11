@@ -1,5 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
-import { d1Query, resetUsers } from './d1';
+import { test, expect, type Page } from './fixtures';
+import { d1Query } from './d1';
 // Red -> green: the old lane toggle changes filtered tallies for unrelated
 // sources, never reinserts a matching unread story, and leaves an empty lane.
 async function signUp(page: Page) {
@@ -14,7 +14,6 @@ async function expandRecent(page: Page) {
 	if (await details.count() && (await details.getAttribute('open')) === null)
 		await details.locator('summary').click();
 }
-test.beforeEach(() => { resetUsers(); d1Query('DELETE FROM item_reads'); d1Query('DELETE FROM items'); });
 test('unrelated lane item leaves filtered tallies alone and removes empty history', async ({ page }) => {
 	d1Query(`INSERT INTO items(source,guid,url,title,fetched_at) VALUES
 		('openai','a','https://example.com/a','OpenAI one',30),

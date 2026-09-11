@@ -1,5 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
-import { d1Query, resetUsers } from './d1';
+import { test, expect, type Page } from './fixtures';
+import { d1Query } from './d1';
 
 // Browser e2e for the feed tabs + infinite scroll (issue #151). vitest renders
 // the .astro server-side and never runs the client <script> blocks, and the
@@ -17,7 +17,7 @@ const PASSWORD = 'correct-horse-battery'; // >= 8 chars, a valid password
 // Seed `n` unread items (newest id last) so the feed has more than one 50-item
 // page. Done BEFORE the first page load so the dev server's D1 binding sees them
 // on render (the dev server and `wrangler d1 execute --local` share the same
-// .wrangler/state/v3/d1 persistence). Clears read state so every row starts unread.
+// run-specific test persistence persistence). Clears read state so every row starts unread.
 function seedItems(n: number): void {
 	d1Query('DELETE FROM items');
 	d1Query('DELETE FROM item_reads');
@@ -43,9 +43,6 @@ async function signUp(page: Page): Promise<void> {
 }
 
 test.describe('feed tabs + infinite scroll (#151)', () => {
-	test.beforeEach(() => {
-		resetUsers();
-	});
 
 	test('appends the next 50 on scroll, then ends cleanly with no more fetches', async ({
 		page,

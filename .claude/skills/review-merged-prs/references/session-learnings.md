@@ -31,7 +31,7 @@ These lessons came from the initial in-context monitoring session for this repo.
   `reports/mutation/mutation.json` (`files[path].mutants[].status`); a new
   `Survived` in changed code is the finding, not the standing score (the score
   regression is already tracked by `mutation.yml`'s `<!-- mutation-regression -->`
-  issue). e2e: the `playwright-report` artifact's `playwright-report/results.json`
+  issue). e2e: the `playwright-report` artifact's `playwright-report/<run-id>/results.json`
   + `test-results/` traces; a real served-build failure is a #123-class bug, a
   pass-on-retry is a flaky finding.
 - Equivalent mutants have **no per-mutant ignore in `stryker.config.json`** —

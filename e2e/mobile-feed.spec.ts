@@ -1,9 +1,8 @@
-import { test, expect } from '@playwright/test';
-import { d1Query, resetUsers } from './d1';
+import { test, expect } from './fixtures';
+import { d1Query } from './d1';
 // Red -> green: the expanded source grid and history push the first story below
 // the phone viewport, and the old read button measures only 16 by 16 pixels.
 test.use({ viewport: { width: 390, height: 844 } });
-test.beforeEach(() => { resetUsers(); d1Query('DELETE FROM item_reads'); d1Query('DELETE FROM items'); });
 test('compact controls keep the feed reachable and preserve keyboard multi-select', async ({ page }) => {
 	const sources = ['cloudflare-blog', 'ieee-spectrum', 'apple', 'science-daily', 'amd', 'qualcomm', 'intel', 'nvidia', 'elonlit', 'anthropic', 'aws', 'cisco', 'ti', 'eye-on-the-market', 'mistral', 'openai', 'thinking-machines', 'meta-ai', 'owenomics', 'open-models', 'deepseek', 'cursor'];
 	d1Query(`INSERT INTO items(source,guid,url,title,fetched_at) VALUES ${sources.map((source, i) => `('${source}','mobile-${i}','https://example.com/mobile-${i}','A useful update from ${source}',${1000 + i})`).join(',')}`);
