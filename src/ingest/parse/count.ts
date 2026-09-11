@@ -156,3 +156,10 @@ export function countIntelNewsroom(payload: string): number {
 export function countDeepseekUpdates(payload: string): number {
  return [...payload.matchAll(/<h2\b[^<>]*\sid=["']date-[^"']*["']/gi)].length;
 }
+
+// Inception's responsive Framer cards each carry one semantic time element,
+// including external press links. Count before URL/title validation so drift
+// remains visible; the normal D1 key collapses responsive copies after parsing.
+export function countInceptionBlog(payload: string): number {
+	return [...payload.matchAll(/<time\b[^<>]*>/gi)].length;
+}

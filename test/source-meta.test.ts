@@ -26,6 +26,9 @@ const repoFile = (rel: string): string =>
 	readFileSync(fileURLToPath(new URL(`../${rel}`, import.meta.url)), 'utf8');
 
 describe('sourceMeta', () => {
+	it('identifies Inception Labs on the diffusion-model AI sub-beat', () => {
+		expect(sourceMeta('inception-labs')).toEqual({ name: 'Inception Labs', mark: 'mark-beat-ai mark-solid mark-round' });
+	});
 	it('gives Meta AI a distinct mark on the AI desk', () => {
 		expect(sourceMeta('meta-ai')).toEqual({ name: 'Meta AI', mark: 'mark-beat-ai mark-dots' });
 	});

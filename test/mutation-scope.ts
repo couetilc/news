@@ -1,5 +1,6 @@
 // Mutation source-to-spec classification, shared by the Stryker runner and scope guard.
 export const MUTATE_SPECS: Record<string, string[]> = {
+	'src/ingest/parse/inception.ts': ['test/parse-inception.test.ts'],
 	'src/ingest/bounded-fetch.ts': ['test/bounded-fetch.test.ts'],
 	'src/lib/feed-health.ts': ['test/feed-health.test.ts'],
 	'src/lib/auth.ts': ['test/auth-validate.test.ts', 'test/auth-validate.prop.test.ts'],

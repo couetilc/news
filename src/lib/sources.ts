@@ -43,6 +43,8 @@ const REGISTRY: Record<string, SourceMeta> = {
 	mistral: { name: 'Mistral', mark: 'mark-beat-ai mark-solid mark-diamond' },
 	openai: { name: 'OpenAI', mark: 'mark-beat-ai mark-hollow' },
 	'thinking-machines': { name: 'Thinking Machines', mark: 'mark-beat-ai mark-half' },
+	// Round marks distinguish the diffusion-model sub-beat; existing marks stay stable.
+	'inception-labs': { name: 'Inception Labs', mark: 'mark-beat-ai mark-solid mark-round' },
 	'meta-ai': { name: 'Meta AI', mark: 'mark-beat-ai mark-dots' },
 	owenomics: { name: 'Owenomics', mark: 'mark-beat-markets mark-hollow' },
 	// #340 — one combined chip for the Hugging Face lab-filtered backstop feed

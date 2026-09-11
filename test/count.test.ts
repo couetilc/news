@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	countInceptionBlog,
 	countAtom,
 	countAwsWhatsNew,
 	countCursorBlog,
@@ -229,5 +230,14 @@ describe('countThinkingMachinesNews', () => {
 		expect(countThinkingMachinesNews('<a class="post-item-link')).toBe(0);
 		expect(countThinkingMachinesNews('')).toBe(0);
 		expect(() => countThinkingMachinesNews('<a class="post-item-link')).not.toThrow();
+	});
+});
+
+
+describe('countInceptionBlog', () => {
+	it('counts dated cards even if the link or title has drifted', () => {
+		expect(countInceptionBlog('<a><time datetime="2026-09-08"></time></a><TIME>bad</TIME>')).toBe(2);
+		expect(countInceptionBlog('')).toBe(0);
+		expect(countInceptionBlog('<time '.repeat(20_000))).toBe(0);
 	});
 });

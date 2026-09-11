@@ -7,6 +7,7 @@
   },
   "coverageAnalysis": "perTest",
   "mutate": [
+    "src/ingest/parse/inception.ts",
     "src/lib/auth.ts",
     "src/lib/digest.ts",
     "src/ingest/schedule.ts",
