@@ -1,0 +1,106 @@
+{
+  "checkedAt": "2026-09-11T16:45:20.061Z",
+  "fetchPath": "native laptop",
+  "results": [
+    {
+      "source": "deepmind",
+      "feed": "https://deepmind.google/blog/rss.xml",
+      "status": 200,
+      "rawCount": 100,
+      "parsed": 100,
+      "kept": 12,
+      "unique": 12,
+      "anomaly": null
+    },
+    {
+      "source": "ai2",
+      "feed": "https://allenai.org/rss.xml",
+      "status": 200,
+      "rawCount": 25,
+      "parsed": 25,
+      "kept": 9,
+      "unique": 9,
+      "anomaly": null
+    },
+    {
+      "source": "liquid-ai",
+      "feed": "https://www.liquid.ai/news/models",
+      "status": 200,
+      "rawCount": 30,
+      "parsed": 30,
+      "kept": 4,
+      "unique": 4,
+      "anomaly": null
+    },
+    {
+      "source": "sakana-ai",
+      "feed": "https://sakana.ai/feed.xml",
+      "status": 200,
+      "rawCount": 10,
+      "parsed": 10,
+      "kept": 1,
+      "unique": 1,
+      "anomaly": null
+    },
+    {
+      "source": "extropic",
+      "feed": "https://extropic.ai/writing",
+      "status": 200,
+      "rawCount": 12,
+      "parsed": 12,
+      "kept": 5,
+      "unique": 5,
+      "anomaly": null
+    },
+    {
+      "source": "normal-computing",
+      "feed": "https://www.normalcomputing.com/blog",
+      "status": 200,
+      "rawCount": 37,
+      "parsed": 37,
+      "kept": 3,
+      "unique": 3,
+      "anomaly": null
+    },
+    {
+      "source": "mythic",
+      "feed": "https://www.mythic.ai/newsroom?format=rss",
+      "status": 200,
+      "rawCount": 4,
+      "parsed": 4,
+      "kept": 2,
+      "unique": 2,
+      "anomaly": null
+    },
+    {
+      "source": "xai",
+      "feed": "https://docs.x.ai/developers/release-notes",
+      "status": 200,
+      "rawCount": 9,
+      "parsed": 9,
+      "kept": 8,
+      "unique": 8,
+      "anomaly": null
+    },
+    {
+      "source": "physical-intelligence",
+      "feed": "https://www.pi.website/blog",
+      "status": 200,
+      "rawCount": 14,
+      "parsed": 14,
+      "kept": 4,
+      "unique": 4,
+      "anomaly": null
+    },
+    {
+      "source": "world-labs",
+      "feed": "https://www.worldlabs.ai/blog",
+      "status": 200,
+      "rawCount": 12,
+      "parsed": 12,
+      "kept": 3,
+      "unique": 3,
+      "anomaly": null
+    }
+  ]
+}

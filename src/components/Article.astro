@@ -78,7 +78,7 @@ const nextState = isRead ? '0' : '1';
 			<span class={`mr-1.5 mark ${source.mark}`} aria-hidden="true" />
 			<span class="font-semibold text-ink-soft">{source.name}</span>
 			<span class="mx-1.5" aria-hidden="true">·</span>
-			<time datetime={isoTime(seconds)}>{shortDate(seconds)}</time>
+			<time datetime={isoTime(seconds)}>{item.published_at === null ? 'Added ' : ''}{shortDate(seconds)}</time>
 		</p>
 	</div>
 	{

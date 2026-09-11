@@ -12,10 +12,10 @@
 // what the feed carries, not the company's logo (the `aws` feed is filtered to
 // AWS-silicon terms yet stays a platform-vendor wire; `open-models` is an
 // aggregate AI backstop) — mark-diamond = open-weight AI sub-beat, and the
-// fill (solid/hollow/half/hatch/dots) = the source within the beat, assigned
-// in arrival order and NEVER reshuffled, so learned marks stay stable. A new
-// source takes its beat's next free fill; a beat outgrowing five fills earns a
-// sub-beat shape split (as AI did); hatch marks a beat's aggregate feed.
+// fill = the source within the beat. Preserve learned marks when adding a
+// source; new fills or meaningful sub-beat shapes extend the vocabulary. Round
+// marks identify specialist models or specialized silicon within their beat.
+// New aggregate feeds use hatch; existing NVIDIA/Cisco hatch marks stay stable.
 //
 // An unregistered source (in the DB but not yet listed here) falls back to its
 // raw slug and a neutral muted solid square — visible, never a crash.
@@ -43,8 +43,19 @@ const REGISTRY: Record<string, SourceMeta> = {
 	mistral: { name: 'Mistral', mark: 'mark-beat-ai mark-solid mark-diamond' },
 	openai: { name: 'OpenAI', mark: 'mark-beat-ai mark-hollow' },
 	'thinking-machines': { name: 'Thinking Machines', mark: 'mark-beat-ai mark-half' },
-	// Round marks distinguish the diffusion-model sub-beat; existing marks stay stable.
+	// Round AI marks identify specialist model families; existing marks stay stable.
 	'inception-labs': { name: 'Inception Labs', mark: 'mark-beat-ai mark-solid mark-round' },
+	deepmind: { name: 'Google DeepMind', mark: 'mark-beat-ai mark-quarter' },
+	xai: { name: 'Grok / xAI', mark: 'mark-beat-ai mark-cross' },
+	ai2: { name: 'Ai2', mark: 'mark-beat-ai mark-half mark-diamond' },
+	'liquid-ai': { name: 'Liquid AI', mark: 'mark-beat-ai mark-dots mark-diamond' },
+	'sakana-ai': { name: 'Sakana AI', mark: 'mark-beat-ai mark-quarter mark-diamond' },
+	'physical-intelligence': { name: 'Physical Intelligence', mark: 'mark-beat-ai mark-hollow mark-round' },
+	'world-labs': { name: 'World Labs', mark: 'mark-beat-ai mark-half mark-round' },
+	// Specialized AI compute uses round marks within the silicon beat.
+	extropic: { name: 'Extropic', mark: 'mark-beat-silicon mark-solid mark-round' },
+	'normal-computing': { name: 'Normal Computing', mark: 'mark-beat-silicon mark-hollow mark-round' },
+	mythic: { name: 'Mythic', mark: 'mark-beat-silicon mark-half mark-round' },
 	'meta-ai': { name: 'Meta AI', mark: 'mark-beat-ai mark-dots' },
 	owenomics: { name: 'Owenomics', mark: 'mark-beat-markets mark-hollow' },
 	// #340 — one combined chip for the Hugging Face lab-filtered backstop feed

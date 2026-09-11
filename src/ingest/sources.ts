@@ -1,4 +1,5 @@
 import { fetchOwenomics } from './fetch/owenomics';
+import { AI_LAB_SOURCES } from './ai-lab-sources';
 import { parseInceptionBlog } from './parse/inception';
 import { parseIntelNewsroom } from './parse/intel-newsroom';
 import { parseDeepseekUpdates } from './parse/deepseek-updates';
@@ -94,6 +95,7 @@ function awsFeed(term: string): FeedConfig {
 // further `Source:` issues add entries here. Each carries its own parser
 // closure so per-source quirks stay local to this list.
 export const SOURCES: FeedConfig[] = [
+	...AI_LAB_SOURCES,
 	{
 		// Official Framer blog: featured and regular cards include UTC dates.
 		// Six-hour checks; start with August 2026 onward to avoid an archive

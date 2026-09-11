@@ -24,6 +24,13 @@ const render = async (props: { item: ItemRow; interactive?: boolean; returnTo?: 
 };
 
 describe('Article component', () => {
+	it('labels ingestion dates when the source does not publish an exact date', async () => {
+		const undated = await render({ item: row({ published_at: null }) });
+		expect(undated).toContain('<time datetime="1970-01-01T00:33:20.000Z">Added Jan 1, 1970</time>');
+		const dated = await render({ item: row() });
+		expect(dated).toContain('<time datetime="1970-01-01T00:16:40.000Z">Jan 1, 1970</time>');
+		expect(dated).not.toContain('Added Jan');
+	});
 	it('renders the read/unread write form by default (interactive)', async () => {
 		const html = await render({ item: row() });
 		expect(html).toContain('A headline');
