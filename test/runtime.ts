@@ -6,6 +6,7 @@ export const WORKER_TESTS = [
 	'test/auth.test.ts',
 	'test/backfill-item-reads.test.ts',
 	'test/db.test.ts',
+	'test/health-db.test.ts',
 	'test/dedupe-items-by-url.test.ts',
 	'test/intel-canonical-urls.test.ts',
 	'test/logout-endpoint.test.ts',

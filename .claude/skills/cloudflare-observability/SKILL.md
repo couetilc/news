@@ -18,6 +18,39 @@ Facts for this Worker:
   `head_sampling_rate` is set, so sampling defaults to 100% (every invocation's
   logs are captured).
 
+## Owner health page and bounded polling
+
+Start at the signed-in **Feed health** link or `/status`. The status route is
+SSR and session-adaptive: public visitors receive deploy metadata only; the
+owner receives operational fields with `Cache-Control: private, no-store`.
+Keep errors, endpoint state, run history, and Cloudflare dashboard details out of
+anonymous responses. The owner page is the notification surface; no external
+email, Slack, or other alerts are configured.
+
+- `feed_health` records attempt and completion separately, latest HTTP response,
+  last successful check, last clean parse, and error/anomaly occurrence and
+  resolution times. Legacy `feeds.last_status` remains validator history, not the
+  latest attempt status. A started attempt with no matching completion is pending;
+  beyond two minutes it is interrupted, never a passing check.
+- A successful 304 clears a failed-check streak but **does not resolve a parse
+  anomaly**. Only fresh clean content resolves that concern. Latest error/anomaly
+  details remain available after resolution, with their original dates.
+- `ingest_runs` records unique start/finish identities, completed feed counts,
+  failed feeds, parse anomalies, and fatal batch errors. The latest started run is
+  selected by id, so an older overlapping completion cannot hide a newer
+  unfinished run. Keep the newest 192 runs; logs provide additional detail.
+- Match stored rows against current `SOURCES`. Include active feeds with no state
+  yet and label retired URLs separately. A feed becomes overdue 30 minutes after
+  its scheduled check; old item insertion/publication dates alone mean a quiet
+  publisher, not a failed poll. Item freshness is per source because stored items
+  are not attributed to individual endpoints.
+- `fetchFeed` applies one 20-second deadline across request headers, streaming,
+  and any custom multi-request loader, and caps each decoded body at 8MiB. Custom
+  loaders must use their supplied transport for **every** request: intermediate
+  `json()`/`text()` calls then receive an already bounded body. Size checks count
+  streamed bytes, not `Content-Length`; errors cancel readers and do not await a
+  stuck cancellation. The next due feed is still polled after failure.
+
 ## The four observability surfaces
 
 Cloudflare offers several overlapping things. What each is for:

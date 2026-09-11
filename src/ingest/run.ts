@@ -1,3 +1,5 @@
+import { fetchFeed, DEFAULT_POLL_LIMITS, type PollLimits } from './bounded-fetch';
+import { startPoll, finishPoll, startRun, finishRun } from './health-db';
 import { log } from '../lib/log';
 import {
 	ensureFeedRows,
@@ -27,50 +29,64 @@ export interface IngestDeps {
 	fetchFn: typeof fetch;
 	// Current time in unix seconds; injected so tests are deterministic.
 	now(): number;
+	limits?: PollLimits;
 }
 
 // Poll every due feed once. Each feed is isolated: a fetch/parse/DB error for
 // one records a failure and moves on, never aborting the others or the tick.
 export async function ingestAll(deps: IngestDeps, feeds: FeedConfig[]): Promise<void> {
 	const { db, now } = deps;
-	await ensureFeedRows(db, feeds);
-
-	// One clock snapshot picks the tick's due set (the pure core decides; see
-	// schedule.ts). ensureFeedRows just guaranteed a state row for every config.
-	const states = new Map((await getFeedStates(db)).map((s) => [s.feed, s]));
-	for (const { config, state } of dueFeeds(feeds, states, now())) {
-		await pollFeed(deps, config, state);
+	const runId = await startRun(db, now());
+	let polled = 0;
+	let failed = 0;
+	let anomalies = 0;
+	try {
+		await ensureFeedRows(db, feeds);
+		const states = new Map((await getFeedStates(db)).map((s) => [s.feed, s]));
+		for (const { config, state } of dueFeeds(feeds, states, now())) {
+			const outcome = await pollFeed(deps, config, state);
+			polled++;
+			if (outcome === 'failure') failed++;
+			if (outcome === 'anomaly') anomalies++;
+		}
+		await finishRun(db, runId, now(), polled, failed, anomalies, null);
+	} catch (error) {
+		await finishRun(db, runId, now(), polled, failed, anomalies, String(error).slice(0, 500));
+		throw error;
 	}
 }
 
 // The imperative shell for one poll (#349): fetch, execute the pure decisions
 // from schedule.ts/merge.ts/validate.ts, write the results to D1, log. The only
 // branching left here is outcome plumbing (status dispatch + error isolation).
-async function pollFeed(deps: IngestDeps, config: FeedConfig, state: FeedState): Promise<void> {
+async function pollFeed(deps: IngestDeps, config: FeedConfig, state: FeedState): Promise<'ok' | 'anomaly' | 'failure'> {
 	const { db, fetchFn, now } = deps;
 	const rescheduleAt = nextPollAt(now(), config.pollIntervalSeconds);
 
+	let responseStatus: number | null = null;
+	await startPoll(db, config.feed, now());
 	try {
-		const init = { headers: pollHeaders(USER_AGENT, state) };
-		const res = config.fetch ? await config.fetch(fetchFn, init) : await fetchFn(config.feed, init);
+		const res = await fetchFeed(config, fetchFn, { headers: pollHeaders(USER_AGENT, state) },
+			deps.limits ?? DEFAULT_POLL_LIMITS, (status) => { responseStatus = status; });
 
 		// Not modified since last poll: nothing to parse, just reschedule.
 		if (res.status === 304) {
 			await updateFeedState(db, config.feed, notModifiedPatch(state, rescheduleAt));
+			await finishPoll(db, config.feed, now(), {status: res.status, error: null, anomaly: null, notModified: true});
 			log.info('ingest.poll', {
 				source: config.source,
 				feed: config.feed,
 				status: 304,
 				outcome: 'not_modified',
 			});
-			return;
+			return 'ok';
 		}
 
 		if (res.status !== 200) {
 			throw new Error(`unexpected status ${res.status}`);
 		}
 
-		const body = await res.text();
+		const body = res.body;
 		const items = config.parse(body);
 
 		// Shape-drift check (#78): a successful 200 can still be silently broken —
@@ -79,7 +95,7 @@ async function pollFeed(deps: IngestDeps, config: FeedConfig, state: FeedState):
 		// though we still store whatever we got) and emit a distinct, queryable
 		// signal. Isolated from the happy path: a counter/validate fault must never
 		// turn a healthy poll into a feed error, so it can't escape this helper.
-		reportAnomaly(config, body, items);
+		const anomaly = reportAnomaly(config, body, items);
 
 		// Editorial filter (#321): drop known noise (e.g. AWS region-rollout
 		// announcements) AFTER the shape-drift check — the anomaly comparison above
@@ -95,6 +111,7 @@ async function pollFeed(deps: IngestDeps, config: FeedConfig, state: FeedState):
 			config.feed,
 			successPatch(res.headers.get('ETag'), res.headers.get('Last-Modified'), rescheduleAt),
 		);
+		await finishPoll(db, config.feed, now(), {status: res.status, error: null, anomaly, notModified: false});
 		log.info('ingest.poll', {
 			source: config.source,
 			feed: config.feed,
@@ -104,14 +121,17 @@ async function pollFeed(deps: IngestDeps, config: FeedConfig, state: FeedState):
 			inserted,
 			outcome: 'ok',
 		});
+		return anomaly ? 'anomaly' : 'ok';
 	} catch (err) {
 		// failurePatch keeps prior etag/last_modified so a recovered feed can 304.
 		await updateFeedState(db, config.feed, failurePatch(state, rescheduleAt));
+		await finishPoll(db, config.feed, now(), {status: responseStatus, error: String(err).slice(0, 500), anomaly: null, notModified: false});
 		log.error('ingest.error', {
 			source: config.source,
 			feed: config.feed,
 			err: String(err),
 		});
+		return 'failure';
 	}
 }
 
@@ -121,7 +141,7 @@ async function pollFeed(deps: IngestDeps, config: FeedConfig, state: FeedState):
 // per-feed try but must never convert a healthy poll into a feed failure, so a
 // fault in a feed's `countRaw` is swallowed (the parse already succeeded) and
 // degrades to field-only validation rather than aborting the poll or its peers.
-function reportAnomaly(config: FeedConfig, body: string, items: ParsedItem[]): void {
+function reportAnomaly(config: FeedConfig, body: string, items: ParsedItem[]): string | null {
 	let rawCount: number | null = null;
 	if (config.countRaw) {
 		try {
@@ -134,7 +154,7 @@ function reportAnomaly(config: FeedConfig, body: string, items: ParsedItem[]): v
 	}
 
 	const anomaly = validateParse({ rawCount, items });
-	if (!anomaly) return;
+	if (!anomaly) return null;
 
 	log.error('ingest.anomaly', {
 		source: config.source,
@@ -147,4 +167,5 @@ function reportAnomaly(config: FeedConfig, body: string, items: ParsedItem[]): v
 		missingFields: anomaly.missingFields?.join(','),
 		invalidCount: anomaly.invalidCount,
 	});
+	return JSON.stringify(anomaly);
 }

@@ -1,63 +1,70 @@
 import { experimental_AstroContainer as AstroContainer } from 'astro/container';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Status from '../src/pages/status.astro';
-
-const render = async () => {
+import { getHealthRows, getRecentRuns } from '../src/ingest/health-db';
+import { healthViews } from '../src/lib/feed-health';
+import { SOURCES } from '../src/ingest/sources';
+vi.mock('../src/ingest/health-db', () => ({ getHealthRows: vi.fn(), getRecentRuns: vi.fn() }));
+const render = async (owner = false) => {
 	const container = await AstroContainer.create();
-	return container.renderToString(Status);
+	return container.renderToResponse(Status, { locals: owner ? { userId: 1 } : {} });
 };
-
-// The page bakes its values in via `vite.define` at build; under the node
-// project those `__DEPLOY_*__` tokens are never defined, so deploy.ts reads them
-// off globalThis. Stub them to drive the "present" branch deterministically.
-// The direct deployInfo() unit assertions live in test/deploy.test.ts (a
-// plain-node spec, so deploy.ts is mutation-reachable); this spec keeps only the
-// status.astro render coverage.
-const stubDeploy = (sha: string, ref: string, time: string) => {
-	vi.stubGlobal('__DEPLOY_SHA__', sha);
-	vi.stubGlobal('__DEPLOY_REF__', ref);
-	vi.stubGlobal('__DEPLOY_TIME__', time);
-};
-
+beforeEach(() => { vi.mocked(getHealthRows).mockResolvedValue([]); vi.mocked(getRecentRuns).mockResolvedValue([]); });
+afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); });
+const stubDeploy = (sha: string, ref: string, time: string) => { vi.stubGlobal('__DEPLOY_SHA__', sha); vi.stubGlobal('__DEPLOY_REF__', ref); vi.stubGlobal('__DEPLOY_TIME__', time); };
 describe('status page', () => {
-	afterEach(() => vi.unstubAllGlobals());
-
-	it('renders the deploy SHA, ref, time, commit link, and dashboard link', async () => {
+	it('keeps public deploy metadata readable without operational data or queries', async () => {
 		stubDeploy('0123456789abcdef0123456789abcdef01234567', 'main', '2026-06-13T14:05:00.000Z');
-		const html = await render();
-
-		// Short SHA shown, full SHA in the commit link + title.
+		const response = await render();
+		const html = await response.text();
 		expect(html).toContain('0123456');
-		expect(html).toContain(
-			'href="https://github.com/couetilc/news/commit/0123456789abcdef0123456789abcdef01234567"',
-		);
+		expect(html).toContain('href="https://github.com/couetilc/news/commit/0123456789abcdef0123456789abcdef01234567"');
 		expect(html).toContain('title="0123456789abcdef0123456789abcdef01234567"');
-		// Ref row (the no-link / no-time branch).
 		expect(html).toContain('main');
-		// Deploy time: machine datetime + human label.
 		expect(html).toContain('datetime="2026-06-13T14:05:00.000Z"');
 		expect(html).toContain('Jun 13, 2026 14:05 UTC');
-		// Observability deep-link with account id + worker name.
-		expect(html).toContain('dbaa50e60c18b19d483578c42d9bb3ee');
-		expect(html).toContain('/news/production/observability');
-		// On-brand chrome.
 		expect(html).toMatch(/>\s*Status\s*</);
-		// Interactive-affordance obligations (#136): both the commit link and the
-		// observability link carry a resting underline plus the ink focus-visible
-		// ring, so they read as links without hover and are keyboard-focusable.
-		expect(html).toMatch(
-			/href="https:\/\/github.com\/couetilc\/news\/commit\/[^"]*"[^>]*class="[^"]*\bunderline\b[^"]*focus-visible:outline-ink/,
-		);
-		expect(html).toMatch(
-			/href="[^"]*\/news\/production\/observability[^"]*"[^>]*class="[^"]*\bunderline\b[^"]*focus-visible:outline-ink/,
-		);
+		expect(html).toContain('focus-visible:outline-ink');
+		expect(html).not.toContain('Ingestion health');
+		expect(html).not.toContain('dbaa50e60c18b19d483578c42d9bb3ee');
+		expect(getHealthRows).not.toHaveBeenCalled();
+		expect(getRecentRuns).not.toHaveBeenCalled();
+		expect(response.headers.get('cache-control')).toBe('private, no-store');
+		expect(response.headers.get('vary')).toBe('Cookie');
 	});
-
-	it('degrades gracefully with the local-dev fallbacks', async () => {
-		const html = await render();
-		expect(html).toContain('dev');
-		expect(html).toContain('local');
-		expect(html).toContain('unknown');
+	it('degrades gracefully with local build fallbacks', async () => { const html = await (await render()).text(); expect(html).toContain('dev'); expect(html).toContain('local'); expect(html).toContain('unknown'); });
+	it('shows untracked active sources and no invented heartbeat for an authenticated owner', async () => {
+		const html = await (await render(true)).text();
+		expect(html).toContain('Waiting for the first tracked run');
+		expect(html).toContain('Not checked yet');
+		expect(html).toContain('Next scheduled run');
+		expect(html).toContain('Feed health');
+		expect(html).toContain('dbaa50e60c18b19d483578c42d9bb3ee');
+		expect(getHealthRows).toHaveBeenCalledOnce();
+	});
+	it('shows explicit failures, unresolved anomaly, fatal run and retired URL only to owner', async () => {
+		const base = healthViews(SOURCES, [], 1000).active.find(v => v.state.source === 'openai')!.state;
+		vi.mocked(getHealthRows).mockResolvedValue([{ ...base, last_attempt_at: 1000, last_finished_at: 1001, last_success_at: 900, last_clean_at: 900, response_status: 503, failure_count: 2, next_poll_at: 5000, last_error: 'upstream failed', last_error_at: 1001, last_anomaly: 'missing entries', last_anomaly_at: 900 }, { ...base, feed: 'https://retired.test', source: 'retired' }]);
+		vi.mocked(getRecentRuns).mockResolvedValue([{ id: 1, started_at: 1000, finished_at: 1001, polled: 2, failed_feeds: 1, anomalous_feeds: 1, error: 'batch database failure' }]);
+		const html = await (await render(true)).text();
+		expect(html).toContain('Batch failed');
+		expect(html).toContain('batch database failure');
+		expect(html).toContain('upstream failed');
+		expect(html).toContain('missing entries');
+		expect(html).toContain('Unresolved');
+		expect(html).toContain('https://retired.test');
+		expect(html).toContain('503');
+	});
+	it('shows clean recovery without erasing the last error/anomaly history', async () => {
+		const now = Math.floor(Date.now() / 1000);
+		const base = healthViews(SOURCES, [], now).active.find(v => v.state.source === 'openai')!.state;
+		vi.mocked(getHealthRows).mockResolvedValue([{ ...base, last_attempt_at: now - 1, last_finished_at: now, last_success_at: now, last_clean_at: now, response_status: 200, next_poll_at: now + 3600, last_error: 'old error', last_error_at: 1, error_resolved_at: 2, last_anomaly: 'old anomaly', last_anomaly_at: 1, anomaly_resolved_at: 2, last_published_at: now, last_saved_at: now, item_count: 4 }]);
+		vi.mocked(getRecentRuns).mockResolvedValue([{ id: 1, started_at: now - 1, finished_at: now, polled: 1, failed_feeds: 0, anomalous_feeds: 0, error: null }]);
+		const html = await (await render(true)).text();
+		expect(html).toContain('Healthy');
+		expect(html).toContain('Resolved 1970-01-01 00:00 UTC');
+		expect(html).toContain('old error');
+		expect(html).toContain('old anomaly');
+		expect(html).toContain('Last batch completed');
 	});
 });
