@@ -94,7 +94,7 @@
 		background-color: var(--mark-c);
 	}
 	.mark-hollow {
-		border: 2px solid var(--mark-c);
+		border: 3px solid var(--mark-c);
 	}
 	.mark-half {
 		border: 1px solid var(--mark-c);
