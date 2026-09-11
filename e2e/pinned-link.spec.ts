@@ -33,7 +33,7 @@ test.describe('pinned Trump Policy Impact Tracker link (#316)', () => {
 		await expect(strip.getByText('PDF', { exact: true })).toBeVisible();
 	});
 
-	test('an anonymous visitor sees the scrape-protected Citadel reference link (#330)', async ({
+	test('an anonymous visitor sees the Citadel Visit site reference link (#330)', async ({
 		page,
 	}) => {
 		await page.goto('/');
@@ -48,8 +48,8 @@ test.describe('pinned Trump Policy Impact Tracker link (#316)', () => {
 		await expect(link).toHaveAttribute('target', '_blank');
 		await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
 
-		// The agate "Scrape-protected" tag distinguishes it from a plain pin.
-		await expect(strip.getByText('Scrape-protected', { exact: true })).toBeVisible();
+		// The agate "Visit site" tag distinguishes it from a plain pin.
+		await expect(strip.getByText('Visit site', { exact: true })).toBeVisible();
 	});
 
 	test('the pinned strip sits above the source filter / feed', async ({ page }) => {

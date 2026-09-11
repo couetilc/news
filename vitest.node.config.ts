@@ -67,6 +67,7 @@ export default getViteConfig(
 				// live here, not the worker pool, which can't honor a DOM environment
 				// override.
 				'test/enhance-forms.test.ts',
+			'test/disclosures.test.ts',
 				'test/infinite-scroll.test.ts',
 				'test/opened.test.ts',
 				// Stryker mutate-scope enforcement (#229) — reads sources +

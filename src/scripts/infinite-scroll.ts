@@ -68,8 +68,8 @@ function parseFragment(html: string): Node[] {
 // in flight, captured against the OLD offset (e.g. offset=50). Appending that
 // stale page starts one row too late and skips the row that slid into offset=49.
 // So after each fetch resolves, re-read the sentinel's CURRENT data-next-url: if a
-// toggle moved it, the fetched page is stale — discard it and re-fetch from the
-// adjusted cursor (loop). The cursor only ever decrements toward a stable value,
+// toggle moved it (removal or Recently viewed insertion), the fetched page is
+// stale — discard it and re-fetch from the adjusted cursor (loop). Each completed toggle settles the cursor at its new value,
 // so the loop terminates once a fetch resolves against an unchanged data-next-url.
 // The loading guard stays held across every re-fetch so a second intersection
 // can't start a parallel load.
@@ -101,9 +101,8 @@ async function loadNext(sentinel: HTMLElement, observer: IntersectionObserver): 
 			const html = await res.text();
 			// A read toggle decremented the cursor while this page was in flight (#260):
 			// the page we hold is stale (starts one row too late). Discard it and loop to
-			// re-fetch from the now-current offset. The cursor only decrements toward a
-			// stable value, so this converges once a fetch resolves against an unchanged
-			// data-next-url.
+			// re-fetch from the now-current offset. A Recently viewed insertion can also
+			// increment it; either way, append only once the cursor is unchanged.
 			if (sentinel.dataset.nextUrl !== url) continue;
 			const nodes = parseFragment(html);
 			const parent = sentinel.parentNode;

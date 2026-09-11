@@ -82,6 +82,7 @@ test.describe('recently viewed lane (#334)', () => {
 		await page.goto('/');
 		const lane = page.locator('[data-recently-viewed]');
 		await expect(lane).toBeVisible();
+		await lane.locator('summary').click();
 		await expect(lane.getByRole('heading', { name: 'Recently viewed' })).toBeVisible();
 		await expect(
 			lane.locator('li[data-feed-row]', { hasText: 'Lane headline number 3' }),

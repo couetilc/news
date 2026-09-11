@@ -118,7 +118,7 @@ describe('Article component', () => {
 		// read_at is Connor's private state; the public row ignores it entirely —
 		// no opacity dimming, no inverse toggle.
 		const html = await render({ item: row({ read_at: 4000 }), interactive: false });
-		expect(html).not.toContain('opacity-55');
+		expect(html).toContain('data-read-state="unread"');
 		expect(html).not.toContain('aria-label="Mark as unread"');
 		expect(html).not.toContain('<form');
 	});
