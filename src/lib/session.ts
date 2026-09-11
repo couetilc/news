@@ -6,6 +6,8 @@ import { normalizeEmail } from './auth';
 // key. Keeping the key name in one place avoids drift between the writer
 // (login/signup) and the reader (middleware).
 export const SESSION_USER_KEY = 'userId';
+export const SESSION_REFRESH_KEY = 'refreshedAt';
+export const SESSION_REFRESH_INTERVAL = 3600; // one hour; cookie remains valid for 14 days
 
 // The subset of Astro's session we use, so this helper is testable without the
 // full AstroSession class. Astro.session is `AstroSession | undefined`.
@@ -23,31 +25,34 @@ interface SessionLike {
 export async function establishSession(
 	session: SessionLike | undefined,
 	userId: number,
+	now = Math.floor(Date.now() / 1000),
 ): Promise<void> {
 	if (!session) return;
 	await session.regenerate();
 	session.set(SESSION_USER_KEY, userId);
+	session.set(SESSION_REFRESH_KEY, now);
 }
 
-// Sliding refresh (#314): on an authenticated request, re-record the user id so
-// Astro re-issues the session cookie (with the configured 14-day maxAge) and
-// rewrites the KV record (with the configured ttl) — both expiry windows restart
-// from "now", so an active user effectively never gets logged out. The
-// middleware guard calls this right after it confirms the session.
-//
-// Unlike establishSession this deliberately does NOT regenerate the session id:
-// the id is stable for the life of a session, and minting a new one every
-// request would churn KV and serve no fixation-defense purpose (that's a
-// login/privilege-change concern). Re-`set`ting the existing value is enough —
-// Astro's session marks itself dirty and emits a fresh `Set-Cookie` the first
-// time `set` runs in a request. A no-op when sessions are unavailable (session
-// undefined), matching establishSession.
-export function refreshSession(
-	session: Pick<SessionLike, 'set'> | undefined,
+// Refresh at most hourly; ordinary activity reads the session without writing.
+// A shared claim prevents stale/concurrent requests in different isolates from
+// all writing the same KV key. A failed persistence leaves the previous session
+// usable; the short claim expires so a later request can retry. Keep the ID stable.
+export async function refreshSession(
+	session: (Pick<SessionLike, 'set'> & {
+		get(key: typeof SESSION_REFRESH_KEY): Promise<number | undefined>;
+		readonly sessionID: string | undefined;
+	}) | undefined,
 	userId: number,
-): void {
+	claim: (sessionId: string, now: number) => Promise<boolean>,
+	now = Math.floor(Date.now() / 1000),
+): Promise<void> {
 	if (!session) return;
+	const refreshedAt = await session.get(SESSION_REFRESH_KEY);
+	if (refreshedAt !== undefined && now - refreshedAt < SESSION_REFRESH_INTERVAL) return;
+	const id = session.sessionID;
+	if (!id || !(await claim(id, now))) return;
 	session.set(SESSION_USER_KEY, userId);
+	session.set(SESSION_REFRESH_KEY, now);
 }
 
 // The password pepper, a Worker secret (never in the DB or .env). Read off the

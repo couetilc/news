@@ -1,6 +1,7 @@
 // Specs requiring real D1, KV, or workerd Web Crypto. All other specs run in node.
 // Add a file here only when it needs runtime parity, not for pure decision logic.
 export const WORKER_TESTS = [
+	'test/session-refresh-db.test.ts',
 	'test/auth-actions.test.ts',
 	'test/auth.prop.test.ts',
 	'test/auth.test.ts',

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getPlatformProxy } from 'wrangler';
 import { builtConfigPath, stateDir } from './runtime.mjs';
+import { testSession, PERSIST_SYMBOL } from '../test/helpers/astro-session';
 
 const WRANGLER = fileURLToPath(new URL('../node_modules/.bin/wrangler', import.meta.url));
 const LOCAL_ARGS = ['--local', '--config', builtConfigPath, '--persist-to', stateDir];
@@ -45,12 +46,27 @@ async function clearSessions(): Promise<void> {
 	} while (cursor);
 }
 
+// Seed a due refresh using Astro's own format, only in this run's local KV.
+export async function setSessionRefreshTime(id: string, at: number): Promise<void> {
+	const { env } = await bindings();
+	const driver = () => ({
+		getItem: (key: string) => env.SESSION.get(key),
+		setItem: (key: string, value: string) => env.SESSION.put(key, value),
+		removeItem: (key: string) => env.SESSION.delete(key),
+	});
+	const { session } = testSession(driver, `e2e-${stateDir}`, id);
+	if (await session.get('userId') === undefined) throw new Error('Expected a local authenticated session');
+	session.set('refreshedAt', at);
+	await session[PERSIST_SYMBOL]();
+}
+
 // IDs can be reused after DELETE: invalidate sessions and read history before
 // users. The regression spec calls this inside a case to check stale cookies.
 export async function resetUsers(): Promise<void> {
 	await clearSessions();
 	const { env } = await bindings();
 	await env.NEWS_DB.batch([
+		env.NEWS_DB.prepare('DELETE FROM session_refresh_claims'),
 		env.NEWS_DB.prepare('DELETE FROM item_reads'),
 		env.NEWS_DB.prepare('DELETE FROM users'),
 	]);
@@ -60,6 +76,7 @@ export async function resetTestState(): Promise<void> {
 	await clearSessions();
 	const { env } = await bindings();
 	await env.NEWS_DB.batch([
+		env.NEWS_DB.prepare('DELETE FROM session_refresh_claims'),
 		env.NEWS_DB.prepare('DELETE FROM item_reads'),
 		env.NEWS_DB.prepare('DELETE FROM users'),
 		env.NEWS_DB.prepare('DELETE FROM items'),

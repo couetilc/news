@@ -5,6 +5,7 @@
 declare namespace App {
 	interface SessionData {
 		userId: number;
+		refreshedAt: number;
 	}
 
 	// Request-scoped locals. The middleware copies the authenticated user's id

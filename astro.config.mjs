@@ -4,17 +4,10 @@ import { defineConfig } from 'astro/config';
 import cloudflare from '@astrojs/cloudflare';
 import tailwindcss from '@tailwindcss/vite';
 
-// Session lifetime (issue #314). A logged-in session should last 2 weeks and an
-// active user (any page request) should slide that window forward — see the
-// sliding refresh in src/middleware.ts. The Cloudflare adapter forwards
-// `session.cookie` / `session.ttl` straight to Astro's KV session driver
-// (node_modules/@astrojs/cloudflare/dist/index.js:~100), so these two values are
-// the only levers.
-const SESSION_COOKIE_MAX_AGE = 60 * 60 * 24 * 14; // 14 days, in seconds
-// Keep the server-side KV record alive a little longer than the cookie so a
-// still-valid cookie never points at an evicted record (both are refreshed
-// together on each authenticated request, so this is just defensive slack).
-const SESSION_KV_TTL = 60 * 60 * 24 * 15; // 15 days, in seconds
+// Persistent two-week login. Middleware refreshes both session entries and the
+// cookie at most hourly; the extra day keeps KV data beyond cookie expiry.
+const SESSION_COOKIE_MAX_AGE = 60 * 60 * 24 * 14;
+const SESSION_KV_TTL = 60 * 60 * 24 * 15;
 
 // https://astro.build/config
 export default defineConfig({

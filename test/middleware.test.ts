@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { onRequest } from '../src/middleware';
 import { SESSION_USER_KEY } from '../src/lib/session';
+import { claimSessionRefresh } from '../src/lib/session-refresh-db';
+vi.mock('../src/lib/session-refresh-db', () => ({ claimSessionRefresh: vi.fn(async () => true) }));
 
 // The guard is a pure function of (context, next), so we drive it directly with
 // a minimal fake context rather than booting a server. `next` and `redirect` are
@@ -32,6 +34,7 @@ const run = (
 };
 
 const sessionWith = (userId: number | undefined) => ({
+	sessionID: 'session',
 	get: vi.fn(async (key: string) => (key === SESSION_USER_KEY ? userId : undefined)),
 	// The guard slides the session window forward on an authenticated request by
 	// re-recording the user id (#314); the stub captures that call so tests can
@@ -176,7 +179,16 @@ describe('auth middleware', () => {
 		const session = sessionWith(42);
 		await run('/', session).promise;
 		expect(session.set).toHaveBeenCalledWith(SESSION_USER_KEY, 42);
-		expect(session.set).toHaveBeenCalledOnce();
+		expect(session.set).toHaveBeenCalledTimes(2);
+	});
+
+	it('does not persist or claim an ordinary request within the refresh interval', async () => {
+		vi.mocked(claimSessionRefresh).mockClear();
+		const session = sessionWith(42);
+		session.get.mockImplementation(async key => key === 'userId' ? 42 : Math.floor(Date.now() / 1000));
+		await run('/', session).promise;
+		expect(session.set).not.toHaveBeenCalled();
+		expect(claimSessionRefresh).not.toHaveBeenCalled();
 	});
 
 	it('does not slide the window for an anonymous request to an adaptive path', async () => {
