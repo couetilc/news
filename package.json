@@ -17,7 +17,7 @@
     "cf-typegen": "wrangler types",
     "db:migrate:local": "wrangler d1 migrations apply NEWS_DB --local",
     "db:migrate:remote": "wrangler d1 migrations apply NEWS_DB --remote",
-    "typecheck": "wrangler types .astro/worker-runtime.d.ts --include-env false && astro check --minimumSeverity warning && tsc -p tsconfig.worker.json && tsc -p tsconfig.browser.json"
+    "typecheck": "astro check --minimumSeverity warning && wrangler types .astro/worker-runtime.d.ts --include-env false && tsc -p tsconfig.worker.json && tsc -p tsconfig.browser.json"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.2.5",
