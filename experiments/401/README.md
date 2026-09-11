@@ -49,3 +49,9 @@ Ingestion uses native workerd fetch; the app serves no uploaded image optimizer
 and uses compile-time images. This reduces demonstrated production reachability,
 not host/tooling risk. No forced test-pool major/pre-1 minor migration or override
 of upstream exact pins was made just to clear the audit count.
+
+The first Linux CI attempt exposed optional WASM peer entries missing from a
+lockfile updated with an existing macOS node_modules tree. Regenerating the lock
+in an empty directory using CI's npm 11.19.0 restored those entries; a fresh
+`npm ci` with that version validates installation before testing. Native npm
+11.6.1 remains supported. No application dependency range changed for this fix.
