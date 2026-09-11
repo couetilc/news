@@ -35,7 +35,9 @@
     "src/ingest/parse/dates.ts",
     "src/ingest/parse/intel-newsroom.ts",
     "src/ingest/parse/deepseek-updates.ts",
-    "src/ingest/fetch/owenomics.ts"
+    "src/ingest/fetch/owenomics.ts",
+    "src/ingest/bounded-fetch.ts",
+    "src/lib/feed-health.ts"
   ],
   "reporters": ["html", "clear-text", "progress", "json"],
   "jsonReporter": { "fileName": "reports/mutation/mutation.json" },

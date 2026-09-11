@@ -63,6 +63,7 @@ export async function resetTestState(): Promise<void> {
 		env.NEWS_DB.prepare('DELETE FROM item_reads'),
 		env.NEWS_DB.prepare('DELETE FROM users'),
 		env.NEWS_DB.prepare('DELETE FROM items'),
-		env.NEWS_DB.prepare('DELETE FROM feeds'),
+		env.NEWS_DB.prepare('DELETE FROM feeds'), // feed_health cascades with its feed
+		env.NEWS_DB.prepare('DELETE FROM ingest_runs'),
 	]);
 }

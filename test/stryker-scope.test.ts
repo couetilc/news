@@ -50,6 +50,7 @@ const TYPE_ONLY: string[] = ['src/ingest/types.ts'];
 // file then red-fails here until it's classified (it can't slip into `mutate`
 // or be silently dropped). One reason per entry.
 const GLUE_ALLOWLIST: Record<string, string> = {
+	'src/ingest/health-db.ts': 'D1 feed health and heartbeat persistence',
 	'src/lib/auth-actions.ts': 'D1 auth mutations (register/login over D1Database)',
 	'src/lib/auth-crypto.ts': 'Web Crypto shell (crypto.subtle/getRandomValues PBKDF2)',
 	'src/lib/session.ts': 'Astro Session over the SESSION KV + env.AUTH_* bindings',

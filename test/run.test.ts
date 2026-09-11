@@ -531,3 +531,64 @@ describe('ingestAll shape-drift detection (#78)', () => {
 		expect(states.get('https://healthy.test/rss')).toMatchObject({ last_status: 200, failure_count: 0 });
 	});
 });
+
+describe('bounded polls and durable health', () => {
+	it('records an unfinished attempt before fetching, then persists HTTP failures and continues', async () => {
+		const { getHealthRows, getRecentRuns } = await import('../src/ingest/health-db');
+		const bad = { ...cfFeed, source: 'bad', feed: 'https://bad.test/rss' };
+		const fn = (async (input: RequestInfo | URL) => {
+			if (String(input) === bad.feed) {
+				const state = (await getHealthRows(db)).find(row => row.feed === bad.feed)!;
+				expect(state.last_attempt_at).toBe(1000);
+				expect(state.last_finished_at).toBeNull();
+				return new Response('down', { status: 503 });
+			}
+			return new Response(cloudflareXml);
+		}) as typeof fetch;
+		await ingestAll(deps(fn), [bad, cfFeed]);
+		const health = await getHealthRows(db);
+		expect(health.find(row => row.feed === bad.feed)).toMatchObject({ last_attempt_at: 1000, last_finished_at: 1000, response_status: 503, last_error: 'Error: unexpected status 503', last_success_at: null, failure_count: 1 });
+		expect(health.find(row => row.feed === cfFeed.feed)).toMatchObject({ last_success_at: 1000, last_clean_at: 1000, response_status: 200 });
+		expect((await getRecentRuns(db))[0]).toMatchObject({ started_at: 1000, finished_at: 1000, polled: 2, failed_feeds: 1, anomalous_feeds: 0, error: null });
+	});
+	it.each(['headers', 'body', 'oversize'] as const)('continues after bounded %s failure', async (kind) => {
+		const { getHealthRows } = await import('../src/ingest/health-db');
+		const bad = { ...cfFeed, source: 'bad', feed: 'https://bad.test/rss' };
+		const fn = (async (input: RequestInfo | URL) => {
+			if (String(input) !== bad.feed)
+				return new Response(cloudflareXml);
+			if (kind === 'headers')
+				return await new Promise<Response>(() => { });
+			if (kind === 'body')
+				return new Response(new ReadableStream());
+			return new Response(new Uint8Array(10001));
+		}) as typeof fetch;
+		await ingestAll({ ...deps(fn), limits: { timeoutMs: 20, maxBytes: 10000 } }, [bad, cfFeed]);
+		expect(await listItems(db, 10)).toHaveLength(2);
+		const state = (await getHealthRows(db)).find(row => row.feed === bad.feed)!;
+		expect(state.failure_count).toBe(1);
+		expect(state.last_error).toContain(kind === 'oversize' ? 'exceeds' : 'deadline exceeded');
+		expect(state.response_status).toBe(kind === 'headers' ? null : 200);
+	});
+	it('persists anomaly-only outcomes and keeps the concern across304 until a clean200', async () => {
+		const { getHealthRows, getRecentRuns } = await import('../src/ingest/health-db');
+		const anomalyFeed = { ...cfFeed, parse: () => [], countRaw: () => 2, pollIntervalSeconds: 1 };
+		await ingestAll(deps((async () => new Response('non-empty')) as typeof fetch), [anomalyFeed]);
+		expect((await getRecentRuns(db))[0]).toMatchObject({ failed_feeds: 0, anomalous_feeds: 1 });
+		expect((await getHealthRows(db))[0]).toMatchObject({ last_success_at: 1000, last_clean_at: null, anomaly_resolved_at: null });
+		await ingestAll(deps((async () => new Response(null, { status: 304 })) as typeof fetch, 1002), [anomalyFeed]);
+		expect((await getHealthRows(db))[0]).toMatchObject({ last_success_at: 1002, last_clean_at: null, anomaly_resolved_at: null });
+		await ingestAll(deps((async () => new Response(cloudflareXml)) as typeof fetch, 1004), [cfFeed]);
+		expect((await getHealthRows(db))[0]).toMatchObject({ last_clean_at: 1004, anomaly_resolved_at: 1004 });
+	});
+	it('records fatal batch failure without claiming completion of all feeds', async () => {
+		const { getRecentRuns } = await import('../src/ingest/health-db');
+		const broken = { ...cfFeed, source: null } as unknown as FeedConfig;
+		await expect(ingestAll(deps(vi.fn() as unknown as typeof fetch), [broken])).rejects.toThrow();
+		const latest = (await getRecentRuns(db))[0];
+		expect(latest.started_at).toBe(1000);
+		expect(latest.finished_at).toBe(1000);
+		expect(latest.polled).toBe(0);
+		expect(latest.error).toContain('NOT NULL');
+	});
+});
