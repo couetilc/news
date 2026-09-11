@@ -39,6 +39,33 @@ aggregator.
   don't roll your own crypto, don't add deps unilaterally; see the `dependencies`
   skill.
 
+## Native laptop setup (default)
+
+Use the installed Codex or Claude CLI/desktop app directly. `.envrc` leaves
+PATH unchanged; `codex` and `claude` must not resolve under `.agent/bin`.
+Docker and cloud sessions are optional; their setup does not apply to native
+work. After updating an already direnv-enabled checkout, run `direnv allow`
+and let the shell reload the changed entry.
+
+1. Use Node 24 and create a topic branch (`git checkout -b <topic>`). For
+   concurrent agents, fetch origin and use a separate
+   `git worktree add -b <topic> <path> origin/main` per task; run the remaining
+   commands from that worktree.
+2. Run `npm ci`, `npm run db:migrate:local`, then
+   `npx playwright install chromium`. Each worktree owns its dependencies,
+   build output and local D1/KV state. The SessionStart hook does **not**
+   bootstrap native sessions.
+3. Put local runtime secrets in ignored `.dev.vars`; use a freshly generated,
+   local-only `AUTH_PEPPER` for local auth/build preview. Do not copy production
+   secrets or another worktree's sessions. Tooling credentials, when needed,
+   belong in ignored `.env` or the tool's existing login/keyring.
+4. Run `npm run dev -- --host 127.0.0.1` and use the printed address. Give each
+   concurrent dev server its own `--port`; preserve servers owned by other
+   tasks. `npm run test:e2e` owns a separate build, state directory and port.
+5. Follow the Standard dev loop below: PR → required `test` **and** `e2e`
+   checks → merge → CI deploy. See the `agentic-environments` skill for
+   credential checks and optional surfaces.
+
 ## Commands
 
 - `npm run dev` — dev server on workerd at http://localhost:4321 (inside the
@@ -71,7 +98,8 @@ aggregator.
 - `npx cf` — Cloudflare's unified CLI (technical preview) for inspecting
   production resources; inside `npx wrangler dev`, press `e` for the Local
   Explorer to browse local KV/D1/R2 state
-- `agent claude` / `agent codex` — run Claude Code / Codex full-auto inside an
+- `./.agent/bin/agent claude` / `./.agent/bin/agent codex` — optionally run
+  Claude Code / Codex full-auto inside an
   isolated agent container via the published `@couetilc/agentic-coding` tool
   (configured in `.agent/`; Docker; clones the repo fresh from GitHub, so
   nothing from the host is mounted and parallel containers don't conflict;
@@ -79,9 +107,10 @@ aggregator.
   `~/.config/agentic-coding/env`); see `.claude/skills/agentic-environments/SKILL.md`
   and `.agent/README.md`
 
-## Agent container surface
+## Optional agent container surface
 
-When you run inside the `agent claude` / `agent codex` container (a disposable,
+When you explicitly launch the `./.agent/bin/agent claude` /
+`./.agent/bin/agent codex` container (a disposable,
 non-root Docker container that clones this repo fresh — nothing from the host is
 mounted): you begin on a fresh clone of `main`, so **branch before committing**,
 and **commit + push early and often** — work leaves only via `git push` (commits
@@ -109,11 +138,12 @@ injection — live in the `agentic-environments` skill and `.agent/README.md`.
   to a token's required scope updates those comments in the same commit.
 - **Worker runtime secrets** never go in `.env`: use `.dev.vars` locally and
   `npx wrangler secret put` for production.
-- **GitHub auth needs no token**: local and Dispatch sessions push over SSH /
-  gh keyring; claude.ai cloud sessions get a scoped credential through the
-  Claude GitHub App proxy; CI uses the built-in `GITHUB_TOKEN`. (See
-  `.env.example` for the fallback if a constrained local-agent flow is ever
-  needed.)
+- **Native GitHub auth needs no extra `GH_TOKEN` when the existing login
+  works.** Check `git remote get-url origin` and `gh auth status`: HTTPS may
+  use the gh keyring, while SSH needs a working key. Do not infer transport or
+  workflow-file permission from running locally. Cloud sessions use the
+  Claude GitHub App proxy; CI uses the built-in `GITHUB_TOKEN`. See
+  `.env.example` for the optional container credential.
 - The Cloudflare token lives in exactly two places: local `.env` and the
   GitHub Actions repo secret `CLOUDFLARE_API_TOKEN`. The claude.ai cloud
   environment is **deliberately credential-free** — cloud sessions test and
@@ -217,9 +247,12 @@ The convention on every surface (local, Dispatch, agent container, cloud):
 3. Commit and push frequently, on your own initiative — small commits, never
    wait to be asked (this overrides the harness default of committing only on
    request).
+   Local Git hooks are machine configuration, not installed by a fresh clone.
+   Check `git config --show-origin --get core.hooksPath`; do not assume a
+   commit auto-pushed. Push explicitly and verify the remote branch.
 4. `gh pr create --fill`
 5. `gh pr merge --auto --squash <num>` — merges itself once the required
-   `test` check passes. **Ordinary PRs only** — human-gated PRs are presented
+   `test` and `e2e` checks pass. **Ordinary PRs only** — human-gated PRs are presented
    for the human to merge, not auto-merged (see Deploy flow for which classes).
 6. Watch CI: `gh run list --branch <topic>` then `gh run watch <run-id>`
    (`gh run view <run-id> --log` for failure logs). On a red check, fix and
@@ -229,14 +262,14 @@ The convention on every surface (local, Dispatch, agent container, cloud):
 
 ## Deploy flow
 
-**Canonical: merge to main deploys.** Branch → PR → CI `test` job → merge →
+**Canonical: merge to main deploys.** Branch → PR → CI `test` + `e2e` jobs → merge →
 CI `deploy` job (`.github/workflows/ci.yml`: build + `cloudflare/wrangler-action`
 using the `CLOUDFLARE_API_TOKEN` repo secret). This works identically for
 changes authored locally, via Dispatch, or in cloud sessions. Verify with
 `gh run watch` and `curl -s https://news.cuteteal.com`.
 
 **Direct pushes to `main` are blocked** by the `protect-main` repo ruleset —
-always work on a branch and open a PR; the `test` check must be green to
+always work on a branch and open a PR; both `test` and `e2e` must be green to
 merge. Queue ordinary merges with `gh pr merge --auto --squash` (auto-merge is
 enabled repo-wide). **Human-gated PRs are the exception** — leave them for the
 human to review and merge rather than queueing auto-merge: skill updates (Skills
@@ -246,9 +279,11 @@ container-config changes (explicit human go-ahead).
 
 Manual fallback: `npm run deploy` from a machine with `.env` or wrangler OAuth
 (never from cloud sessions — `api.cloudflare.com` isn't reachable there under
-Trusted network mode). Workflow-file edits should be made locally/Dispatch:
-cloud sessions' scoped git credential may not be allowed to push
-`.github/workflows/*` changes.
+Trusted network mode). Workflow-file pushes need a credential with workflow
+permission (OAuth/classic PAT `workflow`, or fine-grained Workflows write),
+including on a laptop. An ordinary successful push does not prove that access;
+check the available credential or connected GitHub integration before changing
+`.github/workflows/*`. Do not print tokens when checking capabilities.
 
 The custom domain `news.cuteteal.com` and the auto-provisioned `SESSION` KV
 namespace are managed declaratively by `wrangler.jsonc` on each deploy; the
