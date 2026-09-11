@@ -1,0 +1,18 @@
+{
+  "extends": "astro/tsconfigs/strict",
+  "compilerOptions": {
+    "lib": [
+      "ESNext"
+    ],
+    "types": [
+      "node",
+      "vite/types/import-meta.d.ts"
+    ]
+  },
+  "include": [
+    ".astro/worker-runtime.d.ts",
+    "src/env.d.ts",
+    "src/ingest/**/*.ts",
+    "src/lib/**/*.ts"
+  ]
+}

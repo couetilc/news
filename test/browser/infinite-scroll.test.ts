@@ -45,7 +45,7 @@ vi.stubGlobal('IntersectionObserver', FakeIntersectionObserver);
 
 // initInfiniteScroll is exported for direct invocation; importing also registers
 // the astro:page-load / DOMContentLoaded listeners (covered via dispatch below).
-import { initInfiniteScroll } from '../src/scripts/infinite-scroll';
+import { initInfiniteScroll } from '../../src/scripts/infinite-scroll';
 
 // Build the homepage's initial list: an <ol data-feed-list> with one article row
 // and a trailing sentinel pointing at the next page.
@@ -54,6 +54,7 @@ function listWithSentinel(nextUrl = '/feed?tab=unread&offset=50'): HTMLOListElem
 	ol.setAttribute('data-feed-list', '');
 	const article = document.createElement('li');
 	article.textContent = 'Item 1';
+	article.setAttribute('data-feed-row', ''); article.dataset.itemId = '1';
 	const sentinel = document.createElement('li');
 	sentinel.setAttribute('data-feed-sentinel', '');
 	sentinel.setAttribute('data-next-url', nextUrl);
@@ -64,7 +65,7 @@ function listWithSentinel(nextUrl = '/feed?tab=unread&offset=50'): HTMLOListElem
 
 // A /feed fragment: new rows + (optionally) a fresh sentinel for the page after.
 function fragment(opts: { ids: number[]; nextUrl?: string }): string {
-	const rows = opts.ids.map((id) => `<li>Item ${id}</li>`).join('');
+	const rows = opts.ids.map((id) => `<li data-feed-row data-item-id="${id}">Item ${id}</li>`).join('');
 	const sentinel =
 		opts.nextUrl === undefined
 			? ''
@@ -384,4 +385,24 @@ describe('infinite-scroll loader (#151)', () => {
 		const obs2 = FakeIntersectionObserver.instances.at(-1)!;
 		expect(obs2.elements).toHaveLength(0);
 	});
+});
+
+it('refetches after a local read change with an unchanged cursor and deduplicates returned rows', async () => {
+	let resolve!: (response: Response) => void;
+	const fetchMock = vi.fn()
+		.mockReturnValueOnce(new Promise<Response>(r => { resolve = r; }))
+		.mockResolvedValueOnce(okText(fragment({ ids: [1, 2, 2, 3] })));
+	vi.stubGlobal('fetch', fetchMock);
+	const list = listWithSentinel(); document.body.append(list);
+	initInfiniteScroll();
+	const observer = FakeIntersectionObserver.instances.at(-1)!;
+	const sentinel = observer.elements[0];
+	observer.trigger(sentinel);
+	list.dataset.feedRevision = '1';
+	resolve(okText(fragment({ ids: [99] })));
+	await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+	await vi.waitFor(() => expect(list.querySelector('[data-feed-sentinel]')).toBeNull());
+	expect(fetchMock.mock.calls[1]).toEqual(fetchMock.mock.calls[0]);
+	expect(Array.from(list.querySelectorAll<HTMLElement>('[data-feed-row]'), row => row.dataset.itemId)).toEqual(['1', '2', '3']);
+	expect(list.textContent).not.toContain('Item 99');
 });

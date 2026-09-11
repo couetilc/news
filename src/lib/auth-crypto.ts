@@ -62,7 +62,7 @@ async function pbkdf2Pass(
 	input: Uint8Array,
 	salt: Uint8Array,
 	iterations: number,
-): Promise<Uint8Array> {
+): Promise<Uint8Array<ArrayBuffer>> {
 	const keyMaterial = await crypto.subtle.importKey('raw', input as BufferSource, 'PBKDF2', false, [
 		'deriveBits',
 	]);
@@ -89,7 +89,7 @@ async function derivePbkdf2(
 	passes: number,
 	pepper: string,
 ): Promise<Uint8Array> {
-	let input = encoder.encode(pepper + password);
+	let input: Uint8Array = encoder.encode(pepper + password);
 	let out = input;
 	for (let i = 0; i < passes; i++) {
 		out = await pbkdf2Pass(input, salt, perPass);

@@ -1,3 +1,4 @@
+import { testLocals } from './helpers/locals';
 import { experimental_AstroContainer as AstroContainer } from 'astro/container';
 import { describe, expect, it } from 'vitest';
 
@@ -12,11 +13,11 @@ import { longDate } from '../src/lib/format';
 // middleware/session of its own, so we inject `locals` to drive each branch (the
 // same way the index-page tests do). A `<slot>` is supplied so the render is a
 // realistic page.
-const render = (locals: App.Locals) =>
+const render = (locals: Pick<App.Locals, 'userId'>) =>
 	AstroContainer.create().then((c) =>
 		c.renderToString(Layout, {
 			props: { title: 'News' },
-			locals,
+			locals: testLocals(locals),
 			slots: { default: '<p>feed body</p>' },
 		}),
 	);

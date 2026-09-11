@@ -75,7 +75,7 @@ describe('0005 backfill_item_reads (#139)', () => {
 		await runBackfill();
 
 		const byGuid = Object.fromEntries((await listItems(db, 100)).map((i) => [i.guid, i.id]));
-		const read = await listItemsByRead(db, { userId: USER, read: true, limit: 100, offset: 0 });
+		const read = await listItemsByRead(db, { userId: USER, read: true, limit: 100 });
 		// Exactly the two legacy-read items are now read for the sole user, each
 		// carrying its original legacy timestamp.
 		expect(read.map((r) => r.id).sort((a, b) => a - b)).toEqual(
@@ -87,7 +87,7 @@ describe('0005 backfill_item_reads (#139)', () => {
 		expect(tsByGuid).toEqual({ r1: 5000, r2: 6000 });
 
 		// The unread item is still unread; no spurious rows were created.
-		const unread = await listItemsByRead(db, { userId: USER, read: false, limit: 100, offset: 0 });
+		const unread = await listItemsByRead(db, { userId: USER, read: false, limit: 100 });
 		expect(unread.map((r) => r.id)).toEqual([byGuid.u1]);
 		const total = await db.prepare('SELECT COUNT(*) AS n FROM item_reads').first<number>('n');
 		expect(total).toBe(2);

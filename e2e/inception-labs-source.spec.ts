@@ -13,7 +13,7 @@ const quote = (value: string) => `'${value.replaceAll("'", "''")}'`;
 test.use({ viewport: { width: 390, height: 844 } });
 
 test.beforeEach(() => {
-	for (const item of feed.parse(payload).filter(feed.keep)) {
+	for (const item of feed.parse(payload).filter(feed.keep!)) {
 		d1Query(`INSERT INTO items (source, guid, url, title, published_at, fetched_at)
 			VALUES ('inception-labs', ${quote(item.guid)}, ${quote(item.url)}, ${quote(item.title)}, ${item.publishedAt}, 4100000100)
 			ON CONFLICT DO NOTHING`);

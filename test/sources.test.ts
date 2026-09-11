@@ -39,7 +39,7 @@ describe('SOURCES', () => {
 		expect(feed.pollIntervalSeconds).toBe(21600);
 		expect(feed.countRaw!(inceptionHtml)).toBe(5);
 		const items = feed.parse(inceptionHtml);
-		expect(items.filter(feed.keep).map((item) => item.title)).toEqual([
+		expect(items.filter(feed.keep!).map((item) => item.title)).toEqual([
 			'Introducing Mercury 2.5',
 			'Mercury 2 for Search: Fast enough to run a hundred times per query',
 			'Mercury 2 for Search: Fast enough to run a hundred times per query',

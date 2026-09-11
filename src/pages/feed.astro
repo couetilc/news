@@ -1,25 +1,12 @@
 ---
 import { env } from 'cloudflare:workers';
-import { countItemsByRead, distinctSources, listItemsByRead } from '../ingest/db';
+import { distinctSources, listItemsByRead } from '../ingest/db';
 import FeedPage from '../components/FeedPage.astro';
 import { activeSourceFilter, feedReturnTo } from '../lib/digest';
-import { PAGE_SIZE, isReadTab, parseOffset, parseTab } from '../lib/pagination';
+import { PAGE_SIZE, isReadTab, parseCursor, parseTab } from '../lib/pagination';
 
-// Infinite-scroll partial for the authenticated feed (#151). The homepage renders
-// the first 50 items of the active tab server-side; this route serves each
-// subsequent 50-item window as an HTML *fragment* (the <Article> rows plus the
-// next-page sentinel) that the client appends into the existing <ol>. It is an
-// .astro page, not a JSON API route, so it reuses the exact same FeedPage/Article
-// markup the initial render uses — no second client-side renderer to keep in sync
-// (the server-rendered-HTML-partial branch of #151's fetch-mechanism decision;
-// HTMX was the third candidate, deferred to #152 — it'd need a human-gated
-// dependency add per the dependencies skill, and #152 is the issue that evaluates
-// and codifies it).
-//
-// Auth: /feed is neither a PUBLIC nor an ADAPTIVE path, so the middleware gate
-// (src/middleware.ts) redirects an unauthenticated request to /login (303) before
-// this runs and sets locals.userId for an authenticated one — same gate that
-// protects /api/read. So this only ever renders for a logged-in user.
+// Authenticated HTML partial; the middleware supplies the owner identity.
+// Reuses the same Article markup as the initial SSR page.
 const userId = Astro.locals.userId;
 
 // The middleware sets locals.userId for every request that reaches an unguarded
@@ -28,28 +15,25 @@ const userId = Astro.locals.userId;
 // practice, mirroring /api/read.
 const queryUser = userId ?? 0;
 
-// Which tab (unread|read), where in it (?offset), and under which source filter.
-// All three are parsed defensively: an unknown tab falls back to unread, junk
-// offset to 0, and an unknown/absent source drops out (intersected with the
-// sources actually present), exactly as the homepage does — so a hand-crafted
-// /feed request can't 500.
 const tab = parseTab(Astro.url.searchParams.get('tab'));
-const offset = parseOffset(Astro.url.searchParams.get('offset'));
+const cursor = parseCursor(Astro.url.searchParams.get('cursor'));
+if (cursor === null || Astro.url.searchParams.has('offset')) {
+	return new Response('Invalid feed cursor. Reload the feed.', { status: 400 });
+}
 const present = await distinctSources(env.NEWS_DB);
 const sources = activeSourceFilter(Astro.url.searchParams.getAll('source'), present);
 
 const read = isReadTab(tab);
-const total = await countItemsByRead(env.NEWS_DB, { userId: queryUser, read, sources });
 const items = await listItemsByRead(env.NEWS_DB, {
 	userId: queryUser,
 	read,
-	limit: PAGE_SIZE,
-	offset,
+	limit: PAGE_SIZE + 1,
+	cursor,
 	sources,
 });
 
 // A toggle in an appended row returns to the top of the active tab + source
-// filter (feedReturnTo in digest.ts — the offset is deliberately dropped, see
+// filter (feedReturnTo in digest.ts — the cursor is deliberately dropped, see
 // safeReturnPath), so the reader lands back on the same tab/filter, not the
 // unfiltered home (#80).
 const returnTo = feedReturnTo(tab, sources);
@@ -57,8 +41,6 @@ const returnTo = feedReturnTo(tab, sources);
 
 <FeedPage
 	items={items}
-	offset={offset}
-	total={total}
 	tab={tab}
 	sources={sources}
 	returnTo={returnTo}

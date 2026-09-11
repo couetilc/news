@@ -22,7 +22,7 @@
 // reader can still use the square.
 //
 // Pure DOM logic (no Astro/runtime imports), unit-tested in the node project
-// under a per-file happy-dom environment (test/opened.test.ts) inside the 100%
+// under a per-file happy-dom environment (test/browser/opened.test.ts) inside the 100%
 // src/** gate; the Playwright e2e (e2e/recently-viewed.spec.ts) covers the real
 // click → navigate → lane round-trip.
 

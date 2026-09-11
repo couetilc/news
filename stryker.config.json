@@ -9,6 +9,7 @@
   "disableTypeChecks": "**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}",
   "disableTypeChecks_comment": "Only preprocess code files. The default also rewrites script elements in captured HTML fixtures, corrupting Flight payloads before the unmutated dry run.",
   "mutate": [
+    "src/lib/article-url.ts",
     "src/ingest/parse/lab-html.ts",
     "src/ingest/parse/ai-labs.ts",
     "src/ingest/parse/extropic.ts",

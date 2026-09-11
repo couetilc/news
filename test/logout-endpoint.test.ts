@@ -12,24 +12,24 @@ import {
 // `redirect`. No D1 or crypto, but it lives in the workers project alongside the
 // other endpoint tests.
 describe('POST /logout', () => {
-	it('destroys the session and 303-redirects to /login', () => {
+	it('destroys the session and 303-redirects to /login', async () => {
 		const destroy = vi.fn();
 		const redirect = vi.fn(
 			(path: string, status: number) =>
 				new Response(null, { status, headers: { Location: path } }),
 		);
-		const res = POST({ session: { destroy }, redirect } as never);
+		const res = await POST({ session: { destroy }, redirect } as never);
 		expect(destroy).toHaveBeenCalledOnce();
 		expect(res.status).toBe(303);
 		expect(res.headers.get('Location')).toBe('/login');
 	});
 
-	it('still redirects when there is no session to destroy', () => {
+	it('still redirects when there is no session to destroy', async () => {
 		const redirect = vi.fn(
 			(path: string, status: number) =>
 				new Response(null, { status, headers: { Location: path } }),
 		);
-		const res = POST({ session: undefined, redirect } as never);
+		const res = await POST({ session: undefined, redirect } as never);
 		expect(res.headers.get('Location')).toBe('/login');
 	});
 });
@@ -79,9 +79,9 @@ describe('session helpers', () => {
 				calls.push(`set:${key}=${value}`);
 			}),
 		};
-		await establishSession(session, 99);
+		await establishSession(session, 99, 1234);
 		// Order matters: regenerate before set, so the user id lands in the new id.
-		expect(calls).toEqual(['regenerate', 'set:userId=99']);
+		expect(calls).toEqual(['regenerate', 'set:userId=99', 'set:refreshedAt=1234']);
 		expect(session.set).toHaveBeenCalledWith(SESSION_USER_KEY, 99);
 	});
 
@@ -89,19 +89,38 @@ describe('session helpers', () => {
 		await expect(establishSession(undefined, 1)).resolves.toBeUndefined();
 	});
 
-	it('refreshSession re-records the user id WITHOUT regenerating the id (#314)', () => {
-		// Sliding refresh re-sets the existing user id to trigger Astro's cookie +
-		// KV rewrite, but must not regenerate the session id (that's a login-only
-		// concern) — so it touches `set` and never `regenerate`.
-		const regenerate = vi.fn();
+	it('refreshes due and legacy sessions only after obtaining a shared claim', async () => {
 		const set = vi.fn();
-		refreshSession({ regenerate, set } as never, 99);
-		expect(set).toHaveBeenCalledWith(SESSION_USER_KEY, 99);
-		expect(set).toHaveBeenCalledOnce();
-		expect(regenerate).not.toHaveBeenCalled();
+		const claim = vi.fn(async () => true);
+		for (const refreshedAt of [undefined, 6400]) {
+			const session = { get: async () => refreshedAt, sessionID: 'session', set };
+			await refreshSession(session, 99, claim, 10000);
+		}
+		expect(claim).toHaveBeenCalledTimes(2);
+		expect(claim).toHaveBeenCalledWith('session', 10000);
+		expect(set.mock.calls).toEqual([['userId', 99], ['refreshedAt', 10000], ['userId', 99], ['refreshedAt', 10000]]);
 	});
 
-	it('refreshSession is a no-op when sessions are unavailable', () => {
-		expect(() => refreshSession(undefined, 1)).not.toThrow();
+	it('skips fresh sessions, absent IDs, and requests losing the shared claim', async () => {
+		const set = vi.fn();
+		const claim = vi.fn(async () => false);
+		await refreshSession({ get: async () => 6401, sessionID: 'session', set }, 99, claim, 10000);
+		expect(claim).not.toHaveBeenCalled();
+		await refreshSession({ get: async () => undefined, sessionID: undefined, set }, 99, claim, 10000);
+		expect(claim).not.toHaveBeenCalled();
+		await refreshSession({ get: async () => undefined, sessionID: 'session', set }, 99, claim, 10000);
+		expect(claim).toHaveBeenCalledOnce();
+		expect(set).not.toHaveBeenCalled();
+	});
+
+	it('does not mutate the session if the refresh claim fails', async () => {
+		const set = vi.fn();
+		const claim = async () => { throw new Error('D1 unavailable'); };
+		await expect(refreshSession({ get: async () => undefined, sessionID: 'session', set }, 99, claim, 10000)).rejects.toThrow('D1 unavailable');
+		expect(set).not.toHaveBeenCalled();
+	});
+
+	it('refreshSession is a no-op when sessions are unavailable', async () => {
+		await expect(refreshSession(undefined, 1, async () => true)).resolves.toBeUndefined();
 	});
 });

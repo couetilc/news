@@ -18,7 +18,7 @@ import {
 	successPatch,
 } from './schedule';
 import type { FeedConfig, ParsedItem } from './types';
-import { validateParse } from './validate';
+import { isValidItem, validateParse } from './validate';
 
 // Identifies us to feed origins; SEC EDGAR (a future source) requires a
 // contact-bearing UA, and it's polite everywhere else.
@@ -89,12 +89,8 @@ async function pollFeed(deps: IngestDeps, config: FeedConfig, state: FeedState):
 		const body = res.body;
 		const items = config.parse(body);
 
-		// Shape-drift check (#78): a successful 200 can still be silently broken —
-		// the parser may no longer recognise the entries, or pull junk into required
-		// fields. Detect that BEFORE the writes (so a drifted poll is flagged even
-		// though we still store whatever we got) and emit a distinct, queryable
-		// signal. Isolated from the happy path: a counter/validate fault must never
-		// turn a healthy poll into a feed error, so it can't escape this helper.
+		// Diagnose the original parse before safety/editorial filtering so malformed
+		// records remain visible and intentional editorial drops do not look like drift.
 		const anomaly = reportAnomaly(config, body, items);
 
 		// Editorial filter (#321): drop known noise (e.g. AWS region-rollout
@@ -103,7 +99,8 @@ async function pollFeed(deps: IngestDeps, config: FeedConfig, state: FeedState):
 		// noise would trip parse_drop / zero_parsed_of_raw on every healthy poll —
 		// and BEFORE the writes. The `filtered` count is logged below so the drop
 		// is visible and quantified, never silent.
-		const kept = keepItems(config.keep, items);
+		const valid = items.filter(isValidItem);
+		const kept = keepItems(config.keep, valid);
 
 		const inserted = await insertItems(db, config.source, kept, now());
 		await updateFeedState(
@@ -117,7 +114,8 @@ async function pollFeed(deps: IngestDeps, config: FeedConfig, state: FeedState):
 			feed: config.feed,
 			status: 200,
 			items: items.length,
-			filtered: items.length - kept.length,
+			quarantined: items.length - valid.length,
+			filtered: valid.length - kept.length,
 			inserted,
 			outcome: 'ok',
 		});

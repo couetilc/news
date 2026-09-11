@@ -1,3 +1,4 @@
+import { testLocals } from './helpers/locals';
 import { experimental_AstroContainer as AstroContainer } from 'astro/container';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { login, signup } from '../src/lib/auth-actions';
@@ -27,12 +28,12 @@ const post = (fields: Record<string, string>) => {
 const render = (
 	component: Parameters<AstroContainer['renderToResponse']>[0],
 	request?: Request,
-	locals?: App.Locals,
+	locals?: Pick<App.Locals, 'userId'>,
 ) =>
 	AstroContainer.create().then((c) =>
 		c.renderToResponse(component, {
 			...(request ? { request } : {}),
-			...(locals ? { locals } : {}),
+			locals: testLocals(locals),
 		}),
 	);
 

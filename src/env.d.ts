@@ -1,10 +1,9 @@
-/// <reference types="astro/client" />
-
 // What we keep in an Astro session (issue #40). The auth routes set `userId`
 // on login/signup; the middleware reads it to gate protected pages.
 declare namespace App {
 	interface SessionData {
 		userId: number;
+		refreshedAt: number;
 	}
 
 	// Request-scoped locals. The middleware copies the authenticated user's id

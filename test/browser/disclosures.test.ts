@@ -5,7 +5,7 @@ const media = new EventTarget() as EventTarget & {
 };
 media.matches = false;
 const matchMedia = vi.spyOn(window, 'matchMedia').mockReturnValue(media as MediaQueryList);
-await import('../src/scripts/disclosures');
+await import('../../src/scripts/disclosures');
 afterAll(() => matchMedia.mockRestore());
 beforeEach(() => { document.body.innerHTML = '<details class="source-filter"><summary>Sources</summary></details>'; media.matches = false; });
 it('keeps sources collapsed on phones and opens them on desktop across resize', () => {

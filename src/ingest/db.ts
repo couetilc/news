@@ -1,3 +1,4 @@
+import type { FeedCursor } from '../lib/pagination';
 import type { FeedConfig, ParsedItem } from './types';
 import { orderSourcesByName } from '../lib/digest';
 import { sectionWhere, sourceWhere } from './queries';
@@ -132,14 +133,13 @@ export async function listItems(
 // query LEFT JOINs item_reads for that user, so an item is "read" only if THIS
 // user has a row there. Within a section the order matches the old single query
 // (newest-first, id breaking ties), since the read/unread split is in the WHERE
-// clause instead of a sort key. `limit`/`offset` are the page window (50 per
-// page; offset = (page-1)*50). The optional `sources` filter narrows by source
-// slug, same shape as listItems.
+// clause instead of a sort key. `limit` bounds the window; `cursor` is the last
+// served timestamp/id. The optional source filter matches listItems.
 export interface SectionQuery {
 	userId: number;
 	read: boolean;
 	limit: number;
-	offset: number;
+	cursor?: FeedCursor;
 	sources?: string[];
 }
 
@@ -150,7 +150,7 @@ export interface SectionQuery {
 // queries.ts holds the partition decision). The bind order is [userId, ...].
 export async function listItemsByRead(
 	db: D1Database,
-	{ userId, read, limit, offset, sources = [] }: SectionQuery,
+	{ userId, read, limit, cursor, sources = [] }: SectionQuery,
 ): Promise<ItemRow[]> {
 	// r.read_at (this user's timestamp, or NULL) is selected as read_at so the
 	// returned ItemRow reflects per-user state, not the global column.
@@ -161,17 +161,17 @@ export async function listItemsByRead(
 			 FROM items i
 			 LEFT JOIN item_reads r ON r.item_id = i.id AND r.user_id = ?
 			 ${sectionWhere(read, sources)}
+			 ${cursor ? 'AND COALESCE(i.published_at, i.fetched_at) <= ? AND (COALESCE(i.published_at, i.fetched_at), i.id) < (?, ?)' : ''}
 			 ORDER BY COALESCE(i.published_at, i.fetched_at) DESC, i.id DESC
-			 LIMIT ? OFFSET ?`,
+			 LIMIT ?`,
 		)
-		.bind(userId, ...sources, limit, offset)
+		.bind(userId, ...sources, ...(cursor ? [cursor.time, cursor.time, cursor.id] : []), limit)
 		.all<ItemRow>();
 	return results;
 }
 
-// How many items the section holds for this user under the same read state +
-// source filter, so the page can compute total pages and decide whether a "next"
-// link renders. Same per-user LEFT JOIN as listItemsByRead.
+// Tab tallies under the same read state and source filter. Pagination uses a
+// lookahead row, so a count changed by another request cannot truncate a page.
 export async function countItemsByRead(
 	db: D1Database,
 	{ userId, read, sources = [] }: { userId: number; read: boolean; sources?: string[] },

@@ -23,7 +23,7 @@ non-null assertions do not validate values at runtime.
 - Both projects set `configFile: false`. The Node render config registers its
   Astro/Tailwind plugins explicitly and aliases `cloudflare:workers` to the
   test helper. Keep relevant changes in sync with the real Astro build.
-- Browser DOM specs use a first-line `// @vitest-environment happy-dom`.
+- Browser DOM specs live in `test/browser/` and use a first-line `// @vitest-environment happy-dom`.
   Exercise delegated events and `astro:page-load` wiring where relevant;
   exported initializers are valid focused test seams.
 
@@ -31,6 +31,20 @@ Tests in `npm test` never call the network. Inject `fetchFn` and use captured,
 sanitized `test/fixtures/` payloads. Separate live endpoint probes from tests.
 Real D1 tests prove SQL ordering, constraints and conflict behavior; do not
 replace them with mocks or duplicate SQL algorithms only for coverage.
+
+## Type checking
+
+Run `npm run typecheck` before delivery. The required CI `test` job runs it.
+`astro check` covers templates, source TypeScript, Node/component tests and e2e
+TypeScript/configs. `tsconfig.worker.json` additionally checks `src/lib/**` and `src/ingest/**`
+against runtime-only Wrangler types without browser DOM; `tsconfig.browser.json`
+checks `src/scripts/**` and `test/browser/**` against DOM without Worker globals.
+The split prevents Cloudflare HTMLRewriter's `Element` from contaminating DOM
+unit tests. Astro entry points remain in the framework check because Astro
+itself references DOM declarations. Runtime-only types are generated under
+`.astro/` by the typecheck command, from the same Wrangler config. Every authored
+source TypeScript file remains checked. Do not fix
+runtime conflicts by excluding source, adding broad `any` or `@ts-nocheck`.
 
 ## Choosing checks
 

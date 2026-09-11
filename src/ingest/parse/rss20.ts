@@ -44,7 +44,9 @@ export function parseRss20(xml: string, opts: Rss20Options): ParsedItem[] {
 	}
 
 	const items: ParsedItem[] = [];
-	for (const item of channel.item ?? []) {
+	for (const raw of channel.item ?? []) {
+		if (!raw || typeof raw !== 'object') continue;
+		const item = raw as Record<string, unknown>;
 		// No guid and no link means nothing stable to dedupe on — skip it.
 		const guid = textOf(item.guid) ?? textOf(item.link);
 		if (!guid) continue;

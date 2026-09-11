@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // (navigator.sendBeacon / fetch) are stubbed per test, so the suite stays
 // hermetic: no request ever leaves the process. The e2e
 // (e2e/recently-viewed.spec.ts) covers the real click → POST → lane round-trip.
-import '../src/scripts/opened';
+import '../../src/scripts/opened';
 
 const URL_A = 'https://example.com/a';
 

@@ -38,7 +38,7 @@ const seedItem = async () => {
 // Per-user read state now lives in item_reads, so read it back through the
 // per-user section query rather than the global items column.
 const isReadFor = async (userId: number, id: number): Promise<boolean> => {
-	const read = await listItemsByRead(db, { userId, read: true, limit: 10, offset: 0 });
+	const read = await listItemsByRead(db, { userId, read: true, limit: 10 });
 	return read.some((r) => r.id === id);
 };
 

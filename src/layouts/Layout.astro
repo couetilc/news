@@ -133,7 +133,7 @@ const isAuthed = Astro.locals.userId !== undefined;
 		    (src/scripts/enhance-forms.ts), shared with the read-toggle and auth
 		    submit — it survives ClientRouter DOM swaps rather than going stale on
 		    freshly-rendered markup (#155). Pure DOM logic, unit-tested under
-		    happy-dom (test/enhance-forms.test.ts) inside the 100% src/** gate. */}
+		    happy-dom (test/browser/enhance-forms.test.ts) inside the 100% src/** gate. */}
 		<script>
 			import '../scripts/enhance-forms';
 		</script>

@@ -1,3 +1,5 @@
+import { parseCursor } from '../lib/pagination';
+
 // Shared progressive-enhancement initializer for the project's form async
 // feedback (#96), made ClientRouter-safe (#155), with the read/unread toggle
 // upgraded to an in-place update that preserves scroll (#223).
@@ -18,7 +20,7 @@
 // form on the page is simply ignored.
 //
 // The read toggle (#223): with JS off the form POSTs and the server 303-redirects
-// back to the active tab re-rendered from offset 0, which snaps the browser to
+// back to the active tab re-rendered from page one, which snaps the browser to
 // the top — fine as the no-JS source of truth, wrong UX while reading down a long
 // feed. So with JS on the listener INTERCEPTS the read-form submit, `fetch`es the
 // POST itself (no browser/ClientRouter navigation), and updates the row in place:
@@ -30,7 +32,7 @@
 //
 // Astro's client pipeline builds this for the browser, but it's pure DOM logic,
 // so it's unit-tested in the node project under a per-file happy-dom environment
-// (test/enhance-forms.test.ts) and stays inside the 100% src/** istanbul gate.
+// (test/browser/enhance-forms.test.ts) and stays inside the 100% src/** istanbul gate.
 // The Playwright e2e (e2e/read-toggle-scroll.spec.ts, e2e/async-feedback.spec.ts,
 // e2e/read-toggle-rebind.spec.ts) additionally covers it as a real-browser guard.
 
@@ -121,33 +123,8 @@ function retallyTabs(nowRead: boolean): void {
 	}
 }
 
-// Keep the active list's infinite-scroll cursor consistent after an in-place
-// removal (#249). The sentinel's data-next-url carries a POSITIONAL ?offset over
-// the active tab's read/unread query (e.g. /feed?tab=unread&offset=50). Removing
-// a loaded row contracts that query, so every still-unseen row behind the
-// sentinel shifts one position toward 0 — the existing offset now points one row
-// PAST the next unseen one and would skip the row that slid into its place. So
-// decrement the sentinel's ?offset by one to re-align the cursor.
-//
-// Only the active list's own sentinel is touched (a row only ever leaves the tab
-// it's displayed in). A list with no sentinel (fully loaded, or no further pages)
-// has no cursor to adjust; an absent/non-numeric/zero offset is left alone —
-// there's nothing before offset 0 to skip.
-function decrementSentinelOffset(list: HTMLElement): void {
-	const sentinel = list.querySelector<HTMLElement>('[data-feed-sentinel][data-next-url]');
-	const nextUrl = sentinel?.dataset.nextUrl;
-	if (!sentinel || nextUrl === undefined) return;
-	// Resolve against a base so a path-only data-next-url ("/feed?…") parses; the
-	// base's origin is irrelevant — only pathname + search are read back out.
-	const url = new URL(nextUrl, 'https://news.cuteteal.com');
-	const offset = Number.parseInt(url.searchParams.get('offset') ?? '', 10);
-	if (Number.isNaN(offset) || offset <= 0) return;
-	url.searchParams.set('offset', String(offset - 1));
-	sentinel.dataset.nextUrl = `${url.pathname}${url.search}`;
-}
-
 // Remove the toggled row from the active tab's list, keep its infinite-scroll
-// cursor aligned, and — only when the tab is truly exhausted — replace the list
+// boundary unchanged, and — only when the tab is truly exhausted — replace the list
 // with the same caught-up empty state the server renders (#223, #249). The empty
 // copy rides on the <ol data-feed-list data-empty-message> (filter- and tab-aware,
 // computed server-side), so the client never reconstructs it. The <p>'s classes
@@ -160,9 +137,6 @@ function removeRow(form: HTMLFormElement): void {
 	const list = row.closest<HTMLElement>('[data-feed-list]');
 	row.remove();
 	if (!list) return;
-	// Re-align the cursor first: the removed row shifted every unseen row behind
-	// the sentinel one position toward 0 (#249).
-	decrementSentinelOffset(list);
 	// The tab is caught up only when NO row remains AND no sentinel is left to load
 	// more behind it — otherwise more pages exist and an empty state would be false
 	// (#249). When truly empty, swap the whole list for its empty-state paragraph.
@@ -181,7 +155,7 @@ function removeRow(form: HTMLFormElement): void {
 // its existing Article DOM so labels, the form, and the small read square stay
 // consistent, and insert using the same timestamp/id ordering as the D1 query.
 // Rows beyond a partially loaded window stay for its next page; inserting one
-// inside the window advances the cursor (including an in-flight page fetch).
+// inside the window leaves its stable cursor unchanged.
 function returnRecentRow(form: HTMLFormElement, lane: HTMLElement): void {
 	const row = form.closest<HTMLElement>('[data-feed-row]')!;
 	const inActiveFeed = row.dataset.activeFeed !== 'false';
@@ -207,9 +181,13 @@ function returnRecentRow(form: HTMLFormElement, lane: HTMLElement): void {
 			Number(other.dataset.itemId) < Number(row.dataset.itemId)),
 	);
 	const sentinel = list.querySelector<HTMLElement>('[data-feed-sentinel]');
-	// The unread item is older than the loaded window. Its future page already
-	// includes it, so leave the loaded rows and their positional cursor intact.
-	if (!nextRow && sentinel) return;
+	// Compare with the served boundary even if its row has since been removed.
+	// Older rows belong to a future page; newer rows must rejoin this window.
+	if (sentinel) {
+		const cursor = parseCursor(new URL(sentinel.dataset.nextUrl!, 'https://news.cuteteal.com').searchParams.get('cursor'))!;
+		const time = Number(row.dataset.sortTime);
+		if (time < cursor.time || (time === cursor.time && Number(row.dataset.itemId) < cursor.id)) return;
+	}
 
 	row.dataset.readState = 'unread';
 	form.querySelector<HTMLInputElement>('[name="read"]')!.value = '1';
@@ -219,12 +197,7 @@ function returnRecentRow(form: HTMLFormElement, lane: HTMLElement): void {
 	const working = form.querySelector<HTMLElement>('[data-read-working]')!;
 	working.hidden = true;
 	working.setAttribute('aria-hidden', 'true');
-	list.insertBefore(row, nextRow ?? null);
-	if (sentinel) {
-		const url = new URL(sentinel.dataset.nextUrl!, 'https://news.cuteteal.com');
-		url.searchParams.set('offset', String(Number(url.searchParams.get('offset')) + 1));
-		sentinel.dataset.nextUrl = `${url.pathname}${url.search}`;
-	}
+	list.insertBefore(row, nextRow ?? sentinel);
 }
 
 // POST in place; a followed redirect away from the homepage means the session
@@ -256,6 +229,10 @@ async function submitReadForm(
 			removeRow(form);
 			retallyTabs(nowRead);
 		}
+		// Refetch an in-flight fragment after any local mutation: it may contain
+		// an old read state even though the timestamp/id boundary is still valid.
+		const list = document.querySelector<HTMLElement>('[data-feed-list]');
+		if (list) list.dataset.feedRevision = String(Number(list.dataset.feedRevision ?? 0) + 1);
 	} catch {
 		if (button) restoreButton(button);
 		showReadError(form);

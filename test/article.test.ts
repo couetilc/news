@@ -24,6 +24,14 @@ const render = async (props: { item: ItemRow; interactive?: boolean; returnTo?: 
 };
 
 describe('Article component', () => {
+	it.each([true, false])('renders an unsafe legacy URL as text (interactive=%s)', async (interactive) => {
+		const html = await render({ item: row({ url: 'javascript:void(0)' }), interactive });
+		expect(html).toContain('A headline');
+		expect(html).toContain('Link unavailable');
+		expect(html).not.toContain('javascript:');
+		expect(html).not.toContain('data-opened-link');
+		expect(html).not.toContain('<a');
+	});
 	it('labels ingestion dates when the source does not publish an exact date', async () => {
 		const undated = await render({ item: row({ published_at: null }) });
 		expect(undated).toContain('<time datetime="1970-01-01T00:33:20.000Z">Added Jan 1, 1970</time>');

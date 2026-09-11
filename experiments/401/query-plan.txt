@@ -1,0 +1,15 @@
+before all sources
+SCAN i
+SEARCH r USING INDEX sqlite_autoindex_item_reads_1 (user_id=? AND item_id=?) LEFT-JOIN
+USE TEMP B-TREE FOR ORDER BY
+before source-filtered
+SEARCH i USING INDEX items_source_url (source=?)
+SEARCH r USING INDEX sqlite_autoindex_item_reads_1 (user_id=? AND item_id=?) LEFT-JOIN
+USE TEMP B-TREE FOR ORDER BY
+after all sources
+SEARCH i USING COVERING INDEX items_by_effective_time (<expr><?)
+SEARCH r USING INDEX sqlite_autoindex_item_reads_1 (user_id=? AND item_id=?) LEFT-JOIN
+after source-filtered
+SEARCH i USING INDEX items_source_url (source=?)
+SEARCH r USING INDEX sqlite_autoindex_item_reads_1 (user_id=? AND item_id=?) LEFT-JOIN
+USE TEMP B-TREE FOR ORDER BY

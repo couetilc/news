@@ -8,7 +8,7 @@ import { parseAwsWhatsNew } from '../src/ingest/parse/aws-whats-new';
 import { parseSecEdgar } from '../src/ingest/parse/sec-edgar';
 import { ingestAll, type IngestDeps } from '../src/ingest/run';
 import { SOURCES } from '../src/ingest/sources';
-import type { FeedConfig } from '../src/ingest/types';
+import type { FeedConfig, ParsedItem } from '../src/ingest/types';
 import { countRss20 } from '../src/ingest/parse/count';
 import awsRolloutsJson from './fixtures/aws-rollouts.json?raw';
 import gravitonJson from './fixtures/aws-graviton.json?raw';
@@ -58,6 +58,28 @@ afterEach(() => {
 });
 
 describe('ingestAll', () => {
+	it('quarantines unsafe/malformed records before keep and permits repaired articles on a later poll', async () => {
+		const { getHealthRows } = await import('../src/ingest/health-db');
+		const logs = vi.spyOn(console, 'log').mockImplementation(() => {});
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		const keep = vi.fn((_item: ParsedItem) => true);
+		const config = { ...cfFeed, keep };
+		const xml = '<rss><channel>' +
+			'<item><guid>unsafe</guid><title>Unsafe</title><link>javascript:void(0)</link></item>' +
+			'<item><guid>missing</guid><title> </title><link>https://example.com/fixed</link></item>' +
+			'<item><guid>safe</guid><title>Safe</title><link>https://example.com/safe#part</link></item>' +
+			'</channel></rss>';
+		await ingestAll(deps((async () => new Response(xml)) as typeof fetch), [config]);
+		expect((await listItems(db, 10)).map(i => i.guid)).toEqual(['safe']);
+		expect(keep).toHaveBeenCalledTimes(1);
+		expect(keep.mock.calls[0][0]).toMatchObject({ guid: 'safe' });
+		expect(logs).toHaveBeenCalledWith(expect.objectContaining({ quarantined: 2, filtered: 0, inserted: 1 }));
+		expect(JSON.parse((await getHealthRows(db))[0].last_anomaly!)).toMatchObject({ missingFields: ['title', 'url'], invalidCount: 2 });
+		const repaired = xml.replace('javascript:void(0)', 'https://example.com/repaired').replace('<title> </title>', '<title>Repaired title</title>');
+		await ingestAll(deps((async () => new Response(repaired)) as typeof fetch, 4600), [config]);
+		expect((await listItems(db, 10)).map(i => i.guid).sort()).toEqual(['missing', 'safe', 'unsafe']);
+		expect((await getHealthRows(db))[0].anomaly_resolved_at).toBe(4600);
+	});
 	it('parses HTML in real workerd, filters the initial archive, and deduplicates the next poll in D1', async () => {
 		const logs = vi.spyOn(console, 'log').mockImplementation(() => {});
 		const config = SOURCES.find((s) => s.source === 'liquid-ai')!;
@@ -109,6 +131,7 @@ describe('ingestAll', () => {
 			feed: 'https://cf.test/rss',
 			status: 200,
 			items: 2,
+			quarantined: 0,
 			filtered: 0,
 			inserted: 2,
 			outcome: 'ok',
@@ -348,6 +371,7 @@ describe('ingestAll editorial keep filter (#321)', () => {
 			feed: 'https://aws.test/rollouts',
 			status: 200,
 			items: 12,
+			quarantined: 0,
 			filtered: 5,
 			inserted: 7,
 			outcome: 'ok',
@@ -378,6 +402,7 @@ describe('ingestAll editorial keep filter (#321)', () => {
 			feed: 'https://cf.test/rss',
 			status: 200,
 			items: 2,
+			quarantined: 0,
 			filtered: 2,
 			inserted: 0,
 			outcome: 'ok',
@@ -440,8 +465,8 @@ describe('ingestAll shape-drift detection (#78)', () => {
 			invalidCount: 2,
 		});
 
-		// The items still land — an anomaly is a signal, not a hard reject.
-		expect(await listItems(db, 10)).toHaveLength(2);
+		// Invalid records are quarantined instead of poisoning the immutable item row.
+		expect(await listItems(db, 10)).toHaveLength(0);
 	});
 
 	it('does NOT emit an anomaly for a healthy feed', async () => {
