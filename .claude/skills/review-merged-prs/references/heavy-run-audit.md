@@ -80,7 +80,7 @@ drops below its baseline (currently 85%, `<!-- mutation-regression -->`). Don't 
 duplicate score issue — your job is the **per-mutant delta** (which new mutants
 survived, attributed to which PR), which the score number can't express.
 
-#### e2e (artifact: `playwright-report` → `playwright-report/results.json` + `test-results/`)
+#### e2e (artifact: `playwright-report` → `playwright-report/<run-id>/results.json` + `test-results/`)
 
 The Playwright `json` report records each spec's outcome and its retries. The
 distinction that drives triage:

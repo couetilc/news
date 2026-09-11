@@ -1,36 +1,11 @@
-# Out-of-band Playwright e2e smoke (issues #77, #256).
-#
-# Extracted from ci.yml into its own workflow so the heavy-run review detector
-# (.claude/skills/review-merged-prs/scripts/test-runs-needing-review.sh) can find
-# it: that detector selects runs by workflowName matching
-# `mutation|stryker|e2e|playwright|fuzz` and defaults to `schedule` events, then
-# keys a per-kind reviewed-marker off a slug of the workflow name. As an `e2e`
-# job inside the generic `CI` workflow it was invisible to that loop; as its own
-# workflow it is discoverable and `--mark`-able exactly like the mutation runs.
-# Mirrors mutation.yml's out-of-band structure.
-#
-# PR GATE, not advisory. The pull_request job has NO `continue-on-error`, so a
-# real e2e failure reports red honestly and fails the check (`retries: 1` stays
-# in playwright.config.ts as a thin ride-out for residual noise). A failing
-# check only *blocks* merge once `e2e` is a required status check in the
-# `protect-main` ruleset — a repo-admin step for Connor. Until then the check is
-# honest-but-non-required: red without blocking the merge.
-#
-# The scheduled sweep stays out-of-band (NOT a `needs:` of deploy); its #262
-# change-gate below is unchanged.
-#
-# Detector note: the heavy-run review detector
-# (.claude/skills/review-merged-prs/scripts/test-runs-needing-review.sh) keys a
-# per-kind reviewed-marker off a slug of THIS workflow name. `E2E` still matches
-# its `mutation|stryker|e2e|playwright|fuzz` selector (case-insensitive), so the
-# rename is safe; because that marker is LOCAL state (not in-repo), the new slug
-# (`e2e`) simply re-baselines the marker ONCE on the first run under the new name
-# — expected, not a bug. To promote to a required status check, require the `e2e`
-# check — the JOB name (like this repo's existing required `test` check), not the
-# workflow display name `E2E` (that name is only what the detector keys off).
+# Playwright browser gate. `protect-main` requires both `test` and `e2e`.
+# Keep the workflow name E2E: the heavy-run review detector uses it to identify
+# scheduled browser runs independently of the deploy workflow.
+# The isolated harness builds the app and serves it in local workerd. PR failures
+# block merge; scheduled/dispatch sweeps remain separate from deployment.
 #
 # Triggers:
-#   • pull_request     — a per-PR smoke run (blocking once required in the ruleset).
+#   • pull_request     — a required per-PR browser check.
 #   • schedule         — a nightly sweep, so the detector (default event:
 #     schedule) surfaces a baseline→delta run-over-run report. Additionally
 #     CHANGE-GATED in-job against the last successful run's SHA (skip when
@@ -61,14 +36,8 @@ permissions:
   actions: read
 
 jobs:
-  # Playwright e2e smoke (issue #77). BLOCKING PR gate (issue #279): NO
-  # `continue-on-error`, so a failure fails this job's check honestly. Still NOT a
-  # `needs:` of `deploy` — it gates merge (once required in the `protect-main`
-  # ruleset), not the deploy step. #257/#277 stabilized the suite by serving a
-  # built worker via `astro preview`; `retries: 1` stays in playwright.config.ts
-  # as a thin ride-out for residual noise. The config's `webServer` builds the
-  # schema (local D1 migrations) and serves the built worker, so there is no
-  # separate build/serve step here — just install the browser and run.
+  # Required browser check alongside CI's unit/coverage `test` job. The harness
+  # owns migrations, build and preview; one CI retry handles residual noise.
   e2e:
     runs-on: ubuntu-latest
     steps:
@@ -114,7 +83,7 @@ jobs:
             exit 0
           fi
           if git cat-file -e "${last_sha}^{commit}" 2>/dev/null; then
-            if git diff --quiet "$last_sha" HEAD -- src test e2e '*.config.ts' package.json package-lock.json .github/workflows/e2e.yml; then
+            if git diff --quiet "$last_sha" HEAD -- src test e2e migrations public '*.config.ts' astro.config.mjs wrangler.jsonc tsconfig.json worker-configuration.d.ts package.json package-lock.json .github/workflows/e2e.yml; then
               echo "No relevant change since $last_sha — skipping the nightly sweep."
               echo "run=false" >> "$GITHUB_OUTPUT"
             else
@@ -153,8 +122,9 @@ jobs:
         if: steps.decide.outputs.should_run == 'true'
       # Machine-readable result + traces for review tooling to diff run-over-run
       # (new failures vs. known flakes). `always()` so it uploads even when the
-      # suite fails. `if-no-files-found: ignore` since playwright-report may be
-      # absent if the run dies before any reporter writes.
+      # suite fails. Reports/traces have per-run subdirectories so simultaneous
+      # invocations never overwrite each other. `if-no-files-found: ignore` since
+      # playwright-report may be absent if the run dies before any reporter writes.
       - name: Upload e2e report
         if: steps.decide.outputs.should_run == 'true' && always()
         uses: actions/upload-artifact@v4

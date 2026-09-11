@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { d1Query } from './d1';
 
 // Browser regression for the hollow source-mark stroke. Red -> green pin: the
@@ -9,7 +9,7 @@ const GUID = 'e2e-hollow-source-mark-stroke';
 const TITLE = 'Hollow source mark stroke fixture';
 
 test.describe('hollow source-mark stroke', () => {
-	test.beforeAll(() => {
+	test.beforeEach(() => {
 		d1Query(`DELETE FROM items WHERE guid = '${GUID}'`);
 		d1Query(
 			`INSERT INTO items (source, guid, url, title, fetched_at)
@@ -17,7 +17,7 @@ test.describe('hollow source-mark stroke', () => {
 		);
 	});
 
-	test.afterAll(() => {
+	test.afterEach(() => {
 		d1Query(`DELETE FROM items WHERE guid = '${GUID}'`);
 	});
 

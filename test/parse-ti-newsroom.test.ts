@@ -60,6 +60,26 @@ describe('parseTiNewsroom — TI Company Blog fixture', () => {
 	});
 });
 
+describe('parseTiNewsroom — date semantics', () => {
+	it.each([
+		[' 09 Jun 2026 ', '2026-06-09T00:00:00Z'],
+		['08 Mar 2026', '2026-03-08T00:00:00Z'],
+		['09 Mar 2026', '2026-03-09T00:00:00Z'],
+		['01 Nov 2026', '2026-11-01T00:00:00Z'],
+		['02 Nov 2026', '2026-11-02T00:00:00Z'],
+		['09 Jun 2026 14:30:00 -0500', '2026-06-09T19:30:00Z'],
+		['Tue, 09 Jun 2026 14:30:00 GMT', '2026-06-09T14:30:00Z'],
+	])('normalizes %s without shifting an explicit timezone', (date, expected) => {
+		const [item] = parseTiNewsroom(JSON.stringify(['1', { path: 'https://ti.com/date', date }]));
+		expect(item.publishedAt).toBe(Date.parse(expected) / 1000);
+	});
+
+	it('keeps invalid dates absent', () => {
+		const [item] = parseTiNewsroom(JSON.stringify(['1', { path: 'https://ti.com/date', date: 'bad' }]));
+		expect(item.publishedAt).toBeNull();
+	});
+});
+
 describe('parseTiNewsroom — edge cases', () => {
 	it('throws when the response is not an array', () => {
 		expect(() => parseTiNewsroom('{}')).toThrow(/not a TI newsroom/);

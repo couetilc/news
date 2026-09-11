@@ -1,5 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
-import { resetUsers } from './d1';
+import { test, expect, type Page } from './fixtures';
 
 // Browser e2e for the masthead dateline /status link (issue #287 regression,
 // retargeted at the dateline by #305).
@@ -65,7 +64,6 @@ test.describe('masthead dateline link reaches the public status page (#287, #305
 		// The redirect stub was baked at build time, so it bounced logged-in users
 		// too — the "even if the user is already logged in" half of the report. Sign
 		// in first (a real signup → session cookie), then take the same path.
-		resetUsers();
 		await page.goto('/signup');
 		await page.getByLabel('Email').fill('connor@couetil.com');
 		await page.getByLabel('Password').fill('correct-horse-battery');

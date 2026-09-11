@@ -1,4 +1,5 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
+import { d1Query } from './d1';
 
 // Browser e2e for the pinned reference strip (#316): the JP Morgan *Trump Policy
 // Impact Tracker* PDF, pinned above the FilterBar on the homepage.
@@ -53,6 +54,8 @@ test.describe('pinned Trump Policy Impact Tracker link (#316)', () => {
 	});
 
 	test('the pinned strip sits above the source filter / feed', async ({ page }) => {
+		d1Query(`INSERT INTO items (source, guid, url, title, fetched_at)
+			VALUES ('apple', 'pinned-placement', 'https://example.com/pinned-placement', 'Feed placement fixture', 1)`);
 		await page.goto('/');
 		const strip = page.locator('nav[aria-label="Pinned references"]');
 		const feed = page.locator('ol').first();

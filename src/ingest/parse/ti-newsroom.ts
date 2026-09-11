@@ -69,13 +69,17 @@ export function parseTiNewsroom(json: string): ParsedItem[] {
 		if (!path) continue;
 
 		const title = cleanText(textOf(rec.headline) ?? textOf(rec.name)) ?? '';
+		const date = textOf(rec.date);
+		// TI's date-only listing values mean midnight UTC, independent of the
+		// host timezone. Preserve timestamps that already specify a time/zone.
+		const utcDate = date?.trim().replace(/^(\d{1,2} [A-Za-z]{3} \d{4})$/, '$1 00:00:00 GMT') ?? null;
 		items.push({
 			guid: path,
 			url: path,
 			title,
 			summary: cleanText(textOf(rec.subheadline)),
 			contentHtml: null,
-			publishedAt: parseRfc822(textOf(rec.date)),
+			publishedAt: parseRfc822(utcDate),
 		});
 	}
 	return items;

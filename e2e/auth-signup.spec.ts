@@ -1,5 +1,5 @@
-import { test, expect, type Page, type Request } from '@playwright/test';
-import { d1Query, resetUsers } from './d1';
+import { test, expect, type Page, type Request } from './fixtures';
+import { d1Query } from './d1';
 
 // Browser e2e for the auth-form routing + first-signup flow (issue #124).
 //
@@ -37,11 +37,7 @@ async function submitSignup(page: Page, signupPath: string): Promise<Request> {
 }
 
 test.describe('auth signup in a real browser', () => {
-	// globalSetup already emptied users once; reset before EACH case so both the
-	// `/signup` and `/signup/` runs are a deterministic first signup.
-	test.beforeEach(() => {
-		resetUsers();
-	});
+	// The automatic fixture resets all bindings before each signup case.
 
 	for (const signupPath of ['/signup', '/signup/']) {
 		test(`first signup via ${signupPath} navigates and lands signed in`, async ({ page }) => {
@@ -60,8 +56,7 @@ test.describe('auth signup in a real browser', () => {
 			await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
 
 			// Local D1 has exactly one row for this email — the real signup ran,
-			// through real cookies/session/redirects, against the same DB the dev
-			// server uses.
+			// through real cookies/session/redirects, against this run’s isolated test DB.
 			const rows = d1Query<{ n: number }>(
 				`SELECT COUNT(*) AS n FROM users WHERE email = '${EMAIL}'`,
 			);

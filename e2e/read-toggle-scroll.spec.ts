@@ -1,5 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
-import { d1Query, resetUsers } from './d1';
+import { test, expect, type Page } from './fixtures';
+import { d1Query } from './d1';
 
 // Browser e2e for the scroll-preserving in-place read toggle (issue #223).
 //
@@ -39,14 +39,10 @@ async function signUp(page: Page): Promise<void> {
 }
 
 test.describe('read toggle preserves scroll position (#223)', () => {
-	test.beforeEach(() => {
-		resetUsers();
-	});
 
 	test('marking an item read mid-feed leaves the scroll position unchanged', async ({ page }) => {
 		// Seed a feed of unread items BEFORE any page load (the dev server and
-		// `wrangler d1 execute --local` share the same .wrangler/state/v3/d1
-		// persistence). Distinct fetched_at so the order is stable, newest first.
+		// `wrangler d1 execute --local` share the same run-specific test persistence). Distinct fetched_at so the order is stable, newest first.
 		d1Query('DELETE FROM items');
 		d1Query('DELETE FROM item_reads');
 		const values = Array.from({ length: SEED_COUNT }, (_, i) => {
@@ -61,26 +57,18 @@ test.describe('read toggle preserves scroll position (#223)', () => {
 		const unreadTally = page.locator('[data-tab-count="unread"]');
 		await expect(unreadTally).toHaveText(String(SEED_COUNT));
 
-		// Scroll to a fixed offset deep in the feed (well past one viewport) so a
-		// toggle here has real scroll to lose. A fixed window.scrollTo keeps the
-		// anchor deterministic across runs (unlike scrollIntoViewIfNeeded, which can
-		// land a row anywhere in the viewport).
-		const anchorY = 1500;
-		await page.evaluate((y) => window.scrollTo(0, y), anchorY);
-		const beforeY = await page.evaluate(() => window.scrollY);
-		const beforeUrl = page.url();
-		// Sanity: we're genuinely scrolled down (so a snap-to-top would be glaring).
-		expect(beforeY).toBeGreaterThan(800);
-
-		// Toggle a row that is CURRENTLY VISIBLE at this anchor (so removing it shifts
-		// only content at/below the viewport top, never above it — the scroll anchor
-		// is undisturbed). Rows are newest-first; near y=1500 we're well into the
-		// list, so target a mid-list row that's on screen here.
-		const targetRow = page.locator('li[data-feed-row]', {
-			hasText: 'Scroll headline number 20',
+		// Center a known row well down the feed, then measure the current offset.
+		// Its absolute y depends on viewport/layout; prior cases must not supply
+		// extra history or filter rows to make a hard-coded y coordinate work.
+		const targetRow = page.locator('[data-feed-list] li[data-feed-row]', {
+			hasText: 'Scroll headline number 10',
 		});
+		await targetRow.evaluate((row) => row.scrollIntoView({ block: 'center' }));
 		const targetSquare = targetRow.getByRole('button', { name: 'Mark as read' });
 		await expect(targetSquare).toBeInViewport();
+		const beforeY = await page.evaluate(() => window.scrollY);
+		const beforeUrl = page.url();
+		expect(beforeY).toBeGreaterThan(800);
 
 		await targetSquare.click();
 

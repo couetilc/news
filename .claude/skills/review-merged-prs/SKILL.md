@@ -222,7 +222,7 @@ can't reach production-only behavior; these runs are where test-efficacy gaps an
      filing genuine gaps. New `Timeout`/runtime error
      = possible infinite-loop/config break → file. Don't re-file the score
      regression `mutation.yml` already tracks; file the per-mutant delta.
-   - **e2e** (`playwright-report` artifact → `playwright-report/results.json` +
+   - **e2e** (`playwright-report` artifact → `playwright-report/<run-id>/results.json` +
      `test-results/`): a real failure against the **served build** that the
      hermetic suite missed = #123-class production bug → High-severity issue. A
      *flaky* spec (passes on retry) → file as flaky, don't block.

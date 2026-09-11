@@ -1,5 +1,4 @@
-import { test, expect, type Locator, type Page } from '@playwright/test';
-import { resetUsers } from './d1';
+import { test, expect, type Locator, type Page } from './fixtures';
 
 // Browser e2e for the mobile masthead session-control layout (issue #317).
 //
@@ -60,10 +59,6 @@ async function expectClearsNameplate(page: Page, control: Locator): Promise<void
 
 test.describe('masthead session control does not overlap the nameplate on mobile (#317)', () => {
 	test.use({ viewport: PHONE });
-
-	test.beforeEach(() => {
-		resetUsers();
-	});
 
 	test('the anonymous Log in link clears the centered nameplate at 375px', async ({ page }) => {
 		await page.goto('/');

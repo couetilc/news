@@ -1,5 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
-import { d1Query, resetUsers } from './d1';
+import { test, expect, type Page } from './fixtures';
+import { d1Query } from './d1';
 
 // Browser e2e for the ClientRouter-safe read-toggle enhancement (issue #155).
 //
@@ -36,14 +36,11 @@ async function signUp(page: Page): Promise<void> {
 }
 
 test.describe('read-toggle async feedback survives ClientRouter swaps (#155)', () => {
-	test.beforeEach(() => {
-		resetUsers();
-	});
 
 	test('the replacement form after a swap still goes busy on the next toggle', async ({ page }) => {
 		// Seed one unread item BEFORE any page load so the dev server's D1 binding
 		// sees it on the first render (the dev server and `wrangler d1 execute
-		// --local` share the same .wrangler/state/v3/d1 persistence). Clear any
+		// --local` share the same run-specific test persistence persistence). Clear any
 		// leftover read state so the row starts unread.
 		d1Query('DELETE FROM items');
 		d1Query('DELETE FROM item_reads');
