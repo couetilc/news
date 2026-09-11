@@ -83,6 +83,9 @@ const CORE_WITHOUT_ISOLATED_TEST: Record<string, string> = {
 // with no mapping is itself caught), so there's no silent gap. Spec paths are
 // repo-relative, matching the include's own form.
 const MUTATE_SPECS: Record<string, string[]> = {
+	'src/ingest/parse/intel-newsroom.ts': ['test/parse-intel-newsroom.test.ts'],
+	'src/ingest/parse/deepseek-updates.ts': ['test/parse-deepseek-updates.test.ts'],
+	'src/ingest/fetch/owenomics.ts': ['test/fetch-owenomics.test.ts'],
 	'src/lib/auth.ts': ['test/auth-validate.test.ts', 'test/auth-validate.prop.test.ts'],
 	'src/lib/digest.ts': ['test/digest.test.ts', 'test/digest.prop.test.ts'],
 	'src/ingest/schedule.ts': ['test/schedule.test.ts', 'test/schedule.prop.test.ts'],

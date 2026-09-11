@@ -1,0 +1,132 @@
+{
+  "environment": "Cloudflare remote Worker preview, no production bindings",
+  "results": [
+    {
+      "checkedAt": "2026-09-11T03:45:07.506Z",
+      "source": "intel",
+      "requests": [
+        {
+          "url": "https://www.intel.com/content/www/us/en/newsroom/home.html",
+          "status": 200,
+          "contentType": "text/html;charset=utf-8"
+        }
+      ],
+      "raw": 184,
+      "parsed": 184,
+      "kept": 6,
+      "unique": 3,
+      "missingTitles": 0,
+      "missingDates": 0,
+      "latest": [
+        {
+          "title": "Intel Foundry and ASML Accelerate Industry Readiness for High-NA EUV",
+          "url": "https://www.intel.com/content/www/us/en/newsroom/news/intel-foundry/intel-foundry-asml-accelerate-industry-readiness-for-high-na-euv.html",
+          "publishedAt": 1788739200
+        },
+        {
+          "title": "Intel Agentic PCs Give ASU Football an On-Field Edge",
+          "url": "https://www.intel.com/content/www/us/en/newsroom/news/client-computing/intel-agentic-pcs-give-asu-football-on-field-edge.html",
+          "publishedAt": 1788480000
+        },
+        {
+          "title": "Intel Foundation and PLTW Expand Pathways to Semiconductor Careers",
+          "url": "https://www.intel.com/content/www/us/en/newsroom/news/corporate/foundation-pltw-expand-semiconductor-careers.html",
+          "publishedAt": 1788220800
+        }
+      ]
+    },
+    {
+      "checkedAt": "2026-09-11T03:45:08.697Z",
+      "source": "owenomics",
+      "requests": [
+        {
+          "url": "https://edge-platform.sitecorecloud.io/v1/search",
+          "status": 200,
+          "contentType": "application/json"
+        },
+        {
+          "url": "https://www.acadian-asset.com/api/search",
+          "status": 200,
+          "contentType": "application/json"
+        }
+      ],
+      "raw": 20,
+      "parsed": 20,
+      "kept": 20,
+      "unique": 20,
+      "missingTitles": 0,
+      "missingDates": 0,
+      "latest": [
+        {
+          "title": "Crazy days in the stock market",
+          "url": "https://www.acadian-asset.com/investment-insights/owenomics/crazy-days-in-the-stock-market",
+          "publishedAt": 1785542400
+        },
+        {
+          "title": "The frenzied serenity of the stock market",
+          "url": "https://www.acadian-asset.com/investment-insights/owenomics/the-frenzied-serenity-of-the-stock-market",
+          "publishedAt": 1782864000
+        },
+        {
+          "title": "Hynix Hijinks",
+          "url": "https://www.acadian-asset.com/investment-insights/owenomics/hynix-hijinks",
+          "publishedAt": 1782864000
+        },
+        {
+          "title": "America\u2019s first bubble",
+          "url": "https://www.acadian-asset.com/investment-insights/owenomics/americas-first-bubble",
+          "publishedAt": 1780272000
+        },
+        {
+          "title": "Waiter theres a P in my E",
+          "url": "https://www.acadian-asset.com/investment-insights/owenomics/waiter-theres-a-p-in-my-e",
+          "publishedAt": 1780272000
+        }
+      ]
+    },
+    {
+      "checkedAt": "2026-09-11T03:45:09.812Z",
+      "source": "deepseek",
+      "requests": [
+        {
+          "url": "https://api-docs.deepseek.com/updates/",
+          "status": 200,
+          "contentType": "text/html"
+        }
+      ],
+      "raw": 21,
+      "parsed": 21,
+      "kept": 5,
+      "unique": 5,
+      "missingTitles": 0,
+      "missingDates": 0,
+      "latest": [
+        {
+          "title": "DeepSeek-V4.1-Flash Release",
+          "url": "https://api-docs.deepseek.com/news/news260910",
+          "publishedAt": 1788998400
+        },
+        {
+          "title": "DeepSeek-V4-Flash-Vision-Exp Release",
+          "url": "https://api-docs.deepseek.com/updates/#date-2026-08-21",
+          "publishedAt": 1787270400
+        },
+        {
+          "title": "DeepSeek-V4-Pro Update",
+          "url": "https://api-docs.deepseek.com/news/news260813",
+          "publishedAt": 1786579200
+        },
+        {
+          "title": "DeepSeek-V4-Flash Update",
+          "url": "https://api-docs.deepseek.com/updates/#date-2026-07-31",
+          "publishedAt": 1785456000
+        },
+        {
+          "title": "DeepSeek-V4",
+          "url": "https://api-docs.deepseek.com/news/news260424",
+          "publishedAt": 1776988800
+        }
+      ]
+    }
+  ]
+}

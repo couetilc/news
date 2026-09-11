@@ -1,0 +1,8 @@
+{
+	"name": "news-feed-repair-probe",
+	"main": "feed-repairs-probe.ts",
+	"account_id": "dbaa50e60c18b19d483578c42d9bb3ee",
+	"compatibility_date": "2026-06-10",
+	"compatibility_flags": ["global_fetch_strictly_public", "nodejs_compat"],
+	"workers_dev": false
+}

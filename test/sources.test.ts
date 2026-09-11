@@ -8,10 +8,10 @@ import awsRolloutsJson from './fixtures/aws-rollouts.json?raw';
 import ciscoXml from './fixtures/cisco.xml?raw';
 import ciscoEdgarJson from './fixtures/cisco-sec-edgar.json?raw';
 import cloudflareXml from './fixtures/cloudflare-blog.xml?raw';
-import deepseekXml from './fixtures/deepseek.xml?raw';
+import deepseekHtml from './fixtures/deepseek-updates.html?raw';
 import elonlitXml from './fixtures/elonlit.xml?raw';
 import ieeeXml from './fixtures/ieee-spectrum.xml?raw';
-import intelXml from './fixtures/intel.xml?raw';
+import intelHtml from './fixtures/intel-newsroom.html?raw';
 import mistralXml from './fixtures/mistral.xml?raw';
 import nvidiaBlogXml from './fixtures/nvidia-blog.xml?raw';
 import nvidiaNewsroomXml from './fixtures/nvidia-newsroom.xml?raw';
@@ -239,11 +239,17 @@ describe('SOURCES', () => {
 		expect(items[0].summary).toBeNull();
 	});
 
-	it('parses Intel newsroom excerpts into summary, contentHtml null (link out for full text)', () => {
-		const items = source('intel').parse(intelXml);
-		expect(items[0].summary).toContain('Intel today announced a pilot network');
-		expect(items[0].contentHtml).toBeNull();
-	});
+	it('uses the migrated Intel HTML listing and resumes after the last legacy RSS day', () => {
+  const intel = source('intel');
+  expect(intel.feed).toBe('https://www.intel.com/content/www/us/en/newsroom/home.html');
+  const items = intel.parse(intelHtml);
+  expect(items[0].title).toBe('Intel Agentic PCs Give ASU Football an On-Field Edge');
+  expect(items[0].summary).toBeNull();expect(items[0].contentHtml).toBeNull();
+  expect(intel.countRaw!(intelHtml)).toBe(3);
+  expect(items.filter(intel.keep!).map(i=>i.title)).toEqual(['Intel Agentic PCs Give ASU Football an On-Field Edge','Intel Foundation and PLTW Expand Pathways to Semiconductor Careers']);
+  const cutoff=Date.UTC(2026,7,27)/1000;
+  for(const [publishedAt,kept] of [[cutoff-1,false],[cutoff,true],[null,true]] as const) expect(intel.keep!({...items[0],publishedAt})).toBe(kept);
+ });
 
 	it('parses the NVIDIA newsroom feed: full HTML from the bare <content>, description as summary', () => {
 		// #25 — two `nvidia` feeds share the slug; target each by URL.
@@ -342,18 +348,12 @@ describe('SOURCES', () => {
 		expect(source('eye-on-the-market').countRaw!(eotmJson)).toBe(3);
 	});
 
-	it('registers the Owenomics source on the Sitecore ResultsListingApi endpoint (#333)', () => {
-		const owenomics = source('owenomics');
-		// The listing PAGE is a server-rendered shell with no article cards; this
-		// is the data-endpoint its search-results module loads them from
-		// (non-regional site=acadian, so records carry non-/au/ paths).
-		expect(owenomics.feed).toBe(
-			'https://www.acadian-asset.com/api/sitecore/ResultsListingApi/GetArticlesByTopic?topic=%7BA2B2139C-F61B-4FA3-AFFB-02EDB2339234%7D&site=acadian',
-		);
-		// ~1–2 essays/month → a daily poll is ample.
-		expect(owenomics.pollIntervalSeconds).toBe(86400);
-		expect(owenomics.countRaw).toBeDefined();
-	});
+	it('registers the migrated Owenomics listing with its public search loader', () => {
+  const owenomics=source('owenomics');
+  expect(owenomics.feed).toBe('https://www.acadian-asset.com/investment-insights/owenomics');
+  expect(owenomics.pollIntervalSeconds).toBe(86400);
+  expect(typeof owenomics.fetch).toBe('function');
+ });
 
 	it('parses the Owenomics listing API: title, absolute article URL, links out (#333)', () => {
 		const items = source('owenomics').parse(owenomicsJson);
@@ -684,32 +684,16 @@ describe('SOURCES', () => {
 		expect(om.parse(openModelsXml).filter((i) => om.keep!(i)).length).toBeLessThan(9);
 	});
 
-	it('registers the deepseek OpenRSS proxy feed on the /feed/-prefixed URL (#340)', () => {
-		const ds = source('deepseek');
-		// EXACTLY the /feed/ form — the bare openrss.org/<host>/<path> URL serves
-		// the OpenRSS HTML site page (probed 2026-08-30), not a feed.
-		expect(ds.feed).toBe('https://openrss.org/feed/api-docs.deepseek.com/news');
-		// OpenRSS serves a cached copy, so 3×/day like the Anthropic entries.
-		expect(ds.pollIntervalSeconds).toBe(28800);
-		expect(ds.countRaw).toBeDefined();
-	});
-
-	it('parses DeepSeek OpenRSS full page HTML from the description, no summary (#340)', () => {
-		const items = source('deepseek').parse(deepseekXml);
-		expect(items[0].title).toBe('Using the Anthropic API | DeepSeek API Docs');
-		expect(items[0].url).toBe('https://api-docs.deepseek.com/guides/anthropic_api');
-		// Permalink guid — the doc page URL is the stable dedupe id.
-		expect(items[0].guid).toBe(items[0].url);
-		// Full rendered-page HTML in the description CDATA → contentHtml, null
-		// summary (the Anthropic OpenRSS path).
-		expect(items[0].contentHtml).toContain('<code>https://api.deepseek.com/anthropic</code>');
-		expect(items[0].summary).toBeNull();
-		expect(items[0].publishedAt).toBe(Math.floor(Date.UTC(2026, 7, 22, 7, 39, 58) / 1000));
-	});
-
-	it('counts every DeepSeek OpenRSS <item> as the drift denominator (#340)', () => {
-		expect(source('deepseek').countRaw!(deepseekXml)).toBe(3);
-	});
+	it('uses DeepSeek first-party releases and retains the Hugging Face backstop', () => {
+  const ds=source('deepseek');
+  expect(ds.feed).toBe('https://api-docs.deepseek.com/updates/');expect(ds.pollIntervalSeconds).toBe(28800);
+  const items=ds.parse(deepseekHtml);
+  expect(items[0].title).toBe('DeepSeek-V4.1-Flash Release');expect(items[0].url).toBe('https://api-docs.deepseek.com/news/news260910');
+  expect(ds.countRaw!(deepseekHtml)).toBe(3);
+  const cutoff=Date.UTC(2026,0,1)/1000;
+  for(const [publishedAt,kept] of [[cutoff-1,false],[cutoff,true],[null,true]] as const)expect(ds.keep!({...items[0],publishedAt})).toBe(kept);
+  expect(source('open-models').feed).toBe('https://huggingface.co/blog/feed.xml');
+ });
 
 	it('registers the Cursor research-topic listing on the apex host with a daily poll (#335)', () => {
 		const cursor = source('cursor');

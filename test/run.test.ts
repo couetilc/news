@@ -1,3 +1,5 @@
+import owenSearch from './fixtures/owenomics-search.json?raw';
+import owenUrls from './fixtures/owenomics-urls.json?raw';
 import { env } from 'cloudflare:test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ensureFeedRows, getFeedStates, listItems, updateFeedState } from '../src/ingest/db';
@@ -55,6 +57,20 @@ afterEach(() => {
 });
 
 describe('ingestAll', () => {
+ it('runs the Owenomics two-request loader through the injected boundary and deduplicates repeats', async () => {
+  vi.spyOn(console, 'log').mockImplementation(() => {});
+  const config=SOURCES.find(source=>source.source==='owenomics')!;
+  const {fn,calls}=fakeFetch({
+   'https://edge-platform.sitecorecloud.io/v1/search':()=>new Response(owenSearch),
+   'https://www.acadian-asset.com/api/search':()=>new Response(owenUrls),
+  });
+  await ingestAll(deps(fn),[config]);
+  expect((await listItems(db,10)).map(item=>item.source)).toEqual(['owenomics','owenomics','owenomics']);
+  const [state]=await getFeedStates(db);expect(state).toMatchObject({feed:config.feed,failure_count:0,last_status:200});
+  expect(calls).toHaveLength(2);for(const call of calls)expect(call.headers.get('User-Agent')).toBe(USER_AGENT);
+  await ingestAll(deps(fn,1000+86400),[config]);expect(await listItems(db,10)).toHaveLength(3);
+ });
+
 	it('polls a due feed, inserts items, and stores the response validators', async () => {
 		const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 		const { fn, calls } = fakeFetch({

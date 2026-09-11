@@ -51,7 +51,8 @@ async function pollFeed(deps: IngestDeps, config: FeedConfig, state: FeedState):
 	const rescheduleAt = nextPollAt(now(), config.pollIntervalSeconds);
 
 	try {
-		const res = await fetchFn(config.feed, { headers: pollHeaders(USER_AGENT, state) });
+		const init = { headers: pollHeaders(USER_AGENT, state) };
+		const res = config.fetch ? await config.fetch(fetchFn, init) : await fetchFn(config.feed, init);
 
 		// Not modified since last poll: nothing to parse, just reschedule.
 		if (res.status === 304) {
