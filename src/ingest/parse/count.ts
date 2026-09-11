@@ -147,3 +147,12 @@ export function countMetaAiResearch(payload: string): number {
 // the drop/zero signal on every healthy poll. A window that legitimately holds no
 // 8-Ks is also normal there. EDGAR feeds therefore rely on per-item field
 // validation only (no `countRaw`), which is the honest signal for that shape.
+
+// Count semantic teaser/date containers before per-entry validation.
+export function countIntelNewsroom(payload: string): number {
+ return [...payload.matchAll(/<a\b[^<>]*\sclass=["'][^"']*\bcmp-teaser__link\b/gi)].length;
+}
+
+export function countDeepseekUpdates(payload: string): number {
+ return [...payload.matchAll(/<h2\b[^<>]*\sid=["']date-[^"']*["']/gi)].length;
+}

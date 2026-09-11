@@ -1,3 +1,5 @@
+import { parseIntelNewsroom } from '../src/ingest/parse/intel-newsroom';
+import { parseDeepseekUpdates } from '../src/ingest/parse/deepseek-updates';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { parseAtom, type AtomOptions } from '../src/ingest/parse/atom';
@@ -445,4 +447,9 @@ describe('parseRfc822 — fuzz (never throws, returns integer seconds or null)',
 			{ seed: SEED },
 		);
 	});
+});
+
+describe('migrated HTML sources reject malformed input predictably', () => {
+ it('Intel cards', () => fuzzParser(parseIntelNewsroom, /not an Intel newsroom listing/, fc.array(fc.oneof(fc.string(),fc.constantFrom('<div data-component="card-grid">','<a class="cmp-teaser__link">','<a href="https://[bad">','</a>','<h2>','</h2>')), {maxLength:40}).map(parts=>parts.join(''))));
+ it('DeepSeek date sections', () => fuzzParser(parseDeepseekUpdates, /not a DeepSeek changelog/, fc.array(fc.oneof(fc.string(),fc.constantFrom('docs-doc-id-updates','<h2 id="date-2026-09-10">','<h2 id="date-0000-01-01">','<h2 id="date-2026-02-30">','</h2>','<h3>','</h3>','<a href="/news/news260910">','</a>')), {maxLength:40}).map(parts=>parts.join(''))));
 });

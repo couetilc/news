@@ -1,3 +1,6 @@
+import { fetchOwenomics } from './fetch/owenomics';
+import { parseIntelNewsroom } from './parse/intel-newsroom';
+import { parseDeepseekUpdates } from './parse/deepseek-updates';
 import { parseAtom } from './parse/atom';
 import { parseAwsWhatsNew } from './parse/aws-whats-new';
 import { parseCursorBlog } from './parse/cursor';
@@ -10,6 +13,8 @@ import { parseThinkingMachinesNews } from './parse/thinking-machines-news';
 import { parseTiNewsroom } from './parse/ti-newsroom';
 import {
 	countAtom,
+	countIntelNewsroom,
+	countDeepseekUpdates,
 	countAwsWhatsNew,
 	countCursorBlog,
 	countMetaAiResearch,
@@ -163,14 +168,15 @@ export const SOURCES: FeedConfig[] = [
 		countRaw: countRss20,
 	},
 	{
-		// #27 — WordPress RSS, 10-item window, excerpts only (no content:encoded) so
-		// we link out for full text; ~3–5/week, so poll daily. content:encoded mode
-		// routes the <description> excerpt into `summary` and leaves contentHtml null.
+		// Intel migrated WordPress to AEM; /feed now redirects to HTML. The new
+		// listing has a large archive, so resume after the final legacy RSS day
+		// rather than flooding existing readers with historical duplicates.
 		source: 'intel',
-		feed: 'https://newsroom.intel.com/feed',
-		pollIntervalSeconds: 86400,
-		parse: (xml) => parseRss20(xml, { content: 'content:encoded' }),
-		countRaw: countRss20,
+		feed: 'https://www.intel.com/content/www/us/en/newsroom/home.html',
+		pollIntervalSeconds: 21600,
+		parse: parseIntelNewsroom,
+		countRaw: countIntelNewsroom,
+		keep: (item) => item.publishedAt === null || item.publishedAt >= Date.UTC(2026, 7, 27) / 1000,
 	},
 	{
 		// #25 — NVIDIA newsroom (iPressroom RSS 2.0). FULL release text lives in a
@@ -423,44 +429,22 @@ export const SOURCES: FeedConfig[] = [
 		keep: (item) => item.publishedAt === null || item.publishedAt >= OPENAI_LAUNCH_CUTOFF,
 	},
 	{
-		// #333 — Acadian Asset Management "Owenomics" (Owen Lamont's behavioral
-		// finance commentary). NO RSS/Atom exists anywhere on the site; the listing
-		// page (/investment-insights/owenomics) is a server-rendered Sitecore shell
-		// whose article cards load CLIENT-SIDE from this Sitecore results API — the
-		// `data-endpoint` its search-results module declares (topic is the
-		// Owenomics topic item's Sitecore GUID; site=acadian is the non-regional
-		// site, whose records carry non-/au/ paths). Same "no feed, poll the
-		// rendering data" family as TI (#30) and JPM EOTM (#319). Page 1 holds the
-		// 20 newest of ~90 essays. parseOwenomics links out (the listing has no
-		// teaser/body) and normalizes the MONTH-granularity `Date` ("August 2026")
-		// to first-of-month UTC — the only machine-readable date in the payload,
-		// and the same precision the article pages display. ~1–2 essays/month, so
-		// a daily poll is ample. The endpoint serves our plain aggregator UA
-		// (no anti-bot; confirmed in the #333 live probe).
+		// Acadian's migrated public listing uses Sitecore Cloud search plus its
+		// same-origin URL resolver. The loader returns the existing Results shape
+		// so canonical article identities and month-only dates stay stable.
 		source: 'owenomics',
-		feed: 'https://www.acadian-asset.com/api/sitecore/ResultsListingApi/GetArticlesByTopic?topic=%7BA2B2139C-F61B-4FA3-AFFB-02EDB2339234%7D&site=acadian',
+		feed: 'https://www.acadian-asset.com/investment-insights/owenomics',
 		pollIntervalSeconds: 86400,
+		fetch: fetchOwenomics,
 		parse: parseOwenomics,
 		countRaw: countOwenomics,
 	},
 	{
-		// #340 — the Chinese open-source labs (DeepSeek, Qwen, Moonshot/Kimi,
-		// Zhipu/Z.ai, MiniMax) have NO working first-party feed (probed 2026-08-30:
-		// every candidate path is an SPA HTML shell, 404, or a frozen archive), so
-		// the healthy first-party Hugging Face blog feed is the shared BACKSTOP —
-		// it carries nearly every major release from all five labs. The feed is
-		// broad (~850 items, several posts/week, partner/community posts), so
-		// `keep` narrows it to lab-name titles (see OPEN_MODELS_LABS); run.ts
-		// applies it after the shape-drift check, so countRss20 still sees the
-		// full item count. Items are title+link+guid+pubDate ONLY — no per-item
-		// <description> — so `description` mode yields null summary AND null
-		// contentHtml and we link out, the AMD title-only pattern. First poll
-		// ingests only the ~dozen archive items that pass the filter — on-topic
-		// backfill, so no launch cutoff needed (contrast OpenAI above). The
-		// deliberately-skipped alternative: Qwen's old qwenlm.github.io feed is a
-		// frozen 2023–2025 archive (newest 2025-09-23; the blog moved to qwen.ai)
-		// — pure backfill, no new items possible. Several posts/week feed-wide,
-		// so a 6-hour poll is ample.
+		// A shared release backstop for DeepSeek, Qwen, Moonshot/Kimi, Zhipu/Z.ai
+		// and MiniMax. DeepSeek also has a first-party changelog below; the other
+		// labs have no working first-party feed verified here. Restrict the broad
+		// Hugging Face feed to explicit lab-name titles. No summary/body is
+		// provided, so these announcements link out.
 		source: 'open-models',
 		feed: 'https://huggingface.co/blog/feed.xml',
 		pollIntervalSeconds: 21600,
@@ -469,23 +453,15 @@ export const SOURCES: FeedConfig[] = [
 		keep: (item) => OPEN_MODELS_LABS.test(item.title),
 	},
 	{
-		// #340 — DeepSeek's news page through the OpenRSS proxy (the #22 Anthropic
-		// pattern; the only one of the five per-lab OpenRSS candidates that
-		// returned a populated feed on the 2026-08-30 probe — the rest 404). Use
-		// EXACTLY the /feed/-prefixed URL: the bare openrss.org/<host>/<path> form
-		// serves the OpenRSS HTML site page, not XML. RSS 2.0 with the full
-		// rendered page HTML in the <description> CDATA (no content:encoded), so
-		// `description` mode routes it into contentHtml with null summary — same
-		// path as the Anthropic feeds. CAVEAT: OpenRSS scrapes the Docusaurus
-		// news/docs site, so items are whatever doc pages change — release posts
-		// AND guide updates; the open-models backstop above stays the primary
-		// release signal. ~monthly-ish cadence and OpenRSS serves a cached copy
-		// anyway, so poll 3×/day (8h) like the Anthropic entries.
+		// First-party dated releases/API updates, verified from Workers. The
+		// previous OpenRSS docs proxy persistently returned 503. A fixed initial
+		// 2026 cutoff limits backfill; the Hugging Face backstop remains.
 		source: 'deepseek',
-		feed: 'https://openrss.org/feed/api-docs.deepseek.com/news',
+		feed: 'https://api-docs.deepseek.com/updates/',
 		pollIntervalSeconds: 28800,
-		parse: (xml) => parseRss20(xml, { content: 'description' }),
-		countRaw: countRss20,
+		parse: parseDeepseekUpdates,
+		countRaw: countDeepseekUpdates,
+		keep: (item) => item.publishedAt === null || item.publishedAt >= Date.UTC(2026, 0, 1) / 1000,
 	},
 	{
 		// #335 — Cursor blog, RESEARCH-TAGGED posts only (the owner's note:

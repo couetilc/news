@@ -1,41 +1,11 @@
 import type { ParsedItem } from '../types';
 import { decodeEntities } from './entities';
 
-// #333 — Acadian Asset Management's "Owenomics" commentary (Owen Lamont).
-// The site has NO RSS/Atom anywhere (the only official subscription is an email
-// form at /investment-insights/owenomics/subscribe). The listing page at
-// /investment-insights/owenomics is a server-rendered Sitecore SHELL only — the
-// live probe showed its static HTML carries the masthead and the subscribe
-// button but ZERO article cards; those render client-side from the Sitecore
-// results API the page's search-results module declares in `data-endpoint`:
-// GET /api/sitecore/ResultsListingApi/GetArticlesByTopic?topic={GUID}&site=acadian
-// So we poll that endpoint directly — the same "no feed, parse the rendering
-// data" family as Texas Instruments (#30) and JPM Eye on the Market (#319).
-//
-// The response is a JSON OBJECT: { CurrentPage, Filters, Results, ResultsLabel,
-// TotalPages }. `Results` holds the listing records, newest first (20 per page;
-// page 1 is plenty for a ~monthly essay cadence). Each record carries `Title`
-// (display headline), `Url` (a site-relative article path,
-// /investment-insights/owenomics/<slug> — our stable guid once made absolute),
-// and `Date` — the publish date at MONTH GRANULARITY ONLY ("August 2026").
-//
-// GOTCHAS (flagged for future maintainers):
-//   • MONTH-GRANULARITY DATES: "August 2026" is the only machine-readable date
-//     in the listing payload, and it's also all the article pages *display*
-//     (their <time datetime> is midnight on the publish day, shown as the
-//     month). We normalize it to the FIRST OF THE MONTH 00:00 UTC — items
-//     within a month tie on publishedAt and fall back to insert order. Getting
-//     day precision would need a per-article fetch, which the single-fetch
-//     runner deliberately doesn't do.
-//   • LINK-OUT ONLY: the listing has no teaser and no body — Category/ReadTime
-//     are the only other text — so summary and contentHtml are both null and we
-//     link out via `Url`.
-//   • LOCALE DUPLICATES: the AU site variant (site=acadianAU) serves the SAME
-//     articles under /au/investment-insights/owenomics/<slug>. We poll the
-//     non-regional endpoint, and normalizeUrl also strips a leading /au/ and
-//     dedupes, so a regional path can never mint a duplicate item.
-//   • SUBSCRIBE LINK: the /investment-insights/owenomics/subscribe email form
-//     is a page, not an article — a record pointing at it is excluded.
+// Owenomics cards retain the old Results shape after fetchOwenomics assembles
+// Acadian's public Sitecore Cloud search and canonical URL lookup responses.
+// Date is deliberately Month YYYY: the website still displays monthly dates,
+// and keeping that precision preserves existing ordering. Locale copies share
+// canonical URLs and subscribe remains a form, not an article.
 
 const ORIGIN = 'https://www.acadian-asset.com';
 

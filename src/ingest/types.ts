@@ -19,6 +19,10 @@ export interface FeedConfig {
 	feed: string;
 	pollIntervalSeconds: number;
 	parse(xml: string): ParsedItem[];
+	// A source whose public listing needs multiple requests may assemble a
+	// parser payload here. All HTTP must use fetchFn and forward init.signal;
+	// the runner owns cancellation and failures, and tests inject offline data.
+	fetch?(fetchFn: typeof fetch, init: RequestInit): Promise<Response>;
 	// Shape-drift detection (#78): count the RAW entries in a payload, independent
 	// of how many `parse` keeps. run.ts compares the two to spot a 200 that carried
 	// entries but parsed to zero (a renamed/removed field), distinguishing it from

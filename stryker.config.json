@@ -32,7 +32,10 @@
     "src/ingest/parse/cursor.ts",
     "src/ingest/parse/entities.ts",
     "src/ingest/parse/count.ts",
-    "src/ingest/parse/dates.ts"
+    "src/ingest/parse/dates.ts",
+    "src/ingest/parse/intel-newsroom.ts",
+    "src/ingest/parse/deepseek-updates.ts",
+    "src/ingest/fetch/owenomics.ts"
   ],
   "reporters": ["html", "clear-text", "progress", "json"],
   "jsonReporter": { "fileName": "reports/mutation/mutation.json" },
