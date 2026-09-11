@@ -133,6 +133,13 @@ export function countThinkingMachinesNews(payload: string): number {
 	return count;
 }
 
+// Meta's research homepage renders one <article> per featured/listed post.
+// Count the containers even if their semantic marker or link has drifted, so
+// a broken extraction reports a nonzero raw count instead of looking empty.
+export function countMetaAiResearch(payload: string): number {
+	return [...payload.matchAll(/<article\b[^>]*>/gi)].length;
+}
+
 // NOTE: SEC EDGAR deliberately has NO raw counter. `filings.recent` is the whole
 // columnar filings history (~1000 rows for TI), but parseSecEdgar keeps only the
 // configured 8-K forms within a 20-item recent window — so the columnar height
