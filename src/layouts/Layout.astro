@@ -97,9 +97,9 @@ const isAuthed = Astro.locals.userId !== undefined;
 				    #308, the underline is HOVER-ONLY here (no resting underline), a
 				    deliberate deviation from #129's resting-underline rule for this one
 				    control: at rest the dateline reads as plain agate text, and the
-				    focus-visible ring stays the resting affordance for keyboard users.
+				    focus-visible ring appears when keyboard focus reaches the link.
 				    It stays in the agate/uppercase masthead voice and doesn't crowd the
-				    nameplate. /status is prerendered + allowlisted in the middleware's
+				    nameplate. /status is SSR + allowlisted in the middleware's
 				    PUBLIC_PATHS (#287/#289), so it resolves to the status page (not a
 				    /login redirect) for anonymous and signed-in visitors alike. */}
 				<p

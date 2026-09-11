@@ -156,8 +156,8 @@ jobs:
             echo "a covered-but-weakly-asserted line; see the \`testing\` skill."
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # Machine-readable artifact for run-over-run diffing (consumed by the
-      # review-merged-prs heavy-run audit). Also bundle the HTML for humans.
+      # Machine-readable artifact for contextual run-over-run review.
+      # Also bundle the HTML for humans.
       - name: Upload mutation report
         if: steps.decide.outputs.should_run == 'true' && always()
         uses: actions/upload-artifact@v4

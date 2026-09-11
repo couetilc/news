@@ -1,462 +1,87 @@
 ---
-name: Testing
-description: How this repo tests — the two vitest projects (workers/node) and which your test belongs in, the 100% Istanbul coverage gate over src/** and its branch-gate gotcha, the hermetic no-network rule and test/fixtures/, when a change needs a unit vs an e2e test, the robustness contract for parsers of untrusted input, and the "assert behavior, never just cover" principle with good/bad examples.
-when_to_use: Writing or reviewing any test; deciding whether a change needs a unit or an e2e test; a test passes coverage but you're unsure it asserts anything; adding a new src/** file and wiring its test into the right project; touching vitest.*.config.ts, test/**, or test/fixtures/; a guard on an "impossible" path fights the 100% branch gate; testing a parser of untrusted input.
+name: testing
+description: Place tests in the correct runtime, verify parser and browser behavior, and maintain this repo's coverage and mutation configuration.
 ---
 
 # Testing
 
-How https://news.cuteteal.com is tested. Read this before writing or reviewing a
-test. The 100% coverage gate is the floor; this skill is how to make tests
-actually *prove* behavior on top of it.
-
-## Assert behavior, never just cover
-
-Coverage proves a line *executed* — not that a test *checked the result*. A test
-that calls a function and asserts nothing meaningful turns the gate green while
-catching no bug. Every test asserts the **observable behavior**, not merely runs
-the code.
-
-```ts
-// ❌ BAD — covers parsePage but asserts nothing about the value. 100% green, 0 bugs caught.
-it('parses a page', () => {
-  parsePage('7');                       // executed → covered
-  expect(parsePage('7')).toBeDefined(); // a number is always defined; this is noise
-});
-
-// ✅ GOOD — pins the exact contract, including the boundaries that bite.
-it('reads a valid 1-based page and rejects junk', () => {
-  expect(parsePage('7')).toBe(7);
-  expect(parsePage('2x')).toBe(1);  // trailing junk → fallback
-  expect(parsePage('0')).toBe(1);   // below floor → fallback
-  expect(parsePage(null)).toBe(1);  // missing → fallback
-});
-```
-
-A test is cover-without-assert if it asserts only `toBeDefined` / `not.toThrow` /
-`toBeTruthy` on a value with a knowable exact shape; snapshots output without
-ever reading a field; or exercises a branch while checking a value identical on
-both sides (invert the branch and the test still passes — that assertion is
-worthless). When you write an assertion, ask: *if I inverted this comparison or
-returned a constant, would this catch it?* If not, tighten it to a value that
-differs across the boundary.
-
-**Assert the edges, not just the happy path.** Most shipped bugs live at a
-boundary a "covered" test walked past — empty input, the off-by-one page, the
-`null` array element, the malformed feed. `parsePage`/`clampPage` are
-all-boundary functions; their tests enumerate the boundaries on purpose.
-
-## The two vitest projects — and which yours belongs in
-
-`npm test` runs `vitest run --coverage` over **two projects**, wired together in
-`vitest.config.ts`, which owns the merged coverage gate. Two runtimes are
-genuinely required:
-
-- **`workers`** (`vitest.workers.config.ts`) — runs **inside workerd** via
-  `@cloudflare/vitest-pool-workers`. Use it **only** for what needs the real
-  runtime: `cloudflare:workers` env, **D1 bindings**, `ON CONFLICT` dedupe
-  semantics, workerd Web Crypto parity. A real local D1 (`NEWS_DB`) is
-  declared inline (`miniflare.d1Databases`) and the committed `migrations/*.sql`
-  are applied per test file by `test/helpers/apply-migrations.ts`
-  (`applyD1Migrations` from `cloudflare:test`). **The imperative shell's
-  integration tests live here** — the D1 data layer (`db.test.ts`,
-  `users.test.ts`, `auth-actions.test.ts`), the ingest orchestrator
-  (`run.test.ts`), the endpoints, and the crypto specs (`auth.test.ts`,
-  `auth.prop.test.ts`, deliberately on workerd's Web Crypto).
-- **`node`** (`vitest.node.config.ts`) — plain node environment, hosting
-  everything else, and it's the **fast** pool: rendering `.astro` pages through
-  Astro's **Container API** (its Vite plugins pull in `xxhash-wasm`, which the
-  worker pool can't load), the trivial **`src/worker.ts`** entry test (under
-  node, Istanbul's coverage of its async `scheduled` handler is deterministic;
-  under the worker pool it was dropped intermittently, red-failing the gate),
-  and **every pure functional-core spec** (#349): the parsers + `parse-fuzz`,
-  normalization (`dates`/`entities`/`count`), `validate`, the source registry,
-  pagination, schedule/merge/queries/digest, log/email, the auth validators.
-  A pure module's spec imports only vitest, the module, and `?raw` fixtures —
-  never `cloudflare:test` or D1 — so it never needs the workerd pool.
-
-Both configs keep `configFile: false` (the Cloudflare adapter's Vite plugin is
-incompatible with the test pipeline). Pages import `cloudflare:workers`, aliased
-in the node project to `test/helpers/cloudflare-workers.ts`; a page's data access
-is mocked there, and its **real** D1 behavior is covered by the `workers`
-project.
-
-**Which project does my new spec go in?** Touches D1 / KV /
-`cloudflare:workers` / `cloudflare:test` → `workers`. Everything else — pure
-logic, parsers, `.astro` renders, `worker.ts` — → `node`. Node discovers all
-`test/**/*.test.ts` except the explicit `WORKER_TESTS` array in `test/runtime.ts`;
-the workers project includes that same array. Add only runtime-bound specs there.
-New pure/DOM specs need no runtime-config edit. Every `src/**` file must
-be exercised by at least one project (its dedicated spec lives in exactly one),
-or the gate fails.
-
-## The coverage gate
-
-**Istanbul, 100% statements / branches / functions / lines over `src/**`**, merged
-across both projects (`vitest.config.ts` → `coverage.thresholds`). The suite
-fails below 100% on any of the four. Istanbul (not V8) because workerd has no
-`node:inspector`; branch is the strongest of the four metrics.
-
-### Coverage gotcha — the branch gate punishes defensive conditionals
-
-A 100% **branch** gate means an `if`/`?:`/`??`/`&&` whose "impossible" side no
-test hits is an **uncovered branch that fails the build**. This shapes how
-`src/**` is written:
-
-- `src/lib/format.ts` is deliberately **branch-free** — fixed name tables indexed
-  by UTC fields, no conditionals — so date formatting needs no branch coverage.
-- `src/lib/users.ts` uses `return row!` (a non-null assertion) instead of
-  `if (!row) throw …` after a `RETURNING` insert: a runtime check would add a
-  branch the happy path can never exercise. The assertion documents the invariant
-  *without* a branch.
-- The same trap applies to presentational `.astro` helpers (see the
-  `design-system` "Coverage gotcha"): keep them branch-free, or ensure a test
-  renders every branch.
-
-So for a guard on an "impossible" path: add it only where the condition is
-*reachable and worth a test* (then assert it — it's real behavior). Where it's
-genuinely impossible, prefer a type-level guarantee (a non-null assertion, an
-exhaustive `switch` on a union, a branch-free table) over a runtime check you
-then have to write a contrived test to cover.
-
-## The hermetic, no-network rule
-
-**Tests in `npm test` must never hit the network** — so the suite is
-deterministic and green in CI, in claude.ai cloud sessions (Trusted network
-mode), and offline.
-
-- The ingest runner takes an **injected `fetchFn`** — tests pass a fake, never
-  real `fetch`. Parsers are pure `string → ParsedItem[]` functions; feed them
-  fixtures.
-- Real feed/API payloads live under **`test/fixtures/`** (`*.xml` for RSS/Atom,
-  `*.json` for the JSON APIs). Add a fixture rather than inlining a multi-KB feed,
-  or build a tiny inline document with a `wrap()` helper for edge cases (see
-  `parse-rss20.test.ts`).
-- If a change makes a test *want* the network, that's the signal to inject a seam
-  instead.
-
-## When a change needs a unit vs an e2e test
-
-**Default to a unit/example test** in `npm test` (workers or node): a specific
-input→output, a named edge case, a D1 query's effect, an SSR render. It's cheap,
-hermetic, and counts toward the gate.
-
-**Every user-facing feature must also have an e2e test** (`npm run test:e2e`,
-Playwright) — a standing requirement, not a judgment call. "User-facing" is
-anything a person navigates to, clicks, or submits: a page or route, a link, a
-form, a multi-step flow, a JS-driven interaction. The reason is structural — a
-unit test renders a component or calls a function *in isolation*, so it **cannot
-see the integration layer a real user traverses**: middleware, routing, the
-build-time prerender step, `<ClientRouter />` swaps, cookies, redirects. A green
-unit test proving a link or form is merely *present in the markup* is therefore
-**not** evidence the feature *works*. Issue #287 shipped exactly that false
-confidence — a Container API test asserted `href="/status"` rendered while the
-live link bounced every visitor (even logged-in ones) to `/login`, because the
-redirect was baked in by the prerender×middleware interaction, a layer no unit
-test exercises. The e2e drives the real path end-to-end and asserts the
-**user-observable outcome** (the page landed on, the state seen) — the only test
-that would have caught it.
-
-Write each e2e as a **red→green pin**: it must *fail* against the unfixed code
-and *pass* with the fix (verify both directions before you trust it), and state
-that pin in the spec's header comment — see `auth-signup.spec.ts` and
-`status-link.spec.ts`. Keep each feature's e2e **focused, not exhaustive**: one
-spec for the primary path plus the key regression, with the breadth of inputs
-and edge cases left to the fast unit tests. e2e is a **separate entry point,
-outside `npm test` and the coverage gate** — slower and flakier — so it earns
-its place by covering what the hermetic pools *can't*, never by duplicating a
-unit test that already holds.
-
-### Isolated browser state
-
-Run `npm run test:e2e -- [spec or Playwright options]`. Its launcher allocates a
-unique `.playwright/run-*` root and free loopback port, builds the production
-pages into that root, and removes it when the run ends. Workerd's D1/KV/R2,
-Astro generated files, build output, preview redirect and test-only runtime vars
-all live there. Existing dev servers, `.dev.vars`, `dist/` and `.wrangler/state`
-are untouched. Direct `playwright test` fails with a launcher instruction rather
-than falling back to development state. A port collision fails instead of reusing
-an unexpected server.
-
-Import `test`, `expect` and Playwright types from `e2e/fixtures.ts` in every spec.
-Its automatic fixture clears sessions, read history, users, items and feed state
-before **each case** through a local binding proxy. Seed rows in `beforeEach` or
-inside the test, never `beforeAll`. `d1Query` targets this run's D1; `resetUsers`
-is async and invalidates read history and sessions as well as accounts. Cases
-stay serial within a run; separate invocations have independent state and ports.
-
-CI runs this suite in its **own workflow** (`.github/workflows/e2e.yml`,
-`name: E2E`), separate from `ci.yml`. The **per-PR run is a real gate, not
-advisory**: it has no `continue-on-error`, so a genuine e2e failure reports red
-and fails the check (it also uploads the `playwright-report` JSON artifact).
-The `protect-main` ruleset requires both `test` and `e2e`, so a red browser
-check blocks merge. The **scheduled/dispatch sweeps stay out-of-band** from
-deploy and are reviewed by the heavy-run detector. The workflow is separate from
-`ci.yml` so that detector finds it by workflow name — see the CI cadence section
-below.
-
-## Browser-only client modules (`src/scripts/**`) — happy-dom in the node project
-
-`src/scripts/**` ships to the browser, but it's **pure DOM logic**, so it's
-**unit-tested and stays inside the 100% `src/**` gate** — not carved out, not
-left to e2e. The shared setup:
-
-- The spec lives in the **node** project under a per-file
-  `// @vitest-environment happy-dom` docblock (first line of the test), so
-  `document` / `HTMLFormElement` / `SubmitEvent` / `IntersectionObserver` resolve.
-  The workerd pool can't host a DOM environment. Node discovers the spec
-  automatically; do not add it to `test/runtime.ts` (`happy-dom` is a devDependency).
-
-Then drive every branch one of **two valid ways**, depending on how the module
-exposes its behavior:
-
-- **Side-effect listener modules** (`enhance-forms.ts` + `test/enhance-forms.test.ts`):
-  `import` the module for its **side effect** — that registers its real listener
-  (one delegated `submit` listener on `document`) — and assert by **dispatching
-  real events at that listener** (`form.dispatchEvent(new Event('submit', {
-  bubbles: true }))`), checking the resulting DOM state. There's no seam to call
-  directly, so the dispatch *is* the test.
-- **Modules with an intentionally exported initializer**
-  (`infinite-scroll.ts#initInfiniteScroll` + `test/infinite-scroll.test.ts`):
-  **calling the exported initializer directly is fine** for focused DOM
-  setup/branch tests (it's a clean unit seam) — while **still covering the
-  registered event path** (dispatch the real `astro:page-load` /
-  `DOMContentLoaded`) where that wiring matters. Direct invocation is not
-  forbidden; it's the right tool when the module deliberately exports the seam.
-
-This refines the unit-vs-e2e line above: **pure-DOM client logic is
-unit-testable** and belongs in the gate; only **full-browser behavior** (real
-navigation, ClientRouter swaps end-to-end) goes to Playwright e2e.
-
-## Testing the ingest parsers (untrusted input)
-
-`src/ingest/parse/**` parse **untrusted external XML/JSON**, so malformed /
-truncated / `null` / adversarial input is a real failure mode — a parser that
-throws an undocumented error or hangs breaks ingestion. The contract each parser
-must satisfy, and you must test:
-
-> Given arbitrary input, a parser may throw **only** its documented
-> `"not a … feed"` guard — never a raw `TypeError`/`RangeError`/`SyntaxError`,
-> never hang — and otherwise returns a well-formed `ParsedItem[]` (every field
-> the right type). A garbage payload that is recognizably the wrong document
-> surfaces the documented throw (caught per-feed in `run.ts`); element-level junk
-> inside an otherwise-valid container is skipped.
-
-Test each parser against its malformed cases (wrong top-level type, truncated
-markup, `null`, junk array elements), asserting it either returns a well-formed
-array or throws *only* the documented error. A parser returning `[]` from a
-non-empty payload is what `src/ingest/validate.ts` flags as an `ingest.anomaly`,
-so graceful-empty + that signal is the intended path, not a crash.
-
-## Beyond coverage: property + mutation testing
-
-Coverage is the floor. Two efficacy tools probe what coverage can't see — *do my
-assertions hold across inputs I didn't enumerate*, and *do they actually catch a
-fault*.
-
-### Property testing (fast-check)
-
-A devDependency. Reach for it when a function has an **invariant that should hold
-across a whole input space** the enumerated example tests can't reach — pagination
-math, the email/password validators, the record-envelope parser, the ingest
-algebra and scheduling laws, and (above all) **fuzzing the untrusted-input
-parsers** for the contract above (never throws except the documented guard;
-otherwise a well-formed `ParsedItem[]`). Canonical examples:
-`test/pagination.prop.test.ts`, `test/auth-validate.prop.test.ts`,
-`test/parse-fuzz.test.ts`, and the functional-core suites
-`test/schedule.prop.test.ts` / `test/merge.prop.test.ts` /
-`test/digest.prop.test.ts` (#349).
-
-- **Seed for determinism** — pass `{ seed: … }` to `fc.assert` so any failure is
-  reproducible (the repo uses `const SEED = 0x163`).
-- **Pair every `.prop` suite with an example suite.** Properties prove the laws
-  (idempotence, commutativity, partition/subsequence, monotonicity,
-  boundary-iff); the sibling example spec pins the exact boundary values and
-  copy strings. When a property ever fails, **pin the shrunk counterexample as
-  an example-test regression case** in the sibling spec — the property proves
-  the law again, the example keeps the specific bug dead.
-- **Force collisions on purpose.** An arbitrary-string arbitrary almost never
-  collides, so dedupe/merge branches go unexplored; draw keys from a small
-  constant pool (see `merge.prop.test.ts`) so the interesting branches fire.
-- **Guard against vacuous properties.** A property that's trivially true catches
-  nothing. A positive roundtrip needs a **negative cross-check** (assert the
-  malformed/below-floor cases are *rejected*, not just that the good ones pass);
-  **pin canonical matches** with `toEqual` on the exact reconstructed value, not
-  `toBeDefined`. Ask the same question as for any assertion: invert it — does it
-  still pass? Then it's vacuous.
-
-### Mutation testing (Stryker)
-
-**Advisory / on-demand** — `npm run test:mutation` (~45s), **not** in the
-per-commit gate and not in `npm test`; coverage stays the floor. The standing
-policy is **report-only: record the score, no blocking threshold** (#349).
-Runner errors and missing, invalid or incomplete reports fail the advisory job;
-low scores and surviving mutants do not. This job is not a required merge check.
-Graduate to a required floor only after the score has held steady (see *The CI
-cadence*). It injects
-faults into the in-scope modules and checks the suite **kills** them. Read a
-**survivor as a weak or missing assertion** — a covered line whose value nothing
-pinned. But **distinguish equivalent mutants** (a redundant guard, log text, or
-registry data where the mutation can't change observable behavior) from a real
-gap; only the latter is worth a new assertion. Config + rationale live in
-`stryker.config.json`; it also runs out-of-band in CI (see *The CI cadence*
-below).
-
-### The decision rule: workerd-parity vs mutation-reach
-
-For each `src/**` module, ask: **does this code's behavior depend on the workerd
-runtime** (D1/KV/`cloudflare:workers` env, the CPU + PBKDF2 caps, `ON CONFLICT`)?
-
-- **No → pure (functional core).** Write plain-node-runnable tests so the module
-  is **mutation-reachable** and runs in the node project for coverage.
-- **Yes → glue (imperative shell).** Keep its tests in the workers pool for
-  parity; it's **out of mutation scope**.
-
-This is the functional-core / imperative-shell lever: split a module so the
-mutation-worthy logic is pure. The canonical examples are the **`auth.ts` ↔
-`auth-crypto.ts` split (#228)** — validators + the password-record envelope
-parser pure, the Web Crypto PBKDF2 shell glue — and the **ingest/digest core
-(#349)**: `src/ingest/schedule.ts` (poll-due decisions, conditional headers,
-the three feed-state patches), `src/ingest/merge.ts` (keep filter + the insert
-plan), `src/ingest/queries.ts` (the read-partition and source-filter SQL
-clauses), and `src/lib/digest.ts` (source-filter intersection, filter-bar
-ordering, tab totals, empty-state copy, returnTo assembly) — with `run.ts`,
-`db.ts`, and the `.astro` pages left as shells that gather inputs, call the
-core, and execute what it returns.
-
-### The core/shell seam — how to keep new decision logic pure
-
-- **New decision logic starts in a pure module; the shell executes it.** A
-  branch you're about to write in `run.ts`/`db.ts`/a page frontmatter is a
-  decision — put it in the matching core module (scheduling → `schedule.ts`,
-  what-gets-stored → `merge.ts`, query clauses → `queries.ts`, page assembly →
-  `digest.ts`, or a new pure module) as `(data in) → (plan/decision out)`, and
-  keep the shell's branching to outcome plumbing (status dispatch, error
-  isolation). Pure modules get plain-node example + property specs and enter
-  mutation scope; the shell stays workers-tested glue.
-- **SQL that IS the logic stays SQL.** Don't duplicate a query's `ORDER BY` or
-  `COUNT` into a redundant JS function just to have a "core" — the digest's
-  ordering/partition/counting live in `db.ts` queries, pinned against real D1
-  by `db.test.ts`. Extract only clause *construction* that genuinely branches
-  in JS (`queries.ts`).
-- **When SQL semantics need a pure meaning, write an executable spec + a parity
-  test.** `merge.ts#planItemInserts` is the pure meaning of `insertItems`' bare
-  `ON CONFLICT DO NOTHING` over the `(source, guid)` + `(source, url)` keys; it
-  is not called in production — instead the **parity block in `db.test.ts`**
-  drives both against the same scenarios and asserts real D1 agrees (count and
-  resulting key sets). That makes the core the specification, keeps the SQL the
-  implementation, and lets the algebra (idempotent re-ingest, per-source
-  commutativity) be property-tested at node speed. If the schema's dedupe
-  semantics ever change, the parity test is what goes red — update both sides
-  together.
-
-### Stryker lockstep + the M2 enforcement test
-
-Mutation scope = the **core** (`src/lib/**` + `src/ingest/**`) **minus two
-allowlists**: a **glue-allowlist** (workerd-bound modules) and a
-**core-without-isolated-test allowlist** (pure modules covered only via `.astro`
-render tests, so not yet mutation-reachable). Framework-fixed dirs
-(`pages`/`middleware`/`worker`/`components`/`scripts`) and `*.d.ts`/type-only
-modules are always out.
-
-`test/stryker-scope.test.ts` (the M2 guard, in `npm test`) keeps this
-self-maintaining: it marker-scans every source file and asserts the glue-allowlist
-**exactly equals** the detected glue set and every pure module is in `mutate` or
-the core-without-test allowlist. So scope **can't silently rot** — drift
-red-fails until you classify it:
-
-- **Adding a pure, plain-node-tested module** → add it to `mutate` in
-  `stryker.config.json` and map its source to its specs in `test/mutation-scope.ts`.
-  `vitest.stryker.config.ts` derives its include list from that mapping; the scope
-  guard checks the source list and that the mapped specs exist outside workerd.
-- **Adding a glue module** → add it to the M2 test's glue-allowlist with a reason.
-- **Adding a pure module not yet given a dedicated plain-node spec** → add it to
-  the core-without-test allowlist with a reason (and prefer giving it one).
-
-## The CI cadence: one fast gate, plus per-PR e2e, the rest out-of-band
-
-CI runs on tiers, and which tier a tool lands in is a deliberate choice:
-
-- **The per-commit gate stays fast + hermetic.** `npm test` (the two vitest
-  projects + property/in-suite-fuzz tests + the 100% coverage gate) is the
-  **fast PR-blocking check** (`ci.yml`'s `test` job). It must never hit the
-  network and must stay quick — nothing heavyweight blocks on it.
-- **Playwright e2e runs per PR as a real check, not advisory.** `e2e.yml`
-  (`name: E2E`) runs on every `pull_request` with **no `continue-on-error`**, so a
-  genuine failure blocks merge: `protect-main` requires both `test` and `e2e`.
-  Required statuses use the **job** names, not the workflow display name `E2E`
-  (that name is what the heavy-run detector keys off).
-- **Heavyweight tools also run out-of-band.** Mutation testing (`mutation.yml`,
-  `name: Mutation (advisory)`) and the e2e **scheduled/dispatch sweeps** run on
-  `schedule:` (nightly) + `workflow_dispatch:` — off the deploy path and reviewed
-  by the heavy-run detector. **Mutation stays advisory**: its per-PR run is
-  path-filtered and it only **reports** (a step summary, an uploaded artifact, a
-  tracking issue on regression). A broken runner/report fails visibly, but the
-  advisory check is not required for merge. The standing graduation path is
-  **advisory first → required check once the signal is stable**; only promote a
-  tool to a required check (e.g. a Stryker break threshold) after its score has
-  held steady.
-
-Mechanics worth keeping when you touch or add an out-of-band job:
-
-- **Change-gate the scheduled run** so a nightly sweep is skipped when nothing
-  relevant changed: resolve the last successful run's SHA and
-  `git diff --quiet <lastSHA> HEAD -- src test scripts/mutation-score.mjs '*.config.ts' stryker.config.json package.json package-lock.json .github/workflows/mutation.yml`
-  → skip. Per-PR runs get the same effect from a `paths:` filter over that set,
-  so doc/skill-only changes don't trigger the heavy tool. The path-set must
-  include **`package.json`** alongside `package-lock.json` — it defines the
-  `test:mutation` script and Stryker/Vitest invocation, so a script-only edit
-  changes the mutation result without touching the lockfile — and the **workflow
-  file itself** (`.github/workflows/mutation.yml`), so a scheduled-only fix to
-  the job is exercised by the next nightly. **Keep the `pull_request: paths:`
-  list and the in-job `git diff` pathspec identical** — they're two copies of
-  the same input set and must not drift.
-- **Emit a machine-readable artifact, not just logs.** Stryker's `json` reporter
-  writes `reports/mutation/mutation.json` (gitignored), uploaded as the run's
-  `mutation-report` artifact so review tooling can diff the score run-over-run.
-  Compute the score from that JSON, never by scraping log text.
-- **A job that opens a backlog issue applies the full label taxonomy** — a
-  *type* label plus area labels, exactly like a hand-filed issue (see
-  `filing-issues`). The mutation workflow's sub-baseline regression issue is a
-  `bug` (a score drop records a regression in test effectiveness) plus
-  `testing` + `agent-infra`; never ship a generated issue with area labels but
-  no type axis, or it won't match the backlog structure agents query.
-- **Keep each out-of-band tool in its own workflow file**, separate from
-  `ci.yml`'s deploy pipeline — they're logically distinct, a standalone file
-  keeps union-merges with concurrent `ci.yml` PRs clean, **and the heavy-run
-  review detector finds runs by workflow *name*** (`mutation|stryker|e2e|playwright|fuzz`,
-  defaulting to `schedule` events;
-  `.claude/skills/review-merged-prs/scripts/test-runs-needing-review.sh`). A
-  heavy job buried inside the generic `CI` workflow is invisible to that loop —
-  so the workflow `name:` must match that selector (e.g. `E2E` matches `e2e`,
-  `Mutation (advisory)` matches `mutation`) and have a `schedule:` trigger; a
-  completed run is then `--mark`-able with its per-kind reviewed marker. The
-  detector keys that marker off a *slug of the workflow name* in **local** state
-  (an `XDG_STATE_HOME` `--state-dir`, not in-repo), so **renaming a workflow
-  re-baselines its marker once** on the next completed run under the new name —
-  expected, not a bug.
-
-## Before you commit a test
-
-1. `npm test` green at **100%** (all four metrics) — must pass before any commit.
-2. Every test **asserts an exact, observable result** — no `toBeDefined`-only, no
-   snapshot-without-reading-a-field.
-3. **Boundaries covered**: empty, zero, the off-by-one, `null`, malformed input.
-4. New `src/**` file wired into the **right project** (workers vs node), and into
-   *both* config lists if it's a node-project file.
-5. **No network** — fixtures under `test/fixtures/` or an injected `fetchFn`.
-6. A new conditional didn't add an **uncovered "impossible" branch** (prefer a
-   type-level guarantee over an unreachable runtime guard).
-7. A new `src/lib/**` or `src/ingest/**` module is **classified for mutation
-   scope** (`test/stryker-scope.test.ts` enforces it): pure+tested → `mutate` +
-   `test/mutation-scope.ts` source-to-spec mapping; glue → glue-allowlist; pure-untested →
-   core-without-test allowlist.
-
-## Cross-references
-
-- Project `CLAUDE.md` "Testing policy" — the load-bearing summary + the pointer
-  here. This skill is the detail; keep them in sync, no duplication.
-- `design-system` skill "Coverage gotcha" — branch-free guidance for
-  presentational `.astro` code.
-- `dependencies` skill — adding a test-tooling dependency goes through its
-  propose→approve gate; don't add one unilaterally.
+The [central policy](../../../CLAUDE.md#tests-and-review) requires `npm test`
+before commits: 100% Istanbul statements, branches, functions and lines over
+`src/**`. Coverage proves execution, not correctness. Assert exact observable
+results and boundaries; preserve count, ordering and duplicate guarantees.
+Do not remove useful runtime guards to avoid covering a branch. TypeScript
+non-null assertions do not validate values at runtime.
+
+## Runtime placement
+
+- **workers:** real D1/KV, `cloudflare:workers`, `cloudflare:test`, workerd
+  crypto and orchestration. Add runtime-bound specs to the shared `WORKER_TESTS`
+  in `test/runtime.ts`; `vitest.workers.config.ts` includes that list.
+- **node:** pure parsers/core logic, `.astro` Container API renders and browser
+  DOM modules. `vitest.node.config.ts` discovers `test/**/*.test.ts` automatically
+  and excludes `WORKER_TESTS`. No second include list needs updating.
+- Both projects set `configFile: false`. The Node render config registers its
+  Astro/Tailwind plugins explicitly and aliases `cloudflare:workers` to the
+  test helper. Keep relevant changes in sync with the real Astro build.
+- Browser DOM specs use a first-line `// @vitest-environment happy-dom`.
+  Exercise delegated events and `astro:page-load` wiring where relevant;
+  exported initializers are valid focused test seams.
+
+Tests in `npm test` never call the network. Inject `fetchFn` and use captured,
+sanitized `test/fixtures/` payloads. Separate live endpoint probes from tests.
+Real D1 tests prove SQL ordering, constraints and conflict behavior; do not
+replace them with mocks or duplicate SQL algorithms only for coverage.
+
+## Choosing checks
+
+Use focused example tests for logic and regressions. New browser interactions
+need end-to-end coverage of the primary path and important integration edge
+(navigation, middleware, cookies, router swaps, forms or scrolling). Reuse an
+existing e2e case when it already proves a small change; copy-only and factual
+documentation edits do not need fabricated browser specs. For bug regressions,
+verify the case fails for the actual bug when practical, then passes with the
+fix. Keep broad input permutations in fast unit tests.
+
+Run `npm run test:e2e -- [spec/options]`, not bare `playwright test`. The launcher
+creates an owned loopback port and `.playwright/run-*` build/state root, then
+cleans it up. It leaves `.dev.vars`, development D1/KV, `dist` and other dev
+servers untouched. Import `test`/`expect` from `e2e/fixtures.ts`; its automatic
+fixture resets state before each case. Seed in `beforeEach`, not `beforeAll`.
+Tests are serial within one run; separate invocations have isolated resources.
+Use native pinned Chromium; container/cloud exceptions are in the environment
+skill. Do not claim browser validation when only markup was rendered.
+
+## Untrusted parser contract
+
+A parser either returns well-formed `ParsedItem[]` or throws its documented
+source-format guard, never a raw `TypeError`, `SyntaxError` or hang. Test real
+listing/feed shapes, malformed/truncated input, wrong top-level types, invalid
+links and missing fields. Keep scans bounded; do not evaluate embedded scripts.
+
+Independent `countRaw` plus `validateParse` makes silent shape drift visible.
+Responsive duplicates can remain until D1 dedupe, provided the raw/parsed
+counts have consistent meaning. Keep filters must not silently discard every
+new article after a required date/field changes. Check the actual published
+source in addition to a reduced fixture, and confirm its production poll.
+
+For property/fuzz tests, use deterministic seeds and meaningful invariants.
+Pair them with exact examples; pin shrunk failures as regressions. Draw from
+small key pools when deduplication needs collisions. Avoid properties that
+succeed regardless of whether the implementation is correct.
+
+## Mutation and CI
+
+Both `test` and `e2e` are required PR checks. Mutation is advisory; runner/report
+failures matter, while surviving mutants alone do not block merge. Scheduled
+heavy checks are separate from deployment and do not start agent watchers.
+
+When adding a pure `src/lib/**` or `src/ingest/**` module, update `mutate` in
+`stryker.config.json` and its source-to-spec mapping in `test/mutation-scope.ts`.
+`vitest.stryker.config.ts` derives the test list; `test/stryker-scope.test.ts`
+checks classification. Runtime glue stays in the documented glue allowlist;
+prefer a dedicated pure test to expanding the untested-core exception list.
+
+Read [mutation and CI details](references/mutation-and-ci.md) when changing
+those configs or auditing a heavy run. Follow
+[Authorization](../../../CLAUDE.md#authorization) for any proposed change to
+standing checks or new dependency/trust choices.
