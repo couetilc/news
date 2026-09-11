@@ -29,6 +29,9 @@ test('filters to Meta AI and links to the official model announcement', async ({
 	await page.getByRole('button', { name: 'Create account' }).click();
 	await page.waitForURL('**/');
 	await page.screenshot({ path: testInfo.outputPath('meta-ai-source.png'), fullPage: true });
+	const other = page.locator('[data-feed-list] li[data-feed-row]').filter({ hasText: 'Other source fixture' });
+	await other.getByRole('button', { name: 'Mark as read', exact: true }).click();
+	await expect(other).toHaveCount(0);
 
 	const filter = page.getByRole('navigation', { name: 'Filter by source' });
 	await filter.getByRole('link', { name: 'Meta AI', exact: true }).click();
@@ -36,7 +39,10 @@ test('filters to Meta AI and links to the official model announcement', async ({
 	await expect(filter.getByRole('link', { name: 'Meta AI', exact: true })).toHaveAttribute(
 		'aria-current', 'true',
 	);
-	const rows = page.locator('li[data-feed-row]');
+	// Recently viewed deliberately ignores the source filter. Scope assertions
+	// to the main feed, even when a prior test or this reader has read history.
+	await expect(page.getByRole('region', { name: 'Recently viewed' })).toContainText('Other source fixture');
+	const rows = page.locator('[data-feed-list] li[data-feed-row]');
 	await expect(rows).toHaveCount(1);
 	await expect(rows.getByRole('link', { name: TITLE, exact: true })).toHaveAttribute('href', URL);
 	await expect(rows).toContainText('Meta AI');
