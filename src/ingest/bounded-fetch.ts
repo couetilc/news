@@ -30,7 +30,7 @@ export async function fetchFeed(
 		if (body)
 			void body.cancel().catch(() => { });
 	};
-	async function read(response: Response): Promise<Uint8Array> {
+	async function read(response: Response): Promise<Uint8Array<ArrayBuffer>> {
 		if (!response.body)
 			return new Uint8Array();
 		const reader = response.body.getReader();

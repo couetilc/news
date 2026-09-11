@@ -10,7 +10,7 @@
 // intercepts the toggle, fetches the POST, and updates the row in place WITHOUT a
 // navigation, so the reader's scroll is preserved and this 303 target is never
 // followed by the browser. So the return-path contract below governs only the
-// no-JS reload — where dropping ?offset is exactly right (see ALLOWED_PARAMS).
+// no-JS reload — where dropping ?cursor is exactly right (see ALLOWED_PARAMS).
 //
 // The contract: the only safe target is a same-origin, app-relative path. We
 // reject anything that could escape the origin — protocol-relative `//host`,
@@ -21,15 +21,15 @@
 // The homepage's query vocabulary: the source filter (#41, repeatable) and the
 // active feed tab (#151, unread|read). Any other param is dropped on the way
 // back so the return target can't be used to smuggle arbitrary state. The
-// infinite-scroll ?offset cursor is deliberately NOT carried — on the no-JS
+// infinite-scroll ?cursor cursor is deliberately NOT carried — on the no-JS
 // reload this governs, a toggle returns to the top of the active tab (its first
-// 50, re-rendered fresh), which the scroll restarts from; smuggling a deep offset
+// 50, re-rendered fresh), which the scroll restarts from; smuggling a deep cursor
 // back would render a partial view starting mid-list. (With JS on, scroll is
 // preserved a different way — the in-place update in enhance-forms.ts, #223 —
-// which never follows this redirect, so the offset question doesn't arise there.)
+// which never follows this redirect, so the cursor question doesn't arise there.)
 const ALLOWED_PARAMS = new Set(['source', 'tab']);
 
-export function safeReturnPath(raw: FormDataEntryValue | string | null): string {
+export function safeReturnPath(raw: ReturnType<FormData['get']>): string {
 	// Missing, a File upload, or empty/whitespace -> home.
 	if (typeof raw !== 'string') return '/';
 	const value = raw.trim();

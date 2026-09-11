@@ -1,6 +1,6 @@
 // Infinite-scroll loader for the authenticated feed (#151). The homepage renders
 // the first 50 items of the active tab server-side inside <ol data-feed-list>,
-// ending in a sentinel <li data-feed-sentinel data-next-url="/feed?…&offset=50">.
+// ending in a sentinel <li data-feed-sentinel data-next-url="/feed?…&cursor=…">.
 // This script watches that sentinel with an IntersectionObserver; when it scrolls
 // into view it fetches the next 50-item HTML fragment from /feed, inserts the new
 // rows before the sentinel, and replaces the sentinel with the fresh one the
@@ -23,7 +23,7 @@
 // double-observes a surviving one.
 //
 // Pure DOM logic (no Astro/runtime imports), so it's unit-tested in the node
-// project under a per-file happy-dom environment (test/infinite-scroll.test.ts)
+// project under a per-file happy-dom environment (test/browser/infinite-scroll.test.ts)
 // inside the 100% src/** gate, and covered as a real-browser behavioral guard by
 // the Playwright e2e (e2e/infinite-scroll.spec.ts).
 
@@ -61,33 +61,18 @@ function parseFragment(html: string): Node[] {
 // full-page navigation — handing the reader the real login flow rather than a
 // corrupted feed.
 //
-// In-flight cursor race (#260): the read/unread toggle's in-place removal
-// decrements THIS sentinel's data-next-url offset (enhance-forms.ts
-// decrementSentinelOffset, #249) so a row that slides into the next page's first
-// position isn't skipped. But a decrement can land while a page fetch is already
-// in flight, captured against the OLD offset (e.g. offset=50). Appending that
-// stale page starts one row too late and skips the row that slid into offset=49.
-// So after each fetch resolves, re-read the sentinel's CURRENT data-next-url: if a
-// toggle moved it (removal or Recently viewed insertion), the fetched page is
-// stale — discard it and re-fetch from the adjusted cursor (loop). Each completed toggle settles the cursor at its new value,
-// so the loop terminates once a fetch resolves against an unchanged data-next-url.
-// The loading guard stays held across every re-fetch so a second intersection
-// can't start a parallel load.
+// A local read mutation invalidates a fragment fetched before it completed.
+// Keep the stable cursor, but refetch using the new list revision. Navigation
+// also detaches the old sentinel; it must not change the replacement list.
 async function loadNext(sentinel: HTMLElement, observer: IntersectionObserver): Promise<void> {
 	// A sentinel with no next-url is the end of the list — nothing to load.
 	if (sentinel.dataset.nextUrl === undefined || loading.has(sentinel)) return;
 	loading.add(sentinel);
 
 	try {
-		// Re-fetch until the page we resolved still matches the sentinel's cursor: a
-		// read toggle decrementing data-next-url mid-flight (#260) invalidates the
-		// in-flight page, so fetch again from the adjusted offset rather than
-		// appending a stale page that starts one row too late. The cursor is defined
-		// here (guarded on entry) and the toggle only ever rewrites it, never deletes
-		// it, so the non-null assertion documents that invariant without an
-		// unreachable undefined-branch the 100% gate would flag.
 		for (;;) {
 			const url: string = sentinel.dataset.nextUrl!;
+			const revision = sentinel.parentElement?.dataset.feedRevision;
 			const res = await fetch(url);
 			if (!res.ok) throw new Error(`feed page ${res.status}`);
 			// An auth-redirect (session lapsed → 303 to /login, followed by fetch) lands
@@ -99,23 +84,26 @@ async function loadNext(sentinel: HTMLElement, observer: IntersectionObserver): 
 				return;
 			}
 			const html = await res.text();
-			// A read toggle decremented the cursor while this page was in flight (#260):
-			// the page we hold is stale (starts one row too late). Discard it and loop to
-			// re-fetch from the now-current offset. A Recently viewed insertion can also
-			// increment it; either way, append only once the cursor is unchanged.
-			if (sentinel.dataset.nextUrl !== url) continue;
+			if (sentinel.dataset.nextUrl !== url || sentinel.parentElement?.dataset.feedRevision !== revision) continue;
 			const nodes = parseFragment(html);
 			const parent = sentinel.parentNode;
 			// The list is always still mounted here (the same <ol> the sentinel lives
 			// in), but guard the parent for the type and so a mid-navigation swap can't
 			// throw.
 			if (parent) {
-				for (const node of nodes) parent.insertBefore(node, sentinel);
+				const ids = new Set(Array.from(parent.querySelectorAll<HTMLElement>('[data-feed-row]'), row => row.dataset.itemId));
+				for (const node of nodes) {
+					if (node instanceof HTMLElement && node.matches('[data-feed-row]') && node.dataset.itemId !== undefined) {
+						if (ids.has(node.dataset.itemId)) continue;
+						ids.add(node.dataset.itemId);
+					}
+					parent.insertBefore(node, sentinel);
+				}
 				observer.unobserve(sentinel);
 				sentinel.remove();
 				// Observe the fresh sentinel the fragment brought (if any); none means
 				// the list is exhausted, so scrolling further fires no fetch.
-				observeSentinels(parent as Element, observer);
+				observeSentinels(parent, observer);
 			}
 			return;
 		}
@@ -129,7 +117,7 @@ async function loadNext(sentinel: HTMLElement, observer: IntersectionObserver): 
 
 // Observe every not-yet-observed sentinel inside `root`. Called on init and after
 // each append, so a freshly-inserted sentinel starts being watched.
-function observeSentinels(root: ParentNode, observer: IntersectionObserver): void {
+function observeSentinels(root: Pick<ParentNode, 'querySelectorAll'>, observer: IntersectionObserver): void {
 	const sentinels = root.querySelectorAll<HTMLElement>('[data-feed-sentinel][data-next-url]');
 	for (const sentinel of sentinels) {
 		if (!observed.has(sentinel)) {
@@ -143,7 +131,7 @@ function observeSentinels(root: ParentNode, observer: IntersectionObserver): voi
 // current document. No-op when there's no feed list on the page (the anonymous
 // public feed, /login, etc.), so it's safe to run on every navigation.
 export function initInfiniteScroll(): void {
-	const list = document.querySelector('[data-feed-list]');
+	const list = document.querySelector<HTMLOListElement>('[data-feed-list]');
 	if (!list) return;
 
 	const observer = new IntersectionObserver((entries) => {

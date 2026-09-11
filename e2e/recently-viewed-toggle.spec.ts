@@ -41,7 +41,7 @@ test('matching lane item reappears in order, keeps pagination contiguous, and ca
 	await expect(rows.nth(3)).toContainText('Story 03');
 	await expect(rows.nth(3)).toHaveCSS('opacity', '1');
 	await expect(page.locator('[data-tab-count="unread"]')).toHaveText('55');
-	await expect(page.locator('[data-feed-sentinel]')).toHaveAttribute('data-next-url', '/feed?tab=unread&source=openai&offset=51');
+	await expect(page.locator('[data-feed-sentinel]')).toHaveAttribute('data-next-url', '/feed?tab=unread&source=openai&cursor=%5B950%2C51%5D');
 	await page.locator('[data-feed-sentinel]').scrollIntoViewIfNeeded();
 	await expect(rows).toHaveCount(55);
 	await expect(page.locator('[data-feed-sentinel]')).toHaveCount(0);

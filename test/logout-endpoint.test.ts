@@ -12,24 +12,24 @@ import {
 // `redirect`. No D1 or crypto, but it lives in the workers project alongside the
 // other endpoint tests.
 describe('POST /logout', () => {
-	it('destroys the session and 303-redirects to /login', () => {
+	it('destroys the session and 303-redirects to /login', async () => {
 		const destroy = vi.fn();
 		const redirect = vi.fn(
 			(path: string, status: number) =>
 				new Response(null, { status, headers: { Location: path } }),
 		);
-		const res = POST({ session: { destroy }, redirect } as never);
+		const res = await POST({ session: { destroy }, redirect } as never);
 		expect(destroy).toHaveBeenCalledOnce();
 		expect(res.status).toBe(303);
 		expect(res.headers.get('Location')).toBe('/login');
 	});
 
-	it('still redirects when there is no session to destroy', () => {
+	it('still redirects when there is no session to destroy', async () => {
 		const redirect = vi.fn(
 			(path: string, status: number) =>
 				new Response(null, { status, headers: { Location: path } }),
 		);
-		const res = POST({ session: undefined, redirect } as never);
+		const res = await POST({ session: undefined, redirect } as never);
 		expect(res.headers.get('Location')).toBe('/login');
 	});
 });

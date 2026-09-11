@@ -1,11 +1,33 @@
 {
   "extends": "astro/tsconfigs/strict",
+  "compilerOptions": {
+    "lib": [
+      "ESNext",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "types": [
+      "node",
+      "astro/client",
+      "@cloudflare/vitest-pool-workers/types"
+    ]
+  },
   "include": [
     ".astro/types.d.ts",
-    "**/*",
-    "./worker-configuration.d.ts"
+    "worker-configuration.d.ts",
+    "src/**/*",
+    "test/**/*.ts",
+    "e2e/**/*.ts",
+    "*.config.ts",
+    "*.config.mjs"
   ],
   "exclude": [
-    "dist"
+    "node_modules",
+    "dist",
+    "coverage",
+    "reports",
+    ".playwright",
+    ".stryker-tmp",
+    "test/browser"
   ]
 }

@@ -1,6 +1,8 @@
 import { env } from 'cloudflare:test';
-import { beforeEach, expect, it } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { claimSessionRefresh } from '../src/lib/session-refresh-db';
+
+afterEach(() => vi.restoreAllMocks());
 
 beforeEach(async () => {
 	await env.NEWS_DB.prepare('DELETE FROM session_refresh_claims').run();
@@ -23,6 +25,6 @@ it('bounds retained claims and propagates database failures', async () => {
 	await claimSessionRefresh(env.NEWS_DB, 'recent', 10000);
 	await claimSessionRefresh(env.NEWS_DB, 'active', 86402);
 	expect((await env.NEWS_DB.prepare('SELECT claimed_at FROM session_refresh_claims ORDER BY claimed_at').all()).results).toEqual([{ claimed_at: 10000 }, { claimed_at: 86402 }]);
-	const unavailable = { batch: async () => { throw new Error('D1 unavailable'); }, prepare: env.NEWS_DB.prepare.bind(env.NEWS_DB) } as D1Database;
-	await expect(claimSessionRefresh(unavailable, 'active', 86500)).rejects.toThrow('D1 unavailable');
+	vi.spyOn(env.NEWS_DB, 'batch').mockRejectedValueOnce(new Error('D1 unavailable'));
+	await expect(claimSessionRefresh(env.NEWS_DB, 'active', 86500)).rejects.toThrow('D1 unavailable');
 });

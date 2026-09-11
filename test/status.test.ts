@@ -1,3 +1,4 @@
+import { testLocals } from './helpers/locals';
 import { experimental_AstroContainer as AstroContainer } from 'astro/container';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Status from '../src/pages/status.astro';
@@ -7,7 +8,7 @@ import { SOURCES } from '../src/ingest/sources';
 vi.mock('../src/ingest/health-db', () => ({ getHealthRows: vi.fn(), getRecentRuns: vi.fn() }));
 const render = async (owner = false) => {
 	const container = await AstroContainer.create();
-	return container.renderToResponse(Status, { locals: owner ? { userId: 1 } : {} });
+	return container.renderToResponse(Status, { locals: testLocals(owner ? { userId: 1 } : {}) });
 };
 beforeEach(() => { vi.mocked(getHealthRows).mockResolvedValue([]); vi.mocked(getRecentRuns).mockResolvedValue([]); });
 afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); });

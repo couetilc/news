@@ -77,6 +77,7 @@ Optional container/cloud setup and credential checks live in the
 ## Commands
 
 - `npm run dev` — Astro/workerd development server.
+- `npm run typecheck` — Astro templates plus Worker/browser TypeScript checks.
 - `npm test` — both Vitest projects and the 100% Istanbul coverage gate.
 - `npm run test:e2e -- [spec/options]` — isolated Chromium tests through
   `e2e/run.mjs`; use this launcher, not direct `playwright test`.

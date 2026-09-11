@@ -1,3 +1,4 @@
+import { itemCursor } from '../src/lib/pagination';
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
@@ -328,16 +329,16 @@ describe('listItemsByRead', () => {
 		}
 	}
 
-	it('reads only the unread section, newest-first, with LIMIT/OFFSET', async () => {
+	it('reads only the unread section, newest-first, with a stable timestamp/id boundary', async () => {
 		await seed(5);
-		const page1 = await listItemsByRead(db, { userId: USER, read: false, limit: 2, offset: 0 });
+		const page1 = await listItemsByRead(db, { userId: USER, read: false, limit: 2 });
 		expect(page1.map((r) => r.guid)).toEqual(['g0', 'g1']);
 		expect(page1.every((r) => r.read_at === null)).toBe(true);
 
-		const page2 = await listItemsByRead(db, { userId: USER, read: false, limit: 2, offset: 2 });
+		const page2 = await listItemsByRead(db, { userId: USER, read: false, limit: 2, cursor: itemCursor(page1[1]) });
 		expect(page2.map((r) => r.guid)).toEqual(['g2', 'g3']);
 
-		const page3 = await listItemsByRead(db, { userId: USER, read: false, limit: 2, offset: 4 });
+		const page3 = await listItemsByRead(db, { userId: USER, read: false, limit: 2, cursor: itemCursor(page2[1]) });
 		expect(page3.map((r) => r.guid)).toEqual(['g4']);
 	});
 
@@ -348,10 +349,10 @@ describe('listItemsByRead', () => {
 		for (const r of all) {
 			if (r.guid === 'g0' || r.guid === 'g2') await setItemRead(db, USER, r.id, 5000);
 		}
-		const unread = await listItemsByRead(db, { userId: USER, read: false, limit: 10, offset: 0 });
+		const unread = await listItemsByRead(db, { userId: USER, read: false, limit: 10 });
 		expect(unread.map((r) => r.guid)).toEqual(['g1', 'g3']);
 
-		const read = await listItemsByRead(db, { userId: USER, read: true, limit: 10, offset: 0 });
+		const read = await listItemsByRead(db, { userId: USER, read: true, limit: 10 });
 		expect(read.map((r) => r.guid)).toEqual(['g0', 'g2']);
 		expect(read.every((r) => r.read_at === 5000)).toBe(true);
 	});
@@ -359,7 +360,7 @@ describe('listItemsByRead', () => {
 	it('breaks ties on equal timestamps by newest id first', async () => {
 		await insertItems(db, 's', [item({ guid: 'first', publishedAt: 1000 })], 100);
 		await insertItems(db, 's', [item({ guid: 'second', publishedAt: 1000 })], 100);
-		const rows = await listItemsByRead(db, { userId: USER, read: false, limit: 10, offset: 0 });
+		const rows = await listItemsByRead(db, { userId: USER, read: false, limit: 10 });
 		expect(rows.map((r) => r.guid)).toEqual(['second', 'first']);
 	});
 
@@ -372,7 +373,6 @@ describe('listItemsByRead', () => {
 			userId: USER,
 			read: false,
 			limit: 10,
-			offset: 0,
 			sources: ['a'],
 		});
 		expect(rows.map((r) => r.guid)).toEqual(['a1', 'a2']);
@@ -381,14 +381,14 @@ describe('listItemsByRead', () => {
 	it('defaults to no source filter when sources is omitted', async () => {
 		await insertItems(db, 'a', [item({ guid: 'a1' })], 100);
 		await insertItems(db, 'b', [item({ guid: 'b1' })], 100);
-		const rows = await listItemsByRead(db, { userId: USER, read: false, limit: 10, offset: 0 });
+		const rows = await listItemsByRead(db, { userId: USER, read: false, limit: 10 });
 		expect(rows.map((r) => r.guid).sort()).toEqual(['a1', 'b1']);
 	});
 
 	it('returns an empty window past the last page', async () => {
 		await seed(3);
 		expect(
-			await listItemsByRead(db, { userId: USER, read: false, limit: 50, offset: 50 }),
+			await listItemsByRead(db, { userId: USER, read: false, limit: 50, cursor: { time: 0, id: 1 } }),
 		).toEqual([]);
 	});
 });
@@ -500,7 +500,7 @@ describe('setItemRead', () => {
 	// read_at on an ItemRow is now per-user, so read it back through the per-user
 	// section query (item_reads join) rather than the global items column.
 	const readAtFor = async (userId: number, id: number): Promise<number | null> => {
-		const [hit] = await listItemsByRead(db, { userId, read: true, limit: 10, offset: 0 });
+		const [hit] = await listItemsByRead(db, { userId, read: true, limit: 10 });
 		return hit?.id === id ? hit.read_at : null;
 	};
 
@@ -508,7 +508,7 @@ describe('setItemRead', () => {
 		await insertItems(db, 's', [item({ guid: 'g1' })], 100);
 		const [before] = await listItems(db, 1);
 		// Nothing read yet: the read section is empty for USER.
-		expect(await listItemsByRead(db, { userId: USER, read: true, limit: 10, offset: 0 })).toEqual(
+		expect(await listItemsByRead(db, { userId: USER, read: true, limit: 10 })).toEqual(
 			[],
 		);
 
@@ -518,7 +518,7 @@ describe('setItemRead', () => {
 		await setItemRead(db, USER, before.id, null);
 		expect(await readAtFor(USER, before.id)).toBeNull();
 		// Clearing removed the join row, so the unread section sees it again.
-		const unread = await listItemsByRead(db, { userId: USER, read: false, limit: 10, offset: 0 });
+		const unread = await listItemsByRead(db, { userId: USER, read: false, limit: 10 });
 		expect(unread.map((r) => r.id)).toEqual([before.id]);
 	});
 
@@ -529,7 +529,7 @@ describe('setItemRead', () => {
 		await setItemRead(db, USER, id, 1000);
 		await setItemRead(db, USER, id, 2000);
 		// One row in the read section, carrying the latest timestamp (ON CONFLICT).
-		const read = await listItemsByRead(db, { userId: USER, read: true, limit: 10, offset: 0 });
+		const read = await listItemsByRead(db, { userId: USER, read: true, limit: 10 });
 		expect(read.map((r) => r.read_at)).toEqual([2000]);
 	});
 
@@ -562,9 +562,9 @@ describe('setItemRead', () => {
 			.run();
 
 		// The freshly created item reads as unread for USER — no leftover row.
-		const read = await listItemsByRead(db, { userId: USER, read: true, limit: 10, offset: 0 });
+		const read = await listItemsByRead(db, { userId: USER, read: true, limit: 10 });
 		expect(read.map((r) => r.id)).not.toContain(futureId);
-		const unread = await listItemsByRead(db, { userId: USER, read: false, limit: 50, offset: 0 });
+		const unread = await listItemsByRead(db, { userId: USER, read: false, limit: 50 });
 		expect(unread.map((r) => r.id)).toContain(futureId);
 	});
 });
@@ -588,16 +588,16 @@ describe('per-user read state isolation (#70)', () => {
 		await setItemRead(db, USER_B, ids.g2, 7000);
 
 		// A: g0 read; g1, g2 still unread.
-		const aUnread = await listItemsByRead(db, { userId: USER_A, read: false, limit: 10, offset: 0 });
-		const aRead = await listItemsByRead(db, { userId: USER_A, read: true, limit: 10, offset: 0 });
+		const aUnread = await listItemsByRead(db, { userId: USER_A, read: false, limit: 10 });
+		const aRead = await listItemsByRead(db, { userId: USER_A, read: true, limit: 10 });
 		expect(aUnread.map((r) => r.guid)).toEqual(['g1', 'g2']);
 		expect(aRead.map((r) => r.guid)).toEqual(['g0']);
 		expect(await countItemsByRead(db, { userId: USER_A, read: false })).toBe(2);
 		expect(await countItemsByRead(db, { userId: USER_A, read: true })).toBe(1);
 
 		// B: the mirror image — g1, g2 read; g0 still unread.
-		const bUnread = await listItemsByRead(db, { userId: USER_B, read: false, limit: 10, offset: 0 });
-		const bRead = await listItemsByRead(db, { userId: USER_B, read: true, limit: 10, offset: 0 });
+		const bUnread = await listItemsByRead(db, { userId: USER_B, read: false, limit: 10 });
+		const bRead = await listItemsByRead(db, { userId: USER_B, read: true, limit: 10 });
 		expect(bUnread.map((r) => r.guid)).toEqual(['g0']);
 		expect(bRead.map((r) => r.guid)).toEqual(['g1', 'g2']);
 		expect(await countItemsByRead(db, { userId: USER_B, read: false })).toBe(1);
@@ -616,8 +616,36 @@ describe('per-user read state isolation (#70)', () => {
 		// A sees it unread again; B's read state is untouched.
 		expect(await countItemsByRead(db, { userId: USER_A, read: true })).toBe(0);
 		expect(await countItemsByRead(db, { userId: USER_A, read: false })).toBe(1);
-		const bRead = await listItemsByRead(db, { userId: USER_B, read: true, limit: 10, offset: 0 });
+		const bRead = await listItemsByRead(db, { userId: USER_B, read: true, limit: 10 });
 		expect(bRead.map((r) => r.id)).toEqual([id]);
 		expect(bRead[0].read_at).toBe(5000);
+	});
+});
+
+describe('stable feed boundaries under changes between requests', () => {
+	it.each(['insert', 'read'])('does not skip or repeat unseen rows after a concurrent %s', async change => {
+		await insertItems(db, 's', Array.from({ length: 101 }, (_, i) => item({ guid: `page-${i}`, publishedAt: 1000 - i })), 10);
+		const first = await listItemsByRead(db, { userId: USER, read: false, limit: 50 });
+		expect(first.map(row => row.guid)).toEqual(Array.from({ length: 50 }, (_, i) => `page-${i}`));
+		if (change === 'insert') await insertItems(db, 's', [item({ guid: 'new-arrival', publishedAt: 2000 })], 20);
+		else await setItemRead(db, USER, first[0].id, 3000);
+		const second = await listItemsByRead(db, { userId: USER, read: false, limit: 50, cursor: itemCursor(first[49]) });
+		expect(second.map(row => row.guid)).toEqual(Array.from({ length: 50 }, (_, i) => `page-${50 + i}`));
+		const last = await listItemsByRead(db, { userId: USER, read: false, limit: 50, cursor: itemCursor(second[49]) });
+		expect(last.map(row => row.guid)).toEqual(['page-100']);
+		expect(await listItemsByRead(db, { userId: USER, read: false, limit: 50, cursor: itemCursor(last[0]) })).toEqual([]);
+	});
+	it('preserves timestamp ties, fractional dates, undated rows, user read state and multiple source filters across pages', async () => {
+		for (const source of ['a', 'b', 'excluded']) {
+			await insertItems(db, source, [item({ guid: `${source}-dated`, publishedAt: 1000.125 }), item({ guid: `${source}-undated`, publishedAt: null })], 1000.125);
+		}
+		const all = await listItemsByRead(db, { userId: USER, read: false, limit: 20, sources: ['a', 'b'] });
+		expect(all.map(row => row.guid)).toEqual(['b-undated', 'b-dated', 'a-undated', 'a-dated']);
+		for (const row of all) await setItemRead(db, USER, row.id, 2000);
+		const first = await listItemsByRead(db, { userId: USER, read: true, limit: 2, sources: ['a', 'b'] });
+		const second = await listItemsByRead(db, { userId: USER, read: true, limit: 2, sources: ['a', 'b'], cursor: itemCursor(first[1]) });
+		expect([...first, ...second].map(row => row.guid)).toEqual(all.map(row => row.guid));
+		expect(second.map(row => row.read_at)).toEqual([2000, 2000]);
+		expect(await listItemsByRead(db, { userId: USER, read: false, limit: 2, sources: ['a', 'b'], cursor: itemCursor(first[1]) })).toEqual([]);
 	});
 });

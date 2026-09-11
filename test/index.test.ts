@@ -1,3 +1,4 @@
+import { testLocals } from './helpers/locals';
 import { experimental_AstroContainer as AstroContainer } from 'astro/container';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -65,7 +66,7 @@ const render = async (url = 'https://news.test/', userId: number = USER) => {
 	const container = await AstroContainer.create();
 	return container.renderToString(Index, {
 		request: new Request(url),
-		locals: { userId },
+		locals: testLocals({ userId }),
 	});
 };
 
@@ -145,7 +146,7 @@ describe('index page', () => {
 			// The active-tab list query asked for the unread section at offset 0.
 			const listCall = vi.mocked(listItemsByRead).mock.calls.at(-1);
 			expect(listCall?.[1].read).toBe(false);
-			expect(listCall?.[1].offset).toBe(0);
+			expect(listCall?.[1].cursor).toBeUndefined();
 		});
 
 		it('shows the Read tab when ?tab=read and queries the read section', async () => {
@@ -240,7 +241,7 @@ describe('index page', () => {
 
 		it('renders the sentinel with the next-page /feed URL when more remain', async () => {
 			vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog']);
-			feed({ unread: many(50, false), unreadTotal: 120 });
+			feed({ unread: many(51, false), unreadTotal: 120 });
 			const html = await render();
 			// The list is the infinite-scroll hook the client appends into.
 			expect(html).toContain('data-feed-list');
@@ -250,15 +251,15 @@ describe('index page', () => {
 			expect(html).toContain('data-empty-message="All caught up — nothing unread."');
 			// The sentinel carries the next window's URL: the active tab + offset 50.
 			expect(html).toContain('data-feed-sentinel');
-			expect(html).toContain('data-next-url="/feed?tab=unread&amp;offset=50"');
+			expect(html).toContain('data-next-url="/feed?tab=unread&amp;cursor=%5B1000%2C50%5D"');
 		});
 
 		it('the read tab sentinel points at the read tab next page, carrying ?source', async () => {
 			vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog', 'ieee-spectrum']);
-			feed({ read: many(50, true), readTotal: 120 });
+			feed({ read: many(51, true), readTotal: 120 });
 			const html = await render('https://news.test/?tab=read&source=ieee-spectrum');
 			expect(html).toContain(
-				'data-next-url="/feed?tab=read&amp;source=ieee-spectrum&amp;offset=50"',
+				'data-next-url="/feed?tab=read&amp;source=ieee-spectrum&amp;cursor=%5B1000%2C50%5D"',
 			);
 		});
 	});
@@ -269,7 +270,7 @@ describe('index page', () => {
 		// and never the per-user queries. Unchanged by the tabs work (#151).
 		const renderAnon = async (url = 'https://news.test/') => {
 			const container = await AstroContainer.create();
-			return container.renderToString(Index, { request: new Request(url), locals: {} });
+			return container.renderToString(Index, { request: new Request(url), locals: testLocals() });
 		};
 
 		it('renders the public read-only feed via listItems, with a Log in link and no write form', async () => {
@@ -424,7 +425,7 @@ describe('index page', () => {
 			const container = await AstroContainer.create();
 			const html = await container.renderToString(Index, {
 				request: new Request('https://news.test/'),
-				locals: {},
+				locals: testLocals(),
 			});
 			// Visible to anonymous visitors (no FilterBar in this branch, but the strip
 			// still shows above the public feed).

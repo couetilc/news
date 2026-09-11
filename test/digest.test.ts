@@ -4,7 +4,6 @@ import {
 	emptyMessage,
 	feedReturnTo,
 	orderSourcesByName,
-	pickSectionTotal,
 	showRecentlyViewed,
 } from '../src/lib/digest';
 
@@ -43,13 +42,6 @@ describe('orderSourcesByName', () => {
 		const slugs = ['ti', 'aws'];
 		orderSourcesByName(slugs);
 		expect(slugs).toEqual(['ti', 'aws']);
-	});
-});
-
-describe('pickSectionTotal', () => {
-	it('the Read tab scrolls against the read total, Unread against unread', () => {
-		expect(pickSectionTotal('read', 7, 3)).toBe(3);
-		expect(pickSectionTotal('unread', 7, 3)).toBe(7);
 	});
 });
 

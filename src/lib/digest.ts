@@ -25,11 +25,6 @@ export function orderSourcesByName(slugs: readonly string[]): string[] {
 	return [...slugs].sort((a, b) => sourceMeta(a).name.localeCompare(sourceMeta(b).name));
 }
 
-// Which section total bounds the active tab's infinite scroll (#151).
-export function pickSectionTotal(tab: Tab, unreadTotal: number, readTotal: number): number {
-	return isReadTab(tab) ? readTotal : unreadTotal;
-}
-
 // The Recently-viewed lane (#334) renders only for a logged-in reader on the
 // Unread tab — on the Read tab every lane row would duplicate the history right
 // below it, and an anonymous visitor has no read state at all.
@@ -52,7 +47,7 @@ export function emptyMessage(tab: Tab, filtered: boolean): string {
 }
 
 // Where a read/unread toggle in a /feed fragment row returns to: the top of the
-// active tab + source filter (the offset is deliberately dropped — see
+// active tab + source filter (the cursor is deliberately dropped — see
 // safeReturnPath), so the reader lands back on the same view, not the
 // unfiltered home (#80).
 export function feedReturnTo(tab: Tab, sources: readonly string[]): string {

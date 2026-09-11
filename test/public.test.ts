@@ -8,12 +8,12 @@ import { GET } from '../src/pages/public';
 // Driven the way /logout's test drives it: call the exported handler with a stub
 // `redirect`, no server boot.
 describe('GET /public legacy route (#87)', () => {
-	it('permanently redirects to the session-adaptive homepage', () => {
+	it('permanently redirects to the session-adaptive homepage', async () => {
 		const redirect = vi.fn(
 			(path: string, status: number) =>
 				new Response(null, { status, headers: { Location: path } }),
 		);
-		const res = GET({ redirect } as never);
+		const res = await GET({ redirect } as never);
 		expect(redirect).toHaveBeenCalledWith('/', 301);
 		expect(res.status).toBe(301);
 		expect(res.headers.get('Location')).toBe('/');

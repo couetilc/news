@@ -365,3 +365,7 @@ describe('parseRss20 — decodes HTML entities in title/summary (#224)', () => {
 		expect(items[3].title).toBe('Tom & Jerry, a named reference');
 	});
 });
+
+it('skips empty and text-only entries without losing valid siblings', () => {
+	expect(parseRss20('<rss><channel><item/><item>text</item><item><guid>good</guid><title>Good</title></item></channel></rss>', { content: 'description' }).map(item => item.guid)).toEqual(['good']);
+});

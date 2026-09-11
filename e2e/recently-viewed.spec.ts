@@ -14,7 +14,7 @@ import { d1Query } from './d1';
 // This covers what the hermetic pools can't: the real click → sendBeacon-during-
 // navigation → D1 write → server re-render round-trip in a real browser. The
 // query ordering/cap and the script's transport fallbacks are unit-tested
-// (test/db.test.ts, test/opened.test.ts); this stays one focused primary path.
+// (test/db.test.ts, test/browser/opened.test.ts); this stays one focused primary path.
 //
 // The seeded article URLs point at the local /status page (public, always up),
 // so the click's navigation never leaves the box.

@@ -10,3 +10,5 @@ function syncSourceDisclosure(): void {
 wide.addEventListener('change', syncSourceDisclosure);
 document.addEventListener('DOMContentLoaded', syncSourceDisclosure);
 document.addEventListener('astro:page-load', syncSourceDisclosure);
+
+export {};

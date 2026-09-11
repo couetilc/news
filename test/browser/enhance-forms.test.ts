@@ -17,7 +17,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 // updates the row in place so scroll is preserved (#223). So `globalThis.fetch`
 // is stubbed (these tests are hermetic — no network), and the read cases assert
 // the in-place DOM mutation, not just the busy feedback.
-import '../src/scripts/enhance-forms';
+import '../../src/scripts/enhance-forms';
 
 // A controllable fetch stub: each test sets `fetchImpl` to resolve a fake
 // Response (ok or not, optionally a followed redirect) or reject (network error).
@@ -627,115 +627,19 @@ describe('enhance-forms — read toggle auth-redirect guard (#250)', () => {
 	});
 });
 
-describe('enhance-forms — in-place toggle keeps infinite-scroll consistent (#249)', () => {
-	it('decrements the sentinel offset so the next page does not skip an unseen row', async () => {
-		// More than PAGE_SIZE rows loaded: 50 in the window, a sentinel pointing at
-		// /feed?tab=unread&offset=50 for the next page. Toggling one row from the
-		// first page contracts the unread query, shifting every unseen row one toward
-		// 0 — so the cursor must drop to offset=49 or the row that slid into position
-		// 49 would be skipped on the next fetch.
-		const { rows, sentinel } = readListWithSentinel(
-			50,
-			'1',
-			'/feed?tab=unread&offset=50',
-		);
+describe('enhance-forms — stable pagination after local toggles', () => {
+	it('keeps the boundary and filter while invalidating an in-flight page on each removal', async () => {
+		const url = '/feed?tab=unread&source=openai&cursor=%5B1000%2C50%5D';
+		const {list, rows, sentinel} = readListWithSentinel(2, '1', url);
 		tabTallies(120, 0);
-
-		await toggleRow(rows[2]);
-
-		// The toggled row is gone, and the cursor is re-aligned by exactly one.
-		expect(rows[2].isConnected).toBe(false);
-		expect(sentinel.dataset.nextUrl).toBe('/feed?tab=unread&offset=49');
-		// The remaining params (tab, and only the offset) are preserved.
-		const url = new URL(sentinel.dataset.nextUrl!, 'https://news.test');
-		expect(url.pathname).toBe('/feed');
-		expect(url.searchParams.get('tab')).toBe('unread');
-		expect(url.searchParams.get('offset')).toBe('49');
-	});
-
-	it('decrements again on a second removal (cursor stays aligned across toggles)', async () => {
-		const { rows, sentinel } = readListWithSentinel(
-			50,
-			'1',
-			'/feed?tab=unread&offset=50',
-		);
-		tabTallies(120, 0);
-
 		await toggleRow(rows[0]);
+		expect(rows[0].isConnected).toBe(false);
+		expect(list.dataset.feedRevision).toBe('1');
 		await toggleRow(rows[1]);
-
-		expect(sentinel.dataset.nextUrl).toBe('/feed?tab=unread&offset=48');
-	});
-
-	it('preserves an active source filter when decrementing the cursor', async () => {
-		const { rows, sentinel } = readListWithSentinel(
-			50,
-			'1',
-			'/feed?tab=unread&source=hn&offset=50',
-		);
-		tabTallies(120, 0);
-
-		await toggleRow(rows[0]);
-
-		const url = new URL(sentinel.dataset.nextUrl!, 'https://news.test');
-		expect(url.searchParams.get('source')).toBe('hn');
-		expect(url.searchParams.get('offset')).toBe('49');
-	});
-
-	it('does NOT show a false empty state while a sentinel still remains', async () => {
-		// Clearing every loaded row while a sentinel is still present must NOT swap in
-		// the caught-up empty state — more pages live behind the sentinel (#249).
-		const { list, rows, sentinel } = readListWithSentinel(
-			2,
-			'1',
-			'/feed?tab=unread&offset=50',
-		);
-		tabTallies(120, 0);
-
-		await toggleRow(rows[0]);
-		await toggleRow(rows[1]);
-
-		// No rows left, but the list (and its sentinel) survive — no false empty state.
+		expect(list.dataset.feedRevision).toBe('2');
+		expect(sentinel.dataset.nextUrl).toBe(url);
 		expect(list.isConnected).toBe(true);
-		expect(document.querySelector('[data-feed-empty]')).toBeNull();
-		expect(sentinel.isConnected).toBe(true);
 		expect(list.querySelector('[data-feed-row]')).toBeNull();
-		// The cursor was still decremented once per removal (50 → 48).
-		expect(sentinel.dataset.nextUrl).toBe('/feed?tab=unread&offset=48');
-	});
-
-	it('leaves a sentinel with no offset param untouched', async () => {
-		// A defensive shape: a sentinel whose data-next-url carries no ?offset (nothing
-		// to decrement). The removal proceeds; the cursor is left as-is.
-		const { rows, sentinel } = readListWithSentinel(2, '1', '/feed?tab=unread');
-		tabTallies(120, 0);
-
-		await toggleRow(rows[0]);
-
-		expect(sentinel.dataset.nextUrl).toBe('/feed?tab=unread');
-	});
-
-	it('leaves an offset of 0 untouched (nothing before the first row to skip)', async () => {
-		const { rows, sentinel } = readListWithSentinel(2, '1', '/feed?tab=unread&offset=0');
-		tabTallies(120, 0);
-
-		await toggleRow(rows[0]);
-
-		expect(sentinel.dataset.nextUrl).toBe('/feed?tab=unread&offset=0');
-	});
-
-	it('leaves a sentinel with no data-next-url untouched (and still no false empty state)', async () => {
-		// A sentinel element with no data-next-url at all: decrementSentinelOffset finds
-		// no matching node, so there's nothing to adjust — and the empty-state guard still
-		// keys off the sentinel's presence, so clearing the rows shows no empty state.
-		const { list, rows } = readListWithSentinel(1, '1', '/feed?tab=unread&offset=50');
-		const bareSentinel = list.querySelector<HTMLElement>('[data-feed-sentinel]')!;
-		delete bareSentinel.dataset.nextUrl;
-		tabTallies(120, 0);
-
-		await toggleRow(rows[0]);
-
-		expect(list.isConnected).toBe(true);
 		expect(document.querySelector('[data-feed-empty]')).toBeNull();
 	});
 });
@@ -791,7 +695,7 @@ describe('Recently viewed reconciliation (#381)', () => {
 		return {...controls, lane};
 	}
 	function main(times: number[], sentinel = false) {
-		const {list, rows, sentinel: cursor} = readListWithSentinel(times.length, '1', `/feed?tab=unread&source=openai&offset=${times.length}`);
+		const {list, rows, sentinel: cursor} = readListWithSentinel(times.length, '1', `/feed?tab=unread&source=openai&cursor=${encodeURIComponent(JSON.stringify([times.at(-1), times.length]))}`);
 		rows.forEach((row, i) => { row.dataset.sortTime = String(times[i]); row.dataset.itemId = String(i + 1); });
 		if (!sentinel) cursor.remove();
 		return {list, rows, cursor};
@@ -805,7 +709,7 @@ describe('Recently viewed reconciliation (#381)', () => {
 		expect(list.querySelectorAll('[data-feed-row]')).toHaveLength(2);
 		expect(counts.unread.textContent).toBe('2');
 		expect(counts.read.textContent).toBe('0');
-		expect(list.querySelector<HTMLElement>('[data-feed-sentinel]')!.dataset.nextUrl).toContain('offset=2');
+		expect(list.querySelector<HTMLElement>('[data-feed-sentinel]')!.dataset.nextUrl).toContain('cursor=%5B10%2C2%5D');
 	});
 	it('returns a matching row in chronological order and updates its complete control state', async () => {
 		const {row, form, button, working, lane} = recent(true);
@@ -822,7 +726,7 @@ describe('Recently viewed reconciliation (#381)', () => {
 		expect(working.getAttribute('aria-hidden')).toBe('true');
 		expect(counts.unread.textContent).toBe('3');
 		expect(counts.read.textContent).toBe('0');
-		expect(cursor.dataset.nextUrl).toBe('/feed?tab=unread&source=openai&offset=3');
+		expect(cursor.dataset.nextUrl).toBe('/feed?tab=unread&source=openai&cursor=%5B10%2C2%5D');
 		expect(lane.isConnected).toBe(false);
 	});
 	it('uses descending item ids to break timestamp ties and keeps the remaining lane count', async () => {
@@ -847,7 +751,7 @@ describe('Recently viewed reconciliation (#381)', () => {
 		const counts=tabTallies(10, 1);
 		await toggleRow(row);
 		expect([...list.querySelectorAll('[data-feed-row]')]).toEqual(rows);
-		expect(cursor.dataset.nextUrl).toBe('/feed?tab=unread&source=openai&offset=2');
+		expect(cursor.dataset.nextUrl).toBe('/feed?tab=unread&source=openai&cursor=%5B10%2C2%5D');
 		expect(counts.unread.textContent).toBe('11');
 	});
 	it('replaces the caught-up message with a working list and retains its empty copy', async () => {
@@ -888,4 +792,15 @@ describe('Recently viewed reconciliation (#381)', () => {
 		expect(list.querySelectorAll('[data-feed-row]')).toHaveLength(3);
 		expect(lane.isConnected).toBe(false);
 	});
+});
+
+it('returns a row above the served boundary even when every previously loaded row was removed', async () => {
+	const {list, rows, sentinel} = readListWithSentinel(1, '1', '/feed?tab=unread&cursor=%5B10%2C2%5D');
+	rows[0].remove();
+	const {row, form, button} = readRow('0');
+	row.dataset.sortTime = '10'; row.dataset.itemId = '2';
+	const lane = document.createElement('section'); lane.setAttribute('data-recently-viewed', ''); lane.append(row); document.body.append(lane);
+	dispatchSubmit(form, button); await flush();
+	expect(Array.from(list.children)).toEqual([row, sentinel]);
+	expect(list.dataset.feedRevision).toBe('1');
 });

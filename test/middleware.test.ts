@@ -30,7 +30,10 @@ const run = (
 		redirect,
 		locals,
 	};
-	return { promise: onRequest(context as never, next), redirect, locals };
+	return { promise: Promise.resolve(onRequest(context as never, next)).then((response) => {
+		if (!(response instanceof Response)) throw new Error('Middleware did not return a response');
+		return response;
+	}), redirect, locals };
 };
 
 const sessionWith = (userId: number | undefined) => ({

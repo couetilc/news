@@ -17,7 +17,6 @@ import Layout from '../layouts/Layout.astro';
 import {
 	activeSourceFilter,
 	emptyMessage,
-	pickSectionTotal,
 	showRecentlyViewed,
 } from '../lib/digest';
 import { PAGE_SIZE, isReadTab, parseTab } from '../lib/pagination';
@@ -73,8 +72,8 @@ const returnTo = `${Astro.url.pathname}${Astro.url.search}`;
 const queryUser = userId ?? 0;
 
 // Both counts under the active source filter: they drive the tab tally (how much
-// each tab holds) and bound the active tab's infinite scroll (#151) so an
-// exhausted list never fires a phantom empty fetch. Computed only when authed.
+// each tab holds). A lookahead row determines pagination exhaustion.
+// Computed only when authenticated.
 const unreadTotal = isAuthed
 	? await countItemsByRead(env.NEWS_DB, { userId: queryUser, read: false, sources: active })
 	: 0;
@@ -83,15 +82,13 @@ const readTotal = isAuthed
 	: 0;
 
 // The first 50 of the ACTIVE tab only — the inactive tab isn't fetched (its tally
-// comes from the count above). offset 0; /feed pages the rest as the reader
+// comes from the count above). one extra row for lookahead; /feed pages the rest as the reader
 // scrolls. The source filter narrows the window, same as the count.
-const activeTotal = pickSectionTotal(tab, unreadTotal, readTotal);
 const items = isAuthed
 	? await listItemsByRead(env.NEWS_DB, {
 			userId: queryUser,
 			read: isReadTab(tab),
-			limit: PAGE_SIZE,
-			offset: 0,
+			limit: PAGE_SIZE + 1,
 			sources: active,
 		})
 	: [];
@@ -170,8 +167,6 @@ const emptyCopy = emptyMessage(tab, active.length > 0);
 							<ol data-feed-list data-empty-message={emptyCopy}>
 								<FeedPage
 									items={items}
-									offset={0}
-									total={activeTotal}
 									tab={tab}
 									sources={active}
 									returnTo={returnTo}
@@ -208,7 +203,7 @@ const emptyCopy = emptyMessage(tab, active.length > 0);
     enhancement: the first 50 always render server-side above, so the feed is
     never blank without JS; this only appends subsequent pages when JS is on. The
     module is a no-op when there's no [data-feed-list] (the anonymous feed,
-    /login). Pure DOM logic, unit-tested under happy-dom (test/infinite-scroll.test.ts)
+    /login). Pure DOM logic, unit-tested under happy-dom (test/browser/infinite-scroll.test.ts)
     inside the 100% src/** gate and covered as a real-browser guard by the
     Playwright e2e (e2e/infinite-scroll.spec.ts). It re-inits on astro:page-load
     so a ClientRouter tab switch re-wires the new list (#155). */}

@@ -1,5 +1,3 @@
-/// <reference types="astro/client" />
-
 // What we keep in an Astro session (issue #40). The auth routes set `userId`
 // on login/signup; the middleware reads it to gate protected pages.
 declare namespace App {
