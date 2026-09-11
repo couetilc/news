@@ -1,0 +1,59 @@
+<!-- Reduced official rss capture, 2026-09-11; article bodies omitted. -->
+<rss version="2.0"><channel>
+<item>
+        <guid isPermaLink="false">https://allenai.org/blog/goodfire-olmo</guid>
+        <title>How Goodfire used Ai2’s open post-training stack to trace unwanted model behavior</title>
+        <link>https://allenai.org/blog/goodfire-olmo</link>
+        <pubDate>2026-09-09T00:00:00-08:00</pubDate>
+        <description>
+          <![CDATA[
+            <div style="display: flex; gap: 12px">
+              <div>Goodfire used Ai2’s fully open post-training stack to predict LLM behavioral changes, trace unwanted model behavior back to individual training examples, and test targeted fixes without sacrificing broader capability gains.</div>
+              <img src="https://www.datocms-assets.com/64837/1788900482-goodfire-testimonial-google-docs-image-1-1.png?w=200" width="200" alt="How Goodfire used Ai2’s open post-training stack to trace unwanted model behavior" />
+            </div>
+          ]]>
+        </description>
+      </item>
+<item>
+        <guid isPermaLink="false">https://allenai.org/blog/benchmirt</guid>
+        <title>BenchMIRT: What are LLM benchmarks actually measuring?</title>
+        <link>https://allenai.org/blog/benchmirt</link>
+        <pubDate>2026-09-01T00:00:00-08:00</pubDate>
+        <description>
+          <![CDATA[
+            <div style="display: flex; gap: 12px">
+              <div>BenchMIRT is a new method for auditing LLM benchmarks question by question, revealing which capabilities they actually measure and helping researchers build smaller, more focused, and easier-to-interpret evaluations.</div>
+              <img src="https://www.datocms-assets.com/64837/1787859394-benchmirt-blog-draft-latest-google-docs-image-1-1.png?w=200" width="200" alt="BenchMIRT: What are LLM benchmarks actually measuring?" />
+            </div>
+          ]]>
+        </description>
+      </item>
+<item>
+        <guid isPermaLink="false">https://allenai.org/blog/swedish-autodiscovery-recap</guid>
+        <title>The hard parts of AI-assisted science</title>
+        <link>https://allenai.org/blog/swedish-autodiscovery-recap</link>
+        <pubDate>2026-09-01T00:00:00-08:00</pubDate>
+        <description>
+          <![CDATA[
+            <div style="display: flex; gap: 12px">
+              <div>At an Ai2 event marking our expanded collaboration with Providence Swedish, researchers explored the hardest problems in AI-assisted science: keeping systems steerable, grounded in human judgment and sound methods, and responsive to new evidence and experiments.</div>
+              <img src="https://www.datocms-assets.com/64837/1788227206-blogthumbnail-takeaways-1.jpg?w=200" width="200" alt="The hard parts of AI-assisted science" />
+            </div>
+          ]]>
+        </description>
+      </item>
+<item>
+        <guid isPermaLink="false">https://allenai.org/blog/emo</guid>
+        <title>EMO: Pretraining mixture of experts for emergent modularity</title>
+        <link>https://allenai.org/blog/emo</link>
+        <pubDate>2026-05-08T00:00:00-08:00</pubDate>
+        <description>
+          <![CDATA[
+            <div style="display: flex; gap: 12px">
+              <div>EMO is a new mixture-of-experts model trained so modular expert groups emerge from data, enabling users to select small task-specific expert subsets while preserving near full-model performance.</div>
+              <img src="https://www.datocms-assets.com/64837/1778179123-emo-blog-post-draft-ryan-google-docs-image-1.png?w=200" width="200" alt="EMO: Pretraining mixture of experts for emergent modularity" />
+            </div>
+          ]]>
+        </description>
+      </item>
+</channel></rss>

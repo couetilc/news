@@ -6,7 +6,13 @@
     "configFile": "vitest.stryker.config.ts"
   },
   "coverageAnalysis": "perTest",
+  "disableTypeChecks": "**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}",
+  "disableTypeChecks_comment": "Only preprocess code files. The default also rewrites script elements in captured HTML fixtures, corrupting Flight payloads before the unmutated dry run.",
   "mutate": [
+    "src/ingest/parse/lab-html.ts",
+    "src/ingest/parse/ai-labs.ts",
+    "src/ingest/parse/extropic.ts",
+    "src/ingest/ai-lab-sources.ts",
     "src/ingest/parse/inception.ts",
     "src/lib/auth.ts",
     "src/lib/digest.ts",

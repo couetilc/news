@@ -26,6 +26,20 @@ const repoFile = (rel: string): string =>
 	readFileSync(fileURLToPath(new URL(`../${rel}`, import.meta.url)), 'utf8');
 
 describe('sourceMeta', () => {
+	it.each([
+		['deepmind', 'Google DeepMind', 'mark-beat-ai mark-quarter'],
+		['xai', 'Grok / xAI', 'mark-beat-ai mark-cross'],
+		['ai2', 'Ai2', 'mark-beat-ai mark-half mark-diamond'],
+		['liquid-ai', 'Liquid AI', 'mark-beat-ai mark-dots mark-diamond'],
+		['sakana-ai', 'Sakana AI', 'mark-beat-ai mark-quarter mark-diamond'],
+		['physical-intelligence', 'Physical Intelligence', 'mark-beat-ai mark-hollow mark-round'],
+		['world-labs', 'World Labs', 'mark-beat-ai mark-half mark-round'],
+		['extropic', 'Extropic', 'mark-beat-silicon mark-solid mark-round'],
+		['normal-computing', 'Normal Computing', 'mark-beat-silicon mark-hollow mark-round'],
+		['mythic', 'Mythic', 'mark-beat-silicon mark-half mark-round'],
+	])('identifies %s by its full name and stable mark', (slug, name, mark) => {
+		expect(sourceMeta(slug)).toEqual({ name, mark });
+	});
 	it('identifies Inception Labs on the diffusion-model AI sub-beat', () => {
 		expect(sourceMeta('inception-labs')).toEqual({ name: 'Inception Labs', mark: 'mark-beat-ai mark-solid mark-round' });
 	});

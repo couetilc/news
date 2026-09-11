@@ -18,6 +18,7 @@ import ciscoXml from './fixtures/cisco.xml?raw';
 import ciscoEdgarJson from './fixtures/cisco-sec-edgar.json?raw';
 import driftZeroXml from './fixtures/drift-zero-parsed.xml?raw';
 import driftMissingFieldsXml from './fixtures/drift-missing-fields.xml?raw';
+import liquidHtml from './fixtures/ai-labs/liquid-ai.html?raw';
 
 const USER_AGENT = 'news.cuteteal.com aggregator (connor@couetil.com)';
 const db = env.NEWS_DB;
@@ -57,6 +58,20 @@ afterEach(() => {
 });
 
 describe('ingestAll', () => {
+	it('parses HTML in real workerd, filters the initial archive, and deduplicates the next poll in D1', async () => {
+		const logs = vi.spyOn(console, 'log').mockImplementation(() => {});
+		const config = SOURCES.find((s) => s.source === 'liquid-ai')!;
+		const { fn } = fakeFetch({ [config.feed]: () => new Response(liquidHtml) });
+		await ingestAll(deps(fn, 1789084800), [config]);
+		expect((await listItems(db, 10)).map((i) => i.title)).toEqual([
+			'LFM2.5-DSpark: Up to 3.2x Faster Inference from H100 to MacBook',
+			'LFM2.5 Q4_0: Quantization-Aware Distillation for Edge Deployment',
+		]);
+		expect(await getFeedStates(db)).toMatchObject([{ feed: config.feed, last_status: 200, failure_count: 0 }]);
+		expect(logs).toHaveBeenCalledWith(expect.objectContaining({ event: 'ingest.poll', items: 3, filtered: 1, inserted: 2, outcome: 'ok' }));
+		await ingestAll(deps(fn, 1789084800 + 21600), [config]);
+		expect(await listItems(db, 10)).toHaveLength(2);
+	});
  it('runs the Owenomics two-request loader through the injected boundary and deduplicates repeats', async () => {
   vi.spyOn(console, 'log').mockImplementation(() => {});
   const config=SOURCES.find(source=>source.source==='owenomics')!;

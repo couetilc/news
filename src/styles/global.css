@@ -54,11 +54,11 @@
 /* Source identity marks: a 10px glyph whose dimensions each
  * encode one discriminating factor, resolved coarse-to-fine —
  *   hue   = beat (the .mark-beat-* classes, one per --color-beat-* token);
- *   shape = sub-beat, only where a real split exists (today: .mark-diamond
- *           marks open-weight AI labs; the default square is frontier/closed);
- *   fill  = source within the beat (solid → hollow → half → hatch → dots,
- *           assigned in arrival order and never reshuffled; hatch is the
- *           convention for a beat's aggregate/backstop feed);
+ *   shape = sub-beat: diamonds for open-weight AI, rounds for specialist
+ *           model families or specialized silicon; squares are the default;
+ *   fill  = source within the beat, preserving all learned assignments;
+ *           quarter/cross extend the growing AI desk. New aggregates use hatch,
+ *           alongside NVIDIA/Cisco's existing hatch assignments;
  *   name  = exact identity, always printed beside the mark.
  * Any two sources differ in hue (different beat) or in an ink-pattern channel
  * that survives grayscale (same beat) — the old 21-hue-only encoding did
@@ -128,7 +128,14 @@
 		background-image: radial-gradient(var(--mark-c) 0.9px, transparent 1px);
 		background-size: 3.2px 3.2px;
 	}
-	/* Diffusion-model AI labs use a round identity mark. */
+	.mark-quarter {
+		background: conic-gradient(var(--mark-c) 0 75%, transparent 75%);
+	}
+	.mark-cross {
+		background: linear-gradient(90deg, transparent 30%, var(--mark-c) 30% 70%, transparent 70%),
+			linear-gradient(transparent 30%, var(--mark-c) 30% 70%, transparent 70%);
+	}
+	/* Specialist models and specialized silicon use a round mark in their beat. */
 	.mark-round {
 		border-radius: 50%;
 	}

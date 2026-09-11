@@ -5,6 +5,12 @@ Use `npm run test:mutation`, or `npx stryker run --mutate <path>` for a focused
 change. Reports live at `reports/mutation/mutation.json` and `.html`. The
 workflow uploads both; `scripts/mutation-score.mjs` reads the JSON score.
 
+`disableTypeChecks` is restricted to code extensions. Stryker's default also
+inserts `// @ts-nocheck` inside HTML fixture scripts, changing the parser input
+before any mutation runs. Preserve captured payload bytes; fix preprocessing
+scope rather than weakening a parser to accept test-tool alterations. Use
+`npm run test:mutation -- --dryRunOnly` to verify the instrumented baseline.
+
 - Keep source scope and `test/mutation-scope.ts` mappings aligned. The scope
   guard detects newly unclassified core/glue files; explain genuine exceptions.
 - Separate pure decisions from runtime I/O when it improves the code. Do not

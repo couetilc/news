@@ -47,9 +47,10 @@ Always print the full source name beside an `aria-hidden` 10px `.mark`.
 `src/lib/sources.ts` assigns classes; `test/source-meta.test.ts` checks registry
 and CSS consistency. Hue represents the beat, shape a meaningful sub-beat,
 fill a source within it, and the name is the exact identity. Preserve existing
-assignments. Squares are the default, diamonds identify open-weight AI and
-round marks identify diffusion models. Hatch is reserved for aggregate feeds.
-Use meaningful subdivisions when adding sources outgrows existing patterns.
+assignments. Squares are the default; diamonds identify open-weight AI and
+round marks identify specialist model families or specialized AI silicon within
+their beat. Quarter/cross fills extend the growing AI desk. New aggregate feeds
+use hatch; preserve NVIDIA/Cisco's existing hatch assignments as well.
 
 Hollow identity marks retain the thick 3px border and 4px center at 10px size;
 do not confuse them with the thinner read controls. Selected ink-filled chips
