@@ -24,7 +24,7 @@ Cloudflare offers several overlapping things. What each is for:
 
 | Surface | What it is | Retention | Cost | Use it for |
 |---|---|---|---|---|
-| **Workers Logs** | Structured logs from `console.*`, auto-indexed, queryable in the dashboard and `wrangler tail`. Enabled via `observability.enabled`. | Short (days; plan-dependent) | Included (events-based, generous free tier) | Day-to-day: "did the cron run?", "which feed 500'd?" |
+| **Workers Logs** | Structured logs from `console.*`, auto-indexed, queryable in the dashboard and telemetry API. Enabled via `observability.enabled`. | Short (days; plan-dependent) | Included (events-based, generous free tier) | Day-to-day: "did the cron run?", "which feed 500'd?" |
 | **`wrangler tail`** (tail consumer) | Live stream of invocations to your terminal. A "tail consumer" is the same mechanism a Worker can subscribe to. | None (live only) | Free | Watching a deploy or a cron tick in real time |
 | **Logpush** | Batched export of logs to an external sink (R2, etc.) for durable history. **Not configured here.** | As long as you keep the files | R2 storage + Logpush (paid feature) | Long-term audit / analytics beyond the Logs window |
 | **Analytics Engine** | A binding you `writeDataPoint()` to for high-cardinality time-series metrics, queried via SQL API. **Not configured here.** | Long | Paid binding | Custom metrics/dashboards (e.g. per-source item counts over months) |
@@ -100,6 +100,83 @@ npx wrangler tail --search ingest.poll  # text-match the structured payload
 Tail is live-only — it shows nothing that happened before you started it. To
 catch the next cron tick, start tail and wait (the cron is `*/15 * * * *`).
 
+### Workers Logs API (historical, queryable)
+
+The supported [telemetry query endpoint](https://developers.cloudflare.com/api/resources/workers/subresources/observability/subresources/telemetry/methods/query/)
+returns historical events without driving the dashboard. The existing local
+tooling token can query it. Cloudflare lists **Workers Observability Write** as
+an accepted permission for this endpoint; a token described as read-only may
+not have it. Do not silently widen credentials when a query is denied.
+
+Run this from the repo root on Node 24. `--env-file` loads the ignored tooling
+credential without printing it. Inline parameters and `dry: true` make this an
+ad-hoc query without saved query results. Timestamps are Unix **milliseconds**,
+unlike the seconds stored in D1. This example requests only ingestion records
+and prints a field allowlist, excluding the platform's visitor/request metadata.
+
+```sh
+node --env-file=.env --input-type=module <<'JS'
+const account = 'dbaa50e60c18b19d483578c42d9bb3ee';
+const token = process.env.CLOUDFLARE_API_TOKEN;
+if (!token) throw new Error('CLOUDFLARE_API_TOKEN is not configured');
+const to = Date.now();
+const response = await fetch(
+  `https://api.cloudflare.com/client/v4/accounts/${account}/workers/observability/telemetry/query`,
+  {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(60_000),
+    body: JSON.stringify({
+      queryId: 'news-ingestion-health', dry: true, view: 'events', limit: 2000,
+      timeframe: { from: to - 24 * 60 * 60 * 1000, to },
+      parameters: { filterCombination: 'and', filters: [
+        { key: '$metadata.service', operation: 'eq', type: 'string', value: 'news' },
+        { key: 'event', operation: 'starts_with', type: 'string', value: 'ingest.' },
+      ] },
+    }),
+  },
+);
+if (!response.ok) throw new Error(`Telemetry query HTTP ${response.status}`);
+const data = await response.json();
+if (!data.success || data.result?.run?.status !== 'COMPLETED') {
+  throw new Error('Telemetry query did not complete successfully');
+}
+const events = data.result.events.events;
+const fields = ['event', 'source', 'status', 'outcome', 'items', 'inserted', 'kind'];
+for (const event of events) {
+  const record = { at: new Date(event.timestamp).toISOString() };
+  for (const key of fields) if (key in event.source) record[key] = event.source[key];
+  console.log(JSON.stringify(record));
+}
+if (events.length >= 2000) {
+  console.error('Possible truncation: narrow the timeframe or paginate before claiming complete totals.');
+}
+JS
+```
+
+`$metadata.service` and `event` are verified keys for this Worker. Before adding
+other filters, inspect `result.events.fields` or use the documented telemetry
+keys endpoint; do not guess nested field names. For errors, inspect the `err`
+field deliberately and sanitize it before sharing. Do not dump raw event
+envelopes, headers, cookies, IP addresses, or user identifiers into chat or git.
+
+The API allows at most 2,000 events per page. For larger windows, pass the last
+event's `$metadata.id` as `offset` with `offsetDirection: 'next'`, keep the same
+timeframe/filters, and stop when a page is empty. Treat a repeated cursor or
+incomplete query as an incomplete result, not an empty healthy window. State
+the inspected timeframe and any retention/sampling limitations in the report.
+
+Interpret the signals together:
+
+- A scheduled invocation with platform `outcome: 'ok'` can contain caught
+  `ingest.error` records. Count feed errors and anomalies separately.
+- Reconcile D1 feed rows against `SOURCES` in `src/ingest/sources.ts`; retired
+  endpoints remain in D1 and must not create active-feed overdue warnings.
+- `failure_count` counts consecutive failures. The legacy `last_status` can
+  retain an earlier successful response after a failed attempt.
+- `MAX(items.fetched_at)` is the latest **insert**, not the latest poll. A
+  publisher with no new articles can still be polled successfully.
+
 ### Workers Logs UI (historical, queryable)
 
 In the dashboard, open the Worker → **Logs** (Observability) tab. Because we log
@@ -108,7 +185,7 @@ objects, you can add filters on the indexed fields, e.g.:
 - `event = ingest.error` — every feed failure.
 - `event = ingest.anomaly` — every shape-drift signal; add `AND kind = zero_parsed_of_raw` for the smoking gun (a feed that parsed nothing from a non-empty payload — a parser to fix).
 - `event = ingest.poll AND outcome = not_modified` — which feeds 304'd.
-- `source = cf` — everything about one source.
+- `source = cloudflare-blog` — everything about one source.
 - `status = 200 AND items > 0` — polls that actually brought in items.
 
 This is the payoff of object-form logging: none of these filters are possible on
