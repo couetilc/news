@@ -36,9 +36,23 @@ test('touch swipe and Undo preserve activity, filters and read history across ro
  const rankedSources=['All','Meta AI','Anthropic','Apple','Cloudflare Blog'];
  await expect(filters).toHaveText(rankedSources);
  await expect(briefing.locator('[title]')).toHaveText(['Meta AI: 2','Anthropic: 1']);
- await page.locator('.source-filter > summary').click();await page.getByRole('link',{name:'Meta AI',exact:true}).click();
+ await page.locator('.source-filter > summary').click();
+ const divider=page.locator('[data-source-activity-divider]');
+ await expect(divider).toBeVisible();
+ await expect(divider).toContainText('← Last 24h');
+ for (const width of [390,320]) {
+  await page.setViewportSize({width,height:844});
+  const labelBox=(await divider.boundingBox())!;
+  const sourceBox=(await page.getByRole('link',{name:'Anthropic',exact:true}).boundingBox())!;
+  expect(Math.abs(labelBox.y+labelBox.height/2-sourceBox.y-sourceBox.height/2)).toBeLessThan(1);
+  expect(labelBox.x).toBeGreaterThan(sourceBox.x+sourceBox.width);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ }
+ await page.setViewportSize({width:390,height:844});
+ await page.getByRole('link',{name:'Meta AI',exact:true}).click();
  await expect(page).toHaveURL(/source=meta-ai/);await expect(briefing).toHaveText(activity!);
  await expect(filters).toHaveText(rankedSources);
+ await expect(divider).toHaveCount(1);
  const row='[data-feed-list] [data-feed-row]:has-text("Second recent story")';
  await drag(page,row,-110);await expect(page.locator(row)).toHaveCount(0);
  await expect(page.locator('[data-tab-count="unread"]')).toHaveText('3');await expect(briefing).toHaveText(activity!);
