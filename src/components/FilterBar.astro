@@ -5,6 +5,8 @@ import type { Tab } from '../lib/pagination';
 interface Props {
 	// Source slugs present in the feed, already ranked by publication activity.
 	sources: string[];
+	// Recent sources occupy the front of the ranked list.
+	recentCount: number;
 	// The slugs currently filtering the feed; empty means "All".
 	active: string[];
 	// The currently active tab (#217). Carried into every chip href (and "All")
@@ -14,9 +16,10 @@ interface Props {
 	tab: Tab;
 }
 
-const { sources, active, tab } = Astro.props;
+const { sources, recentCount, active, tab } = Astro.props;
 const activeSet = new Set(active);
 const allActive = active.length === 0;
+const dividerIndex = recentCount > 0 && recentCount < sources.length ? recentCount - 1 : -1;
 
 // Build a feed URL for the given source selection, mirroring FeedTabs.hrefFor:
 // the Read tab is URL-addressable as ?tab=read (set first so the chip and tab
@@ -67,21 +70,30 @@ const off = `${base} border-rule text-ink-soft hover:border-ink hover:text-accen
 		<nav aria-label="Filter by source" class="flex flex-wrap items-center gap-2 py-3 sm:py-0">
 			<a href={allHref} class={allActive ? on : off} aria-current={allActive ? 'true' : undefined}>All</a>
 			{
-				sources.map((slug) => {
+				sources.map((slug, index) => {
 					const meta = sourceMeta(slug);
 					const isActive = activeSet.has(slug);
+					const hasDivider = index === dividerIndex;
 					return (
-						<a
-							href={hrefFor(slug)}
-							class={isActive ? on : off}
-							aria-current={isActive ? 'true' : undefined}
-						>
-							<span
-								class={`mark ${meta.mark}${isActive ? ' mark-on-ink' : ''}`}
-								aria-hidden="true"
-							/>
-							{meta.name}
-						</a>
+						<span class={hasDivider ? 'inline-flex max-w-full items-center gap-2' : 'contents'}>
+							<a
+								href={hrefFor(slug)}
+								class={isActive ? on : off}
+								aria-current={isActive ? 'true' : undefined}
+							>
+								<span
+									class={`mark ${meta.mark}${isActive ? ' mark-on-ink' : ''}`}
+									aria-hidden="true"
+								/>
+								{meta.name}
+							</a>
+							{hasDivider && (
+								<span data-source-activity-divider class="shrink-0 whitespace-nowrap px-2 py-1 font-sans text-[0.65rem] uppercase tracking-wider text-muted">
+									<span aria-hidden="true">← Last 24h</span>
+									<span class="sr-only">Preceding sources published in the last 24 hours.</span>
+								</span>
+							)}
+						</span>
 					);
 				})
 			}

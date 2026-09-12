@@ -634,7 +634,18 @@ describe('index page', () => {
 			const names = [...nav.matchAll(/<a\b[^>]*>([\s\S]*?)<\/a>/g)]
 				.map((match) => match[1].replace(/<[^>]*>/g, '').trim());
 			expect(names).toEqual(['All', 'Meta AI', 'Anthropic', 'Apple', 'Cloudflare Blog']);
+			expect(nav.match(/data-source-activity-divider/g)).toHaveLength(1);
+			expect(nav.indexOf('data-source-activity-divider')).toBeGreaterThan(nav.indexOf('Anthropic'));
+			expect(nav.indexOf('data-source-activity-divider')).toBeLessThan(nav.indexOf('Apple'));
+			expect(nav).toContain('Preceding sources published in the last 24 hours.');
 			expect(vi.mocked(listItemsByRead).mock.calls[0][1].sources).toEqual(query ? ['apple'] : []);
+		});
+
+		it.each([{ activity: [] }, { activity: [{ source: 'anthropic', count: 1 }] }])('omits the divider when only one source group exists: %j', async ({ activity }) => {
+			vi.mocked(distinctSources).mockResolvedValue(['anthropic']);
+			vi.mocked(sourceActivity).mockResolvedValue(activity);
+			feed({});
+			expect(filterNav(await render())).not.toContain('data-source-activity-divider');
 		});
 
 		it('source chips carry the active ?tab=read so filtering keeps the Read tab (#217)', async () => {
