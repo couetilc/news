@@ -19,10 +19,19 @@ export function activeSourceFilter(
 	return requested.filter((s) => presentSet.has(s));
 }
 
-// The filter bar's ordering: source slugs sorted by their display name (via the
-// registry), for a stable, human-sensible bar. Non-mutating.
+// Source slugs sorted by their display name (via the registry). Non-mutating.
 export function orderSourcesByName(slugs: readonly string[]): string[] {
 	return [...slugs].sort((a, b) => sourceMeta(a).name.localeCompare(sourceMeta(b).name));
+}
+
+// Share the briefing's global publication ranking with the filter list. Stable
+// sorting preserves alphabetical ties and leaves sources with no activity last.
+export function orderSourcesByActivity(
+	slugs: readonly string[],
+	activity: readonly { source: string; count: number }[],
+): string[] {
+	const counts = new Map(activity.map(({ source, count }) => [source, count]));
+	return orderSourcesByName(slugs).sort((a, b) => (counts.get(b) ?? 0) - (counts.get(a) ?? 0));
 }
 
 // The Recently-viewed lane (#334) renders only for a logged-in reader on the

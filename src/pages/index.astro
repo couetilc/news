@@ -19,6 +19,7 @@ import Layout from '../layouts/Layout.astro';
 import {
 	activeSourceFilter,
 	emptyMessage,
+	orderSourcesByActivity,
 	showRecentlyViewed,
 } from '../lib/digest';
 import { PAGE_SIZE, isReadTab, parseTab } from '../lib/pagination';
@@ -143,7 +144,7 @@ const emptyCopy = emptyMessage(tab, active.length > 0);
 				) : (
 					<div class="mx-auto max-w-2xl">
 						<ActivityBriefing activity={activity} />
-						<FilterBar sources={present} active={active} tab={tab} />
+						<FilterBar sources={orderSourcesByActivity(present, activity)} active={active} tab={tab} />
 						{/* Recently viewed (#334): the ~3 most recently opened items, above
 						    the unread list (Unread tab only — `recent` is [] on the Read tab
 						    and the lane self-erases). Sits between the filter chips and the
