@@ -115,24 +115,22 @@ describe('SOURCES', () => {
 		expect(items[0].title).toContain('Results of Operations and Financial Condition');
 	});
 
-	it('registers all three Anthropic OpenRSS sections under one source', () => {
+	it('registers direct Anthropic news/research and the healthy engineering proxy under one source', () => {
 		const feeds = SOURCES.filter((s) => s.source === 'anthropic').map((s) => s.feed);
 		expect(feeds).toEqual([
-			'https://openrss.org/feed/www.anthropic.com/news',
-			'https://openrss.org/feed/www.anthropic.com/research',
+			'https://www.anthropic.com/news',
+			'https://www.anthropic.com/research',
 			'https://openrss.org/feed/www.anthropic.com/engineering',
 		]);
-		// 8h poll (3×/day): OpenRSS caches for 9h, so anything tighter just re-fetches.
+		// Preserve the existing eight-hour cadence.
 		for (const s of SOURCES.filter((s) => s.source === 'anthropic')) {
 			expect(s.pollIntervalSeconds).toBe(28800);
 		}
 	});
 
 	it('parses Anthropic OpenRSS full HTML from the description, no summary', () => {
-		// All three section feeds share the same parser closure, so exercise each
-		// one (news/research/engineering) against the fixture — both to assert the
-		// shared behavior and to cover every per-feed `parse` in SOURCES.
-		for (const s of SOURCES.filter((s) => s.source === 'anthropic')) {
+		// Engineering retains the full-content parser.
+		for (const s of SOURCES.filter((s) => s.source === 'anthropic' && s.feed.includes('openrss'))) {
 			const items = s.parse(anthropicXml);
 			expect(items[0].title).toBe('Introducing Claude Fable 5 and Mythos 5');
 			expect(items[0].url).toBe('https://www.anthropic.com/news/claude-fable-5-mythos-5');

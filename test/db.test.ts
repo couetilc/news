@@ -1,3 +1,5 @@
+import anthropicResearch from './fixtures/anthropic-research.html?raw';
+import { parseAnthropic } from '../src/ingest/parse/anthropic';
 import { itemCursor } from '../src/lib/pagination';
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -647,5 +649,26 @@ describe('stable feed boundaries under changes between requests', () => {
 		expect([...first, ...second].map(row => row.guid)).toEqual(all.map(row => row.guid));
 		expect(second.map(row => row.read_at)).toEqual([2000, 2000]);
 		expect(await listItemsByRead(db, { userId: USER, read: false, limit: 2, sources: ['a', 'b'], cursor: itemCursor(first[1]) })).toEqual([]);
+	});
+});
+
+
+describe('Anthropic direct-listing transition', () => {
+	it('keeps legacy identities, article bodies and read history while adding missing publications once', async () => {
+		const parsed = parseAnthropic(anthropicResearch).filter((i) => i.publishedAt !== null);
+		const existing = parsed.find((i) => i.url.endsWith('/formalizing-fermats-last-theorem'))!;
+		await insertItems(db, 'anthropic', [{ ...existing, contentHtml: '<p>Existing full article</p>' }], 100);
+		const before = (await listItems(db, 20))[0];
+		await setItemRead(db, USER, before.id, 200);
+		expect(await insertItems(db, 'anthropic', parsed, 300)).toBe(9);
+		expect(await insertItems(db, 'anthropic', parsed, 400)).toBe(0);
+		const read = await listItemsByRead(db, { userId: USER, read: true, limit: 20 });
+		expect(read).toEqual([{ ...before, read_at: 200 }]);
+		const added = await listItemsByRead(db, { userId: USER, read: false, limit: 20 });
+		expect(added).toHaveLength(9);
+		expect(added.slice(0, 2).map((i) => i.url)).toEqual([
+			'https://www.anthropic.com/research/intelligence-targeting-conventional-weapons-capabilities',
+			'https://www.anthropic.com/research/alignment-assessment-cybersecurity-incidents',
+		]);
 	});
 });
