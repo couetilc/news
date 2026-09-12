@@ -31,7 +31,12 @@ multi-column chronology, decorative card shadows, pill controls or theme switch.
 - Owner feeds have URL-addressable Unread/Read tabs and repeatable `?source`
   filters. On mobile a native Sources disclosure keeps articles near the top;
   its summary names the selection, and Clear sources preserves the active tab.
-- Recently viewed is a collapsed, global history of up to three items. Returning
+- Swipe left on an owner Unread row to mark it read. Keep vertical pan, pinch
+  zoom, cancellation and a real read button. A completed read offers inline
+  Undo until the next completed read or navigation; preserve pending Undo
+  requests, source tallies and pagination. Swipes do not open headline links.
+- Recently viewed is a collapsed, global history of up to three opened items.
+  New manual read/swipe actions do not populate or reorder that history. Returning
   one to Unread changes filtered totals only when its source matches. Remove
   the disclosure when it becomes empty.
 - On phones, the session control stays in flow above the centered nameplate.
@@ -43,7 +48,12 @@ multi-column chronology, decorative card shadows, pill controls or theme switch.
 
 ## Identity marks
 
-Always print the full source name beside an `aria-hidden` 10px `.mark`.
+Print the full source name beside an `aria-hidden` 10px `.mark` in articles
+and the Sources list. The approved compact 24-hour briefing is the exception:
+show marks and counts with screen-reader source names, using the full Sources
+list as the visible legend. Its rolling publication counts are global and
+independent of read state and source filters; exclude unknown/future dates and
+keep the counts unchanged during read/Undo actions. No delayed-updates notice.
 `src/lib/sources.ts` assigns classes; `test/source-meta.test.ts` checks registry
 and CSS consistency. Hue represents the beat, shape a meaningful sub-beat,
 fill a source within it, and the name is the exact identity. Preserve existing

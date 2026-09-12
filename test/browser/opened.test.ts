@@ -40,8 +40,8 @@ function click(target: Element): void {
 }
 
 // Read the {id, read} pair back out of the FormData a transport stub captured.
-function fields(body: FormData): { id: FormDataEntryValue | null; read: FormDataEntryValue | null } {
-	return { id: body.get('id'), read: body.get('read') };
+function fields(body: FormData): { id: FormDataEntryValue | null; read: FormDataEntryValue | null; opened: FormDataEntryValue | null } {
+	return { id: body.get('id'), read: body.get('read'), opened: body.get('opened') };
 }
 
 // Install a sendBeacon stub (happy-dom's navigator has none by default) and
@@ -92,7 +92,7 @@ describe('mark-read-on-open beacon (#334)', () => {
 		expect(target).toBe('/api/read');
 		// The POST carries the same shape the read square submits: the item id and
 		// read=1 — never read=0 (opening can only mark read).
-		expect(fields(body)).toEqual({ id: '42', read: '1' });
+		expect(fields(body)).toEqual({ id: '42', read: '1', opened: '1' });
 		// sendBeacon queued it, so the fetch fallback must not fire too (that would
 		// double-POST; harmless server-side but wasteful).
 		expect(fetchSpy).not.toHaveBeenCalled();
@@ -123,7 +123,7 @@ describe('mark-read-on-open beacon (#334)', () => {
 		expect(init.method).toBe('POST');
 		// keepalive lets the POST survive the navigation tearing the page down.
 		expect(init.keepalive).toBe(true);
-		expect(fields(init.body as FormData)).toEqual({ id: '9', read: '1' });
+		expect(fields(init.body as FormData)).toEqual({ id: '9', read: '1', opened: '1' });
 	});
 
 	it('falls back to fetch when the browser has no sendBeacon at all', () => {
@@ -138,6 +138,7 @@ describe('mark-read-on-open beacon (#334)', () => {
 		expect(fields((fetchSpy.mock.calls[0][1] as RequestInit).body as FormData)).toEqual({
 			id: '3',
 			read: '1',
+			opened: '1',
 		});
 	});
 
@@ -203,7 +204,7 @@ describe('mark-read-on-open beacon (#334)', () => {
 		click(rowB.querySelector('a')!);
 
 		expect(beacon).toHaveBeenCalledTimes(2);
-		expect(fields(beacon.mock.calls[0][1])).toEqual({ id: '11', read: '1' });
-		expect(fields(beacon.mock.calls[1][1])).toEqual({ id: '22', read: '1' });
+		expect(fields(beacon.mock.calls[0][1])).toEqual({ id: '11', read: '1', opened: '1' });
+		expect(fields(beacon.mock.calls[1][1])).toEqual({ id: '22', read: '1', opened: '1' });
 	});
 });

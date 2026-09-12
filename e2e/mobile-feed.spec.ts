@@ -11,7 +11,7 @@ test('compact controls keep the feed reachable and preserve keyboard multi-selec
 	await page.getByLabel('Password').fill('correct-horse-battery');
 	await page.getByRole('button', { name: 'Create account' }).click();
 	await page.waitForURL('**/');
-	d1Query(`INSERT INTO item_reads(user_id,item_id,read_at) SELECT u.id,i.id,100 FROM users u CROSS JOIN items i WHERE i.source IN ('apple','meta-ai','cloudflare-blog')`);
+	d1Query(`INSERT INTO item_reads(user_id,item_id,read_at,opened_at) SELECT u.id,i.id,100,100 FROM users u CROSS JOIN items i WHERE i.source IN ('apple','meta-ai','cloudflare-blog')`);
 	await page.goto('/');
 	const first = page.locator('[data-feed-list] [data-feed-row]').first();
 	expect((await first.boundingBox())!.y).toBeLessThan(520);

@@ -682,6 +682,7 @@ describe('enhance-forms — retry resets the status slot to loading (#251)', () 
 describe('Recently viewed reconciliation (#381)', () => {
 	function recent(active: boolean, sortTime = 20, id = 7) {
 		const controls = readRow('0');
+		controls.row.insertAdjacentHTML('afterbegin', '<h2>Recent headline</h2>');
 		controls.row.dataset.activeFeed = String(active);
 		controls.row.dataset.sortTime = String(sortTime);
 		controls.row.dataset.itemId = String(id);
@@ -764,7 +765,9 @@ describe('Recently viewed reconciliation (#381)', () => {
 		expect(list.dataset.emptyMessage).toBe('All caught up for these sources.');
 		expect(list.querySelector('[data-feed-row]')).toBe(row);
 		await toggleRow(row);
-		expect(document.querySelector('[data-feed-empty]')!.textContent).toBe('All caught up for these sources.');
+		expect(list.dataset.emptyMessage).toBe('All caught up for these sources.');
+		expect(list.querySelector('[data-read-receipt]')!.textContent).toContain('Undo');
+		expect(list.querySelector('[data-feed-row]')).toBeNull();
 	});
 	it('ignores a completed write from a form replaced by tab/filter navigation', async () => {
 		const {row} = recent(true);
@@ -803,4 +806,52 @@ it('returns a row above the served boundary even when every previously loaded ro
 	dispatchSubmit(form, button); await flush();
 	expect(Array.from(list.children)).toEqual([row, sentinel]);
 	expect(list.dataset.feedRevision).toBe('1');
+});
+
+function swipeRow() {
+ const entry = readRow('1');
+ entry.row.dataset.swipeRead = '';
+ entry.row.insertAdjacentHTML('afterbegin','<h2>Test headline</h2>');
+ return entry;
+}
+const flushRead = async () => { await new Promise((resolve) => setTimeout(resolve,0)); };
+const undoForm = () => document.querySelector<HTMLFormElement>('[data-read-undo]')!;
+
+it('offers inline Undo, restores the exact row and counts, and keeps activity and cursor fixed', async () => {
+ const {row,form,button,list,working} = swipeRow();
+ list.insertAdjacentHTML('beforeend','<li data-feed-sentinel data-next-url="/feed?cursor=1000:2"></li>');
+ document.body.insertAdjacentHTML('afterbegin','<span data-tab-count="unread">2</span><span data-tab-count="read">0</span><section data-activity-briefing>3 posts</section>');
+ button.focus();dispatchSubmit(form);dispatchSubmit(form);await flushRead();
+ expect(fetchSpy).toHaveBeenCalledOnce();expect(row.isConnected).toBe(false);expect(list.isConnected).toBe(true);
+ const undo=undoForm();expect(undo.textContent).toContain('Undo');expect(undo.querySelector('button')!.getAttribute('aria-label')).toContain('Test headline');
+ expect(document.activeElement).toBe(undo.querySelector('button'));expect(list.querySelector('[data-feed-sentinel]')!.getAttribute('data-next-url')).toBe('/feed?cursor=1000:2');
+ expect(document.querySelector('[data-tab-count="unread"]')!.textContent).toBe('1');
+ dispatchSubmit(undo);await flushRead();
+ expect(list.firstElementChild).toBe(row);expect(button.disabled).toBe(false);expect(working.hidden).toBe(true);expect(document.activeElement).toBe(button);
+ expect(undo.isConnected).toBe(false);expect(document.querySelector('[data-tab-count="unread"]')!.textContent).toBe('2');expect(list.dataset.feedRevision).toBe('2');
+ expect(document.querySelector('[data-activity-briefing]')!.textContent).toBe('3 posts');
+});
+it('keeps a last-row receipt, recovers an Undo failure inline and allows retry without stealing focus', async () => {
+ const {row,form,list} = swipeRow();dispatchSubmit(form);await flushRead();
+ expect(list.isConnected).toBe(true);expect(document.querySelector('[data-feed-empty]')!.textContent).toContain('All caught up');
+ const undo=undoForm();fetchImpl=()=>Promise.reject(new Error('offline'));dispatchSubmit(undo);await flushRead();
+ expect(undo.querySelector('[role="alert"]')!.textContent).toContain('Couldn’t save');expect(undo.querySelector('button')!.disabled).toBe(false);expect(row.isConnected).toBe(false);
+ fetchImpl=()=>Promise.resolve({ok:true,status:200});dispatchSubmit(undo);await flushRead();expect(row.isConnected).toBe(true);
+});
+it('replaces the previous completed receipt but retains an Undo that is still saving', async () => {
+ const a=swipeRow();const b=swipeRow();a.list.append(b.row);b.list.remove();
+ dispatchSubmit(a.form);await flushRead();const first=undoForm();
+ let resolve!: (r:FakeResponse)=>void; fetchImpl=()=>new Promise(r=>{resolve=r;});dispatchSubmit(first);
+ fetchImpl=()=>Promise.resolve({ok:true,status:200});dispatchSubmit(b.form);await flushRead();
+ expect(document.querySelectorAll('[data-read-receipt]')).toHaveLength(2);
+ resolve({ok:true,status:200});await flushRead();expect(a.row.isConnected).toBe(true);
+ dispatchSubmit(a.form);await flushRead();expect(document.querySelectorAll('[data-read-receipt]')).toHaveLength(1);
+});
+
+it('recovers browser-blurred keyboard focus without stealing a deliberate move elsewhere', async () => {
+ const {form,button} = swipeRow();button.focus();
+ let done!: (r:FakeResponse)=>void;fetchImpl=()=>new Promise(r=>{done=r;});dispatchSubmit(form);button.blur();
+ done({ok:true,status:200});await flushRead();const undo=undoForm();expect(document.activeElement).toBe(undo.querySelector('button'));
+ fetchImpl=()=>Promise.reject(new Error('offline'));dispatchSubmit(undo);(undo.querySelector('button')!).blur();await flushRead();expect(document.activeElement).toBe(undo.querySelector('button'));
+ fetchImpl=()=>new Promise(r=>{done=r;});dispatchSubmit(undo);const other=document.createElement('button');document.body.append(other);other.focus();done({ok:true,status:200});await flushRead();expect(document.activeElement).toBe(other);
 });

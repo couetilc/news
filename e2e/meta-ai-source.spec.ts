@@ -10,11 +10,11 @@ const URL = 'https://research.meta.ai/blog/introducing-muse-voice-transcribe';
 
 test.use({ viewport: { width: 390, height: 844 } });
 
-test.beforeEach(() => {
+test.beforeEach(({baseURL}) => {
 	d1Query(`DELETE FROM items WHERE guid IN ('${GUID}', '${GUID}-other')`);
 	d1Query(`INSERT INTO items (source, guid, url, title, fetched_at) VALUES
 		('meta-ai', '${GUID}', '${URL}', '${TITLE}', 4100000100),
-		('apple', '${GUID}-other', 'https://example.com/${GUID}', 'Other source fixture', 4100000099)`);
+		('apple', '${GUID}-other', '${baseURL}/status?source-fixture=other', 'Other source fixture', 4100000099)`);
 });
 
 test.afterEach(() => {
@@ -29,7 +29,9 @@ test('filters to Meta AI and links to the official model announcement', async ({
 	await page.waitForURL('**/');
 	await page.screenshot({ path: testInfo.outputPath('meta-ai-source.png'), fullPage: true });
 	const other = page.locator('[data-feed-list] li[data-feed-row]').filter({ hasText: 'Other source fixture' });
-	await other.getByRole('button', { name: 'Mark as read', exact: true }).click();
+	await other.getByRole('link', { name: 'Other source fixture' }).click();
+	await page.waitForURL('**/status?source-fixture=other');
+	await page.goto('/');
 	await expect(other).toHaveCount(0);
 
 	await page.locator('.source-filter summary').click();

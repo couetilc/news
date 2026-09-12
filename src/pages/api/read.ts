@@ -36,7 +36,7 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
 		log.info('read.reject', { userId, read: readAt !== null });
 		return redirect(target, 303);
 	}
-	await setItemRead(env.NEWS_DB, userId, id, readAt);
+	await setItemRead(env.NEWS_DB, userId, id, readAt, form.get('opened') === '1');
 	// The only request-path mutation worth a log line; page views are too
 	// high-volume to log per-hit (see the cloudflare-observability skill).
 	log.info('read.toggle', { userId, id, read: readAt !== null });

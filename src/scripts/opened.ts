@@ -57,6 +57,7 @@ function onClick(event: MouseEvent): void {
 	const body = new FormData();
 	body.set('id', id);
 	body.set('read', '1');
+	body.set('opened', '1');
 	sendOpened(body);
 }
 

@@ -1,12 +1,14 @@
 ---
 import { env } from 'cloudflare:workers';
 import {
+	sourceActivity,
 	countItemsByRead,
 	distinctSources,
 	listItems,
 	listItemsByRead,
 	listRecentlyRead,
 } from '../ingest/db';
+import ActivityBriefing from '../components/ActivityBriefing.astro';
 import Article from '../components/Article.astro';
 import FeedPage from '../components/FeedPage.astro';
 import FeedTabs from '../components/FeedTabs.astro';
@@ -51,6 +53,7 @@ const publicItems = isAuthed ? [] : await listItems(env.NEWS_DB, 100);
 // Sources actually present drive the filter bar. The ?source param (repeatable
 // for multi-select) is intersected with them, so an unknown or absent slug just
 // drops out — an empty result means "All", never a 500.
+const activity = isAuthed ? await sourceActivity(env.NEWS_DB, Math.floor(Date.now() / 1000)) : [];
 const present = isAuthed ? await distinctSources(env.NEWS_DB) : [];
 const active = activeSourceFilter(Astro.url.searchParams.getAll('source'), present);
 
@@ -95,7 +98,7 @@ const items = isAuthed
 
 // The "Recently viewed" lane (#334): this user's few most recently opened
 // items, rendered above the unread list. Opening an article marks it read (the
-// opened.ts beacon → /api/read), so this is simply the newest item_reads rows.
+// opened.ts beacon → /api/read), with a separate opened timestamp; swipes do not displace this history.
 // Deliberately UNFILTERED by ?source (a short global "where was I?" rail, not a
 // section of the tabbed feed) and UNREAD-TAB ONLY — the issue's contract is a
 // lane preceding the *unread* list, and on the Read tab every lane row would be
@@ -139,6 +142,7 @@ const emptyCopy = emptyMessage(tab, active.length > 0);
 					</p>
 				) : (
 					<div class="mx-auto max-w-2xl">
+						<ActivityBriefing activity={activity} />
 						<FilterBar sources={present} active={active} tab={tab} />
 						{/* Recently viewed (#334): the ~3 most recently opened items, above
 						    the unread list (Unread tab only — `recent` is [] on the Read tab
