@@ -26,18 +26,29 @@ function seed(baseURL: string) {
 test.use({ viewport:{width:390,height:844}, hasTouch:true, isMobile:true });
 
 test('touch swipe and Undo preserve activity, filters and read history across router swaps', async ({page,baseURL}) => {
- seed(baseURL!);await signup(page);
+ seed(baseURL!);
+ d1Query(`INSERT INTO items(source,guid,url,title,published_at,fetched_at) VALUES
+ ('cloudflare-blog','old-cf','https://example.com/old-cf','Earlier Cloudflare update',1,1),
+ ('apple','old-apple','https://example.com/old-apple','Earlier Apple update',1,1)`);
+ await signup(page);
  const briefing=page.locator('[data-activity-briefing]');await expect(briefing).toContainText('3 posts');const activity=await briefing.textContent();
+ const filters=page.locator('.source-filter nav a');
+ const rankedSources=['All','Meta AI','Anthropic','Apple','Cloudflare Blog'];
+ await expect(filters).toHaveText(rankedSources);
+ await expect(briefing.locator('[title]')).toHaveText(['Meta AI: 2','Anthropic: 1']);
  await page.locator('.source-filter > summary').click();await page.getByRole('link',{name:'Meta AI',exact:true}).click();
  await expect(page).toHaveURL(/source=meta-ai/);await expect(briefing).toHaveText(activity!);
+ await expect(filters).toHaveText(rankedSources);
  const row='[data-feed-list] [data-feed-row]:has-text("Second recent story")';
  await drag(page,row,-110);await expect(page.locator(row)).toHaveCount(0);
  await expect(page.locator('[data-tab-count="unread"]')).toHaveText('3');await expect(briefing).toHaveText(activity!);
  await expect(page.getByRole('button',{name:'Undo marking Second recent story as read'})).toBeVisible();
  await page.getByRole('button',{name:'Undo marking Second recent story as read'}).click();await expect(page.locator(row)).toBeVisible();
  await expect(page.locator('[data-tab-count="unread"]')).toHaveText('4');await expect(briefing).toHaveText(activity!);
+ await expect(filters).toHaveText(rankedSources);
  await drag(page,row,-110);await expect(page.locator(row)).toHaveCount(0);await page.reload();
  await expect(page.locator('[data-recently-viewed]')).toHaveCount(0);await expect(briefing).toHaveText(activity!);
+ await expect(filters).toHaveText(rankedSources);
  await page.getByRole('link',{name:'Third recent story',exact:true}).click();await page.waitForURL('**/status?article=c');
  await page.goto('/?source=meta-ai');await expect(page.locator('[data-recently-viewed]')).toContainText('Third recent story');
  await expect(page.locator('[data-recently-viewed]')).not.toContainText('Second recent story');

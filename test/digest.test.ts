@@ -4,6 +4,7 @@ import {
 	emptyMessage,
 	feedReturnTo,
 	orderSourcesByName,
+	orderSourcesByActivity,
 	showRecentlyViewed,
 } from '../src/lib/digest';
 
@@ -42,6 +43,23 @@ describe('orderSourcesByName', () => {
 		const slugs = ['ti', 'aws'];
 		orderSourcesByName(slugs);
 		expect(slugs).toEqual(['ti', 'aws']);
+	});
+});
+
+describe('orderSourcesByActivity', () => {
+	it('ranks by publication count, with alphabetical ties and inactive sources last', () => {
+		const slugs = ['ti', 'meta-ai', 'cloudflare-blog', 'anthropic', 'apple', 'aws'];
+		const activity = [{ source: 'ti', count: 1 }, { source: 'anthropic', count: 1 }, { source: 'meta-ai', count: 3 }];
+		expect(orderSourcesByActivity(slugs, activity)).toEqual([
+			'meta-ai', 'anthropic', 'ti', 'apple', 'aws', 'cloudflare-blog',
+		]);
+		expect(slugs).toEqual(['ti', 'meta-ai', 'cloudflare-blog', 'anthropic', 'apple', 'aws']);
+		expect(activity).toEqual([{ source: 'ti', count: 1 }, { source: 'anthropic', count: 1 }, { source: 'meta-ai', count: 3 }]);
+	});
+
+	it('keeps the whole list alphabetical when there are no recent publications', () => {
+		expect(orderSourcesByActivity(['ti', 'aws', 'zzz-unknown'], [])).toEqual(['aws', 'ti', 'zzz-unknown']);
+		expect(orderSourcesByActivity([], [{ source: 'meta-ai', count: 3 }])).toEqual([]);
 	});
 });
 

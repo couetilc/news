@@ -54,6 +54,9 @@ show marks and counts with screen-reader source names, using the full Sources
 list as the visible legend. Its rolling publication counts are global and
 independent of read state and source filters; exclude unknown/future dates and
 keep the counts unchanged during read/Undo actions. No delayed-updates notice.
+Rank briefing sources and the front of the Sources list by descending 24-hour
+publication count, breaking ties alphabetically. Keep All first in the filter
+list and the remaining sources alphabetical.
 `src/lib/sources.ts` assigns classes; `test/source-meta.test.ts` checks registry
 and CSS consistency. Hue represents the beat, shape a meaningful sub-beat,
 fill a source within it, and the name is the exact identity. Preserve existing

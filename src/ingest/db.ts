@@ -1,6 +1,6 @@
 import type { FeedCursor } from '../lib/pagination';
 import type { FeedConfig, ParsedItem } from './types';
-import { orderSourcesByName } from '../lib/digest';
+import { orderSourcesByActivity, orderSourcesByName } from '../lib/digest';
 import { sectionWhere, sourceWhere } from './queries';
 
 // A row of the feeds state table (see migrations/0001_init.sql).
@@ -274,6 +274,6 @@ export async function sourceActivity(db: D1Database, now: number): Promise<Sourc
 	const { results } = await db.prepare(`SELECT source, COUNT(*) AS count FROM items
 		WHERE published_at >= ? AND published_at <= ? GROUP BY source`)
 		.bind(now - 86400, now).all<SourceActivity>();
-	const order = orderSourcesByName(results.map((entry) => entry.source));
+	const order = orderSourcesByActivity(results.map((entry) => entry.source), results);
 	return results.sort((a, b) => order.indexOf(a.source) - order.indexOf(b.source));
 }

@@ -3,7 +3,7 @@ import { sourceMeta } from '../lib/sources';
 import type { Tab } from '../lib/pagination';
 
 interface Props {
-	// Source slugs present in the feed, already ordered (see distinctSources).
+	// Source slugs present in the feed, already ranked by publication activity.
 	sources: string[];
 	// The slugs currently filtering the feed; empty means "All".
 	active: string[];

@@ -74,6 +74,7 @@ const render = async (url = 'https://news.test/', userId: number = USER) => {
 
 describe('index page', () => {
 	beforeEach(() => {
+		vi.mocked(sourceActivity).mockResolvedValue([]);
 		// The authed page always queries the Recently viewed lane (#334); default it
 		// empty (lane self-erases) so every pre-lane test renders unchanged. Tests
 		// about the lane override this with rows.
@@ -81,6 +82,7 @@ describe('index page', () => {
 	});
 
 	afterEach(() => {
+		vi.mocked(sourceActivity).mockReset();
 		vi.mocked(listItems).mockReset();
 		vi.mocked(listItemsByRead).mockReset();
 		vi.mocked(countItemsByRead).mockReset();
@@ -621,6 +623,19 @@ describe('index page', () => {
 			const open = html.indexOf('<nav aria-label="Filter by source"');
 			return html.slice(open, html.indexOf('</nav>', open));
 		};
+
+		it.each(['', '?tab=read&source=apple'])('puts briefing sources first without changing the selection: %s', async (query) => {
+			vi.mocked(distinctSources).mockResolvedValue(['anthropic', 'apple', 'cloudflare-blog', 'meta-ai']);
+			vi.mocked(sourceActivity).mockResolvedValue([
+				{ source: 'meta-ai', count: 3 }, { source: 'anthropic', count: 1 },
+			]);
+			feed({});
+			const nav = filterNav(await render(`https://news.test/${query}`));
+			const names = [...nav.matchAll(/<a\b[^>]*>([\s\S]*?)<\/a>/g)]
+				.map((match) => match[1].replace(/<[^>]*>/g, '').trim());
+			expect(names).toEqual(['All', 'Meta AI', 'Anthropic', 'Apple', 'Cloudflare Blog']);
+			expect(vi.mocked(listItemsByRead).mock.calls[0][1].sources).toEqual(query ? ['apple'] : []);
+		});
 
 		it('source chips carry the active ?tab=read so filtering keeps the Read tab (#217)', async () => {
 			vi.mocked(distinctSources).mockResolvedValue(['cloudflare-blog', 'ieee-spectrum']);

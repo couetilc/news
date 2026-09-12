@@ -678,10 +678,11 @@ describe('Anthropic direct-listing transition', () => {
 describe('24-hour publication activity', () => {
 	it('counts all states by publication time, includes boundaries and excludes backfill, unknown and future dates', async () => {
 		const now = 200000;
-		await insertItems(db, 'anthropic', [item({ guid: 'a', publishedAt: now }), item({ guid: 'b', publishedAt: now - 86400 })], now);
-		await insertItems(db, 'meta-ai', [item({ guid: 'c', publishedAt: now - 1 })], now);
+		await insertItems(db, 'meta-ai', [item({ guid: 'a', publishedAt: now }), item({ guid: 'b', publishedAt: now - 86400 })], now);
+		await insertItems(db, 'anthropic', [item({ guid: 'c', publishedAt: now - 1 })], now);
+		await insertItems(db, 'inception-labs', [item({ guid: 'd', publishedAt: now - 1 })], now);
 		await insertItems(db, 'cloudflare-blog', [item({ guid: 'old', publishedAt: now - 86401 }), item({ guid: 'unknown', publishedAt: null }), item({ guid: 'future', publishedAt: now + 1 })], now);
-		const expected = [{ source: 'anthropic', count: 2 }, { source: 'meta-ai', count: 1 }];
+		const expected = [{ source: 'meta-ai', count: 2 }, { source: 'anthropic', count: 1 }, { source: 'inception-labs', count: 1 }];
 		expect(await sourceActivity(db, now)).toEqual(expected);
 		for (const row of await listItems(db, 20)) await setItemRead(db, USER, row.id, now);
 		expect(await sourceActivity(db, now)).toEqual(expected);
