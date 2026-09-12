@@ -6,7 +6,7 @@ import Article from './Article.astro';
 // rendered above the unread list (the homepage passes items only on the Unread
 // tab — on the Read tab every lane row would duplicate the history below it).
 // Opening an article marks it read (the opened.ts beacon), so the rows here are
-// the newest item_reads rows (listRecentlyRead) — a short "where was I?" rail
+// item_reads rows ordered by opened_at (listRecentlyRead) — a short "where was I?" rail
 // in the briefing-column voice: a small-caps divider label flanked by hairline
 // rules (the section-divider idiom), then ordinary Article rows. Each row
 // arrives read, so it renders dimmed with the filled square — un-reading from

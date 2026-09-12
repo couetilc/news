@@ -59,7 +59,8 @@
  *   fill  = source within the beat, preserving all learned assignments;
  *           quarter/cross extend the growing AI desk. New aggregates use hatch,
  *           alongside NVIDIA/Cisco's existing hatch assignments;
- *   name  = exact identity, always printed beside the mark.
+ *   name  = exact identity, printed beside the mark except in the compact
+ *           activity briefing, which supplies screen-reader names.
  * Any two sources differ in hue (different beat) or in an ink-pattern channel
  * that survives grayscale (same beat) — the old 21-hue-only encoding did
  * neither. Fill patterns are drawn with gradients, no images; 10px (up from
@@ -190,4 +191,27 @@
 	 * The read-row dimming (opacity-55) and the lane replace both cues, so no
 	 * per-device :visited echo remains.
 	 */
+}
+
+/* Swipe left to read: preserve vertical pan and pinch zoom. The paper moves
+   only on the active gesture; the static button remains the accessible path. */
+[data-feed-list] [data-swipe-read] {
+	touch-action: pan-y pinch-zoom;
+	position: relative;
+}
+[data-swiping] { overflow: clip; }
+[data-swiping] > * { transform: translateX(var(--swipe-x)); }
+[data-swiping]::after {
+	content: 'Mark read';
+	position: absolute;
+	right: 0;
+	top: 50%;
+	font: 0.65rem var(--font-sans);
+	text-transform: uppercase;
+	color: var(--color-muted);
+	pointer-events: none;
+}
+[data-swiping='ready']::after { color: var(--color-accent); }
+@media (prefers-reduced-motion: reduce) {
+	[data-swiping] > * { transform: none; opacity: 0.4; }
 }

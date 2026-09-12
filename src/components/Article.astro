@@ -43,6 +43,7 @@ const Headline = isArticleUrl(item.url) ? 'a' : 'div';
 <li
 	class={row}
 	transition:name={`item-${item.id}`}
+	data-swipe-read={interactive && !isRead ? '' : undefined}
 	data-feed-row
 	data-item-id={item.id}
 	data-sort-time={seconds}
@@ -141,6 +142,7 @@ const Headline = isArticleUrl(item.url) ? 'a' : 'div';
    e2e/async-feedback.spec.ts). */}
 <script>
 	import '../scripts/enhance-forms';
+	import '../scripts/swipe-read';
 </script>
 
 {/* Mark-read-on-open beacon (#334), progressive: opening an article from the

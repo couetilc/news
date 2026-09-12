@@ -1,0 +1,16 @@
+---
+import type { SourceActivity } from '../ingest/db';
+import { sourceMeta } from '../lib/sources';
+interface Props { activity: SourceActivity[] }
+const { activity } = Astro.props;
+const total = activity.reduce((sum, entry) => sum + entry.count, 0);
+---
+<section aria-label="Publications in the last 24 hours" data-activity-briefing class="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-rule py-3 font-sans text-xs text-muted">
+	<span class="text-[0.65rem] uppercase tracking-wider">Last 24h <span class="sr-only">across all sources:</span> · {total} {total === 1 ? 'post' : 'posts'}</span>
+	{activity.map(({source, count}) => (
+		<span class="inline-flex items-center gap-1.5" title={sourceMeta(source).name}>
+			<span class={`mark ${sourceMeta(source).mark}`} aria-hidden="true" />
+			<span class="sr-only">{sourceMeta(source).name}: </span><span>{count}</span>
+		</span>
+	))}
+</section>

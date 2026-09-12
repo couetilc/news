@@ -190,15 +190,8 @@ export async function countItemsByRead(
 	return n as number;
 }
 
-// The reader's most recently opened items (#334): the `limit` newest item_reads
-// rows for ONE user by read_at, joined back to items. Feeds the "Recently
-// viewed" lane the homepage renders above the unread list — opening an article
-// marks it read (the click beacon POSTs /api/read), so "recently viewed" IS
-// "most recently read". The INNER JOIN sources every row from items, so a
-// legacy/orphan item_reads row for a deleted item can never render. read_at is
-// selected from the join row (per-user state, same shape listItemsByRead
-// returns), and item_id DESC breaks a same-second tie deterministically in
-// favor of the newer item.
+// Recently viewed tracks actual headline opens. Manual read actions do not
+// displace that history; removing read state also removes the recent entry.
 export async function listRecentlyRead(
 	db: D1Database,
 	userId: number,
@@ -210,8 +203,8 @@ export async function listRecentlyRead(
 			        i.published_at, i.fetched_at, r.read_at AS read_at
 			 FROM item_reads r
 			 JOIN items i ON i.id = r.item_id
-			 WHERE r.user_id = ?
-			 ORDER BY r.read_at DESC, r.item_id DESC
+			 WHERE r.user_id = ? AND r.opened_at IS NOT NULL
+			 ORDER BY r.opened_at DESC, r.item_id DESC
 			 LIMIT ?`,
 		)
 		.bind(userId, limit)
@@ -251,6 +244,7 @@ export async function setItemRead(
 	userId: number,
 	id: number,
 	readAt: number | null,
+	opened = false,
 ): Promise<void> {
 	if (readAt === null) {
 		await db
@@ -261,10 +255,25 @@ export async function setItemRead(
 	}
 	await db
 		.prepare(
-			`INSERT INTO item_reads (user_id, item_id, read_at)
-			 SELECT ?, id, ? FROM items WHERE id = ?
-			 ON CONFLICT(user_id, item_id) DO UPDATE SET read_at = excluded.read_at`,
+			`INSERT INTO item_reads (user_id, item_id, read_at, opened_at)
+			 SELECT ?, id, ?, ? FROM items WHERE id = ?
+			 ON CONFLICT(user_id, item_id) DO UPDATE SET read_at = excluded.read_at,
+			 opened_at = COALESCE(excluded.opened_at, item_reads.opened_at)`,
 		)
-		.bind(userId, readAt, id)
+		.bind(userId, readAt, opened ? readAt : null, id)
 		.run();
+}
+
+
+export interface SourceActivity { source: string; count: number }
+
+// Publication activity is global and independent of the owner's read state or
+// selected filters. Unknown dates and future-dated posts are not publications
+// in this window. The existing items_by_time index bounds the query.
+export async function sourceActivity(db: D1Database, now: number): Promise<SourceActivity[]> {
+	const { results } = await db.prepare(`SELECT source, COUNT(*) AS count FROM items
+		WHERE published_at >= ? AND published_at <= ? GROUP BY source`)
+		.bind(now - 86400, now).all<SourceActivity>();
+	const order = orderSourcesByName(results.map((entry) => entry.source));
+	return results.sort((a, b) => order.indexOf(a.source) - order.indexOf(b.source));
 }

@@ -147,7 +147,8 @@ function removeRow(form: HTMLFormElement): void {
 		empty.setAttribute('data-feed-empty', '');
 		empty.className = 'py-16 text-center text-lg italic text-muted';
 		empty.textContent = list.dataset.emptyMessage ?? '';
-		list.replaceWith(empty);
+		if (list.querySelector('[data-read-receipt]')) list.parentNode!.insertBefore(empty, list.nextSibling);
+		else list.replaceWith(empty);
 	}
 }
 
@@ -190,6 +191,7 @@ function returnRecentRow(form: HTMLFormElement, lane: HTMLElement): void {
 	}
 
 	row.dataset.readState = 'unread';
+	row.dataset.swipeRead = '';
 	form.querySelector<HTMLInputElement>('[name="read"]')!.value = '1';
 	const button = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
 	button.setAttribute('aria-label', 'Mark as read');
@@ -197,7 +199,64 @@ function returnRecentRow(form: HTMLFormElement, lane: HTMLElement): void {
 	const working = form.querySelector<HTMLElement>('[data-read-working]')!;
 	working.hidden = true;
 	working.setAttribute('aria-hidden', 'true');
+	document.querySelector('[data-feed-empty]')?.remove();
 	list.insertBefore(row, nextRow ?? sentinel);
+}
+
+// Keep the latest completed read action undoable beside the dismissed row.
+// Pending Undo writes retain their receipt even if another read completes.
+const undoRows = new WeakMap<HTMLFormElement, HTMLElement>();
+const pendingForms = new WeakSet<HTMLFormElement>();
+
+function offerReadUndo(form: HTMLFormElement, focus: boolean): void {
+	const row = form.closest<HTMLElement>('[data-feed-row]');
+	const list = row?.closest<HTMLElement>('[data-feed-list]');
+	if (!row || !list || !row.hasAttribute('data-swipe-read')) return;
+	for (const old of list.querySelectorAll<HTMLElement>('[data-read-receipt]')) {
+		if (!old.querySelector('button:disabled')) old.remove();
+	}
+	const receipt = document.createElement('li');
+	receipt.dataset.readReceipt = '';
+	receipt.className = 'flex items-center justify-between gap-3 border-b border-rule py-1 font-sans text-xs text-muted';
+	const message = document.createElement('span');
+	message.setAttribute('role', 'status');
+	message.textContent = 'Marked as read.';
+	const undo = form.cloneNode(true) as HTMLFormElement;
+	undo.className = 'flex items-center gap-2';
+	undo.dataset.readUndo = '';
+	undo.querySelector<HTMLInputElement>('[name="read"]')!.value = '0';
+	const button = undo.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+	button.className = 'min-h-11 cursor-pointer px-2 underline underline-offset-2 hover:text-accent focus-visible:outline-2 focus-visible:outline-ink';
+	button.textContent = 'Undo';
+	button.setAttribute('aria-label', `Undo marking ${row.querySelector('h2')!.textContent!.trim()} as read`);
+	restoreButton(button);
+	undo.querySelector<HTMLElement>('[data-read-working]')!.hidden = true;
+	undoRows.set(undo, row);
+	receipt.appendChild(message);
+	receipt.appendChild(undo);
+	list.insertBefore(receipt, row);
+	// Transfer keyboard focus only when the removed row owned it. Swipes do
+	// not move focus or scroll back up to a distant page-level notification.
+	if (focus) button.focus({ preventScroll: true });
+}
+
+function restoreUndoRow(form: HTMLFormElement, row: HTMLElement, focus: boolean): void {
+	const receipt = form.closest<HTMLElement>('[data-read-receipt]')!;
+	const button = row.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+	restoreButton(button);
+	const working = row.querySelector<HTMLElement>('[data-read-working]')!;
+	working.hidden = true;
+	working.setAttribute('aria-hidden', 'true');
+	receipt.replaceWith(row);
+	document.querySelector('[data-feed-empty]')?.remove();
+	if (focus) button.focus({ preventScroll: true });
+	retallyTabs(false);
+}
+
+// Disabling a focused button blurs it in Chromium. Remember its ownership,
+// but do not reclaim focus after the reader has deliberately moved elsewhere.
+function mayRestoreFocus(form: HTMLFormElement, ownedFocus: boolean): boolean {
+	return ownedFocus && (form.querySelector('button[type="submit"]') === document.activeElement || document.activeElement === document.body);
 }
 
 // POST in place; a followed redirect away from the homepage means the session
@@ -205,6 +264,7 @@ function returnRecentRow(form: HTMLFormElement, lane: HTMLElement): void {
 async function submitReadForm(
 	form: HTMLFormElement,
 	button: HTMLButtonElement | null,
+	ownedFocus: boolean,
 ): Promise<void> {
 	const nowRead = new FormData(form).get('read') === '1';
 	try {
@@ -224,8 +284,11 @@ async function submitReadForm(
 		// Its response must not change the newly selected view.
 		if (!form.isConnected) return;
 		const lane = form.closest<HTMLElement>('[data-recently-viewed]');
-		if (lane) returnRecentRow(form, lane);
+		const undoRow = undoRows.get(form);
+		if (undoRow) restoreUndoRow(form, undoRow, mayRestoreFocus(form, ownedFocus));
+		else if (lane) returnRecentRow(form, lane);
 		else {
+			if (nowRead) offerReadUndo(form, mayRestoreFocus(form, ownedFocus));
 			removeRow(form);
 			retallyTabs(nowRead);
 		}
@@ -234,8 +297,13 @@ async function submitReadForm(
 		const list = document.querySelector<HTMLElement>('[data-feed-list]');
 		if (list) list.dataset.feedRevision = String(Number(list.dataset.feedRevision ?? 0) + 1);
 	} catch {
-		if (button) restoreButton(button);
+		if (button) {
+			restoreButton(button);
+			if (mayRestoreFocus(form, ownedFocus)) button.focus({ preventScroll: true });
+		}
 		showReadError(form);
+	} finally {
+		pendingForms.delete(form);
 	}
 }
 
@@ -271,11 +339,14 @@ function onSubmit(event: SubmitEvent): void {
 		// Take over the submit: no browser/ClientRouter navigation, so scroll stays
 		// put (#223). The no-JS path (this never runs) is the source of truth.
 		event.preventDefault();
+		if (pendingForms.has(form)) return;
+		pendingForms.add(form);
+		const ownedFocus = button !== null && button === document.activeElement;
 		revealWorking(form);
 		if (button) {
 			markButtonBusy(button);
 		}
-		void submitReadForm(form, button);
+		void submitReadForm(form, button, ownedFocus);
 		return;
 	}
 

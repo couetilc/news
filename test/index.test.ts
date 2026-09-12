@@ -2,6 +2,7 @@ import { testLocals } from './helpers/locals';
 import { experimental_AstroContainer as AstroContainer } from 'astro/container';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+	sourceActivity,
 	countItemsByRead,
 	distinctSources,
 	listItems,
@@ -11,6 +12,7 @@ import {
 import type { ItemRow } from '../src/ingest/db';
 
 vi.mock('../src/ingest/db', () => ({
+	sourceActivity: vi.fn().mockResolvedValue([]),
 	listItems: vi.fn(),
 	listItemsByRead: vi.fn(),
 	countItemsByRead: vi.fn(),

@@ -20,7 +20,7 @@ test('unrelated lane item leaves filtered tallies alone and removes empty histor
 		('openai','b','https://example.com/b','OpenAI two',20),
 		('cloudflare-blog','c','https://example.com/c','Other source',10)`);
 	await signUp(page);
-	d1Query(`INSERT INTO item_reads(user_id,item_id,read_at) SELECT u.id,i.id,100 FROM users u CROSS JOIN items i WHERE source='cloudflare-blog'`);
+	d1Query(`INSERT INTO item_reads(user_id,item_id,read_at,opened_at) SELECT u.id,i.id,100,100 FROM users u CROSS JOIN items i WHERE source='cloudflare-blog'`);
 	await page.goto('/?source=openai');
 	await expandRecent(page);
 	await page.locator('[data-recently-viewed]').getByRole('button', { name: 'Mark as unread' }).click();
@@ -33,7 +33,7 @@ test('matching lane item reappears in order, keeps pagination contiguous, and ca
 	const values = Array.from({ length: 55 }, (_, i) => `('openai','n${i}','https://example.com/n${i}','Story ${String(i).padStart(2, '0')}',${1000 - i})`).join(',');
 	d1Query(`INSERT INTO items(source,guid,url,title,fetched_at) VALUES ${values}`);
 	await signUp(page);
-	d1Query(`INSERT INTO item_reads(user_id,item_id,read_at) SELECT u.id,i.id,100 FROM users u CROSS JOIN items i WHERE guid='n3'`);
+	d1Query(`INSERT INTO item_reads(user_id,item_id,read_at,opened_at) SELECT u.id,i.id,100,100 FROM users u CROSS JOIN items i WHERE guid='n3'`);
 	await page.goto('/?source=openai');
 	await expandRecent(page);
 	await page.locator('[data-recently-viewed]').getByRole('button', { name: 'Mark as unread' }).click();
@@ -53,7 +53,7 @@ test('matching lane item reappears in order, keeps pagination contiguous, and ca
 test('unreading the only matching story replaces the caught-up state', async ({ page }) => {
 	d1Query(`INSERT INTO items(source,guid,url,title,fetched_at) VALUES ('openai','only','https://example.com/only','Only story',10)`);
 	await signUp(page);
-	d1Query(`INSERT INTO item_reads(user_id,item_id,read_at) SELECT u.id,i.id,100 FROM users u CROSS JOIN items i`);
+	d1Query(`INSERT INTO item_reads(user_id,item_id,read_at,opened_at) SELECT u.id,i.id,100,100 FROM users u CROSS JOIN items i`);
 	await page.goto('/?source=openai');
 	await expandRecent(page);
 	await expect(page.locator('[data-feed-empty]')).toBeVisible();

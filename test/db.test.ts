@@ -4,6 +4,7 @@ import { itemCursor } from '../src/lib/pagination';
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+	sourceActivity,
 	countItemsByRead,
 	distinctSources,
 	ensureFeedRows,
@@ -433,10 +434,10 @@ describe('listRecentlyRead (#334)', () => {
 		const ids = await seedIds(5);
 		// Read order (by read_at) is deliberately unrelated to feed/publish order:
 		// g3 first, then g0, g4, g1 — g2 never read.
-		await setItemRead(db, USER, ids.g3, 1000);
-		await setItemRead(db, USER, ids.g0, 2000);
-		await setItemRead(db, USER, ids.g4, 3000);
-		await setItemRead(db, USER, ids.g1, 4000);
+		await setItemRead(db, USER, ids.g3, 1000, true);
+		await setItemRead(db, USER, ids.g0, 2000, true);
+		await setItemRead(db, USER, ids.g4, 3000, true);
+		await setItemRead(db, USER, ids.g1, 4000, true);
 
 		const recent = await listRecentlyRead(db, USER, 3);
 		// The 3 newest by read_at, most recent first — g3 (oldest read) fell off,
@@ -449,11 +450,11 @@ describe('listRecentlyRead (#334)', () => {
 
 	it('re-reading an item bumps it to the front (read_at upsert)', async () => {
 		const ids = await seedIds(3);
-		await setItemRead(db, USER, ids.g0, 1000);
-		await setItemRead(db, USER, ids.g1, 2000);
+		await setItemRead(db, USER, ids.g0, 1000, true);
+		await setItemRead(db, USER, ids.g1, 2000, true);
 		// Re-opening g0 refreshes its read_at (ON CONFLICT upsert), so it outranks
 		// g1 — "recently viewed" tracks the LAST open, not the first.
-		await setItemRead(db, USER, ids.g0, 3000);
+		await setItemRead(db, USER, ids.g0, 3000, true);
 
 		const recent = await listRecentlyRead(db, USER, 3);
 		expect(recent.map((r) => r.guid)).toEqual(['g0', 'g1']);
@@ -461,8 +462,8 @@ describe('listRecentlyRead (#334)', () => {
 
 	it('breaks a same-second read_at tie by newest item id first', async () => {
 		const ids = await seedIds(2);
-		await setItemRead(db, USER, ids.g0, 5000);
-		await setItemRead(db, USER, ids.g1, 5000);
+		await setItemRead(db, USER, ids.g0, 5000, true);
+		await setItemRead(db, USER, ids.g1, 5000, true);
 		// g1 was inserted after g0, so it has the higher id and wins the tie.
 		expect((await listRecentlyRead(db, USER, 2)).map((r) => r.guid)).toEqual(['g1', 'g0']);
 	});
@@ -471,8 +472,8 @@ describe('listRecentlyRead (#334)', () => {
 		const USER_A = 1;
 		const USER_B = 2;
 		const ids = await seedIds(2);
-		await setItemRead(db, USER_A, ids.g0, 1000);
-		await setItemRead(db, USER_B, ids.g1, 9000);
+		await setItemRead(db, USER_A, ids.g0, 1000, true);
+		await setItemRead(db, USER_B, ids.g1, 9000, true);
 
 		expect((await listRecentlyRead(db, USER_A, 3)).map((r) => r.guid)).toEqual(['g0']);
 		expect((await listRecentlyRead(db, USER_B, 3)).map((r) => r.guid)).toEqual(['g1']);
@@ -487,7 +488,7 @@ describe('listRecentlyRead (#334)', () => {
 		// item_reads has no FK to items; a legacy orphan row (the item was deleted,
 		// e.g. by the #191 dedupe migration) must not render a ghost lane entry.
 		const ids = await seedIds(1);
-		await setItemRead(db, USER, ids.g0, 1000);
+		await setItemRead(db, USER, ids.g0, 1000, true);
 		await db
 			.prepare('INSERT INTO item_reads (user_id, item_id, read_at) VALUES (?, ?, ?)')
 			.bind(USER, 999999, 9000)
@@ -671,4 +672,46 @@ describe('Anthropic direct-listing transition', () => {
 			'https://www.anthropic.com/research/alignment-assessment-cybersecurity-incidents',
 		]);
 	});
+});
+
+
+describe('24-hour publication activity', () => {
+	it('counts all states by publication time, includes boundaries and excludes backfill, unknown and future dates', async () => {
+		const now = 200000;
+		await insertItems(db, 'anthropic', [item({ guid: 'a', publishedAt: now }), item({ guid: 'b', publishedAt: now - 86400 })], now);
+		await insertItems(db, 'meta-ai', [item({ guid: 'c', publishedAt: now - 1 })], now);
+		await insertItems(db, 'cloudflare-blog', [item({ guid: 'old', publishedAt: now - 86401 }), item({ guid: 'unknown', publishedAt: null }), item({ guid: 'future', publishedAt: now + 1 })], now);
+		const expected = [{ source: 'anthropic', count: 2 }, { source: 'meta-ai', count: 1 }];
+		expect(await sourceActivity(db, now)).toEqual(expected);
+		for (const row of await listItems(db, 20)) await setItemRead(db, USER, row.id, now);
+		expect(await sourceActivity(db, now)).toEqual(expected);
+		expect(await sourceActivity(db, now + 86401)).toEqual([{ source: 'cloudflare-blog', count: 1 }]);
+		expect(await sourceActivity(db, now + 172802)).toEqual([]);
+	});
+});
+
+
+it('swiping read does not enter or reorder Recently viewed; opening and undo still work', async () => {
+	await insertItems(db, 'anthropic', [item({ guid: 'a' }), item({ guid: 'b' })], 100);
+	const [a, b] = await listItems(db, 2);
+	await setItemRead(db, USER, a.id, 200, true);
+	await setItemRead(db, USER, b.id, 300);
+	expect((await listRecentlyRead(db, USER, 3)).map((i) => i.id)).toEqual([a.id]);
+	await setItemRead(db, USER, b.id, 400, true);
+	await setItemRead(db, USER, a.id, 500);
+	expect((await listRecentlyRead(db, USER, 3)).map((i) => i.id)).toEqual([b.id, a.id]);
+	await setItemRead(db, USER, b.id, null);
+	expect((await listRecentlyRead(db, USER, 3)).map((i) => i.id)).toEqual([a.id]);
+});
+
+
+it('preserves the existing Recently viewed history during the opened timestamp backfill', async () => {
+	await insertItems(db, 's', [item({})], 100);
+	const [row] = await listItems(db, 1);
+	await setItemRead(db, USER, row.id, 200);
+	const migration = env.TEST_MIGRATIONS.find(m => m.name === '0011_opened_articles.sql')!;
+	// The schema was applied to the fresh test database; run the shipped data
+	// backfill against a legacy read row with no opened timestamp.
+	await db.batch(migration.queries.filter(sql => !sql.includes('ALTER TABLE')).map(sql => db.prepare(sql)));
+	expect(await listRecentlyRead(db, USER, 3)).toEqual([{...row,read_at:200}]);
 });

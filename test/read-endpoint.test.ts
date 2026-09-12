@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { countItemsByRead, insertItems, listItems, listItemsByRead } from '../src/ingest/db';
+import { countItemsByRead, listRecentlyRead, insertItems, listItems, listItemsByRead } from '../src/ingest/db';
 import { POST } from '../src/pages/api/read';
 
 const db = env.NEWS_DB;
@@ -173,4 +173,15 @@ describe('POST /api/read', () => {
 			read: true,
 		});
 	});
+});
+
+
+it('adds only explicit headline opens to Recently viewed and removes them when unread', async () => {
+	const id = await seedItem();
+	await submit({id:String(id),read:'1'});
+	expect(await listRecentlyRead(db, USER, 3)).toEqual([]);
+	await submit({id:String(id),read:'1',opened:'1'});
+	expect((await listRecentlyRead(db, USER, 3)).map(i=>i.id)).toEqual([id]);
+	await submit({id:String(id),read:'0',opened:'1'});
+	expect(await listRecentlyRead(db, USER, 3)).toEqual([]);
 });
