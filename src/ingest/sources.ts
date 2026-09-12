@@ -1,3 +1,4 @@
+import { countAnthropic, parseAnthropic } from './parse/anthropic';
 import { fetchOwenomics } from './fetch/owenomics';
 import { AI_LAB_SOURCES } from './ai-lab-sources';
 import { parseInceptionBlog } from './parse/inception';
@@ -225,29 +226,19 @@ export const SOURCES: FeedConfig[] = [
 		parse: (xml) => parseAtom(xml, { content: 'content' }),
 		countRaw: countAtom,
 	},
-	// #22 — Anthropic has no official feed, so we read each section through the
-	// OpenRSS proxy. All three are RSS 2.0 with the full rendered article HTML in
-	// the <description> CDATA (no content:encoded), so `description` mode routes
-	// that body into contentHtml and leaves summary null — same path as IEEE
-	// Spectrum/Qualcomm. They share one `source: 'anthropic'`; run.ts isolates
-	// each feed, so an OpenRSS outage on one section never aborts the others.
-	// OpenRSS sends Cache-Control: max-age=32400 (9h) and each feed mirrors only
-	// the ~10-item landing page, so poll 3×/day (8h) — anything tighter just
-	// re-fetches the cached copy.
-	{
+	// Official listings replace the failing/stale OpenRSS news/research proxies
+	// (#403). Keep the existing eight-hour cadence and source identity. The
+	// August cutoff bounds initial backfill; canonical URL conflicts preserve
+	// existing IDs, full bodies and read history. New entries link out.
+	...['news', 'research'].map((section): FeedConfig => ({
 		source: 'anthropic',
-		feed: 'https://openrss.org/feed/www.anthropic.com/news',
+		feed: `https://www.anthropic.com/${section}`,
 		pollIntervalSeconds: 28800,
-		parse: (xml) => parseRss20(xml, { content: 'description' }),
-		countRaw: countRss20,
-	},
-	{
-		source: 'anthropic',
-		feed: 'https://openrss.org/feed/www.anthropic.com/research',
-		pollIntervalSeconds: 28800,
-		parse: (xml) => parseRss20(xml, { content: 'description' }),
-		countRaw: countRss20,
-	},
+		parse: parseAnthropic,
+		countRaw: countAnthropic,
+		keep: (item) => item.publishedAt !== null && item.publishedAt >= Date.UTC(2026, 7, 1) / 1000,
+	})),
+	// Engineering remains on the healthy full-content OpenRSS feed.
 	{
 		source: 'anthropic',
 		feed: 'https://openrss.org/feed/www.anthropic.com/engineering',
